@@ -49,7 +49,7 @@ def calc_pca(X):
     return explained, loadings, principal_components
 
 
-def calc_jerk(X, fsample):
+def calc_jerk(X, fsample=gl.fsample):
     # Ensure the positions and times are numpy arrays
     pos = np.array(X)
 
@@ -57,16 +57,28 @@ def calc_jerk(X, fsample):
     acc = np.gradient(vel, 1 / fsample, axis=0)
     jerk = np.gradient(acc, 1 / fsample, axis=0)
 
-    av_squared_jerk = np.square(jerk).mean()
+    av_squared_jerk = np.linalg.norm(jerk).mean()
 
     return av_squared_jerk
+
+
+def calc_init_dist(X, latency=.1, fsample=gl.fsample):
+    index = int(latency * fsample)
+    x = X[index]
+
+    L = x[-1] - x[0]
+    L_norm = L / np.linalg.norm(L)
+    x_norm = x / np.linalg.norm(x)
+
+    d = x_norm - L_norm
+
+    return d
 
 
 def preprocessing(experiment="efc2",
                   participant_id="subj100",
                   session="testing",
                   day="1"):
-
     path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
 
     sn = int(''.join([c for c in participant_id if c.isdigit()]))
@@ -74,7 +86,7 @@ def preprocessing(experiment="efc2",
     dat = pd.read_csv(os.path.join(path, f"{experiment}_{sn}.dat"), sep="\t")
 
     # Init lists
-    md, rt, explained, angle, jerk = [], [], [], [], []
+    md, rt, explained, angle, jerk, sine, d = [], [], [], [], [], [], []
 
     for bl in range(gl.nblocks):
 
@@ -95,7 +107,7 @@ def preprocessing(experiment="efc2",
             if bool(dat_tmp.iloc[tr].trialPoint) is True:
                 force = mov[tr][:, gl.diffCols]  # extract only differential forces
 
-                c = np.any(force > gl.fthresh, axis=1)
+                c = np.any(np.abs(force) > gl.fthresh, axis=1)
                 force = force[c][:int(-gl.hold_time * gl.fsample)]
 
                 # compute rt and md
@@ -113,23 +125,33 @@ def preprocessing(experiment="efc2",
                 pc1_norm = pc1 / np.linalg.norm(pc1)
                 proj = np.dot(pc1_norm, L_norm)
                 angle.append(np.arccos(proj))
+                sine.append(np.sin(np.arccos(proj)))
 
                 # compute squared jerk
-                jerk.append(calc_jerk(force, fsample=gl.fsample))
+                jerk.append(calc_jerk(force))
+
+                # compute diff at start
+                d.append(calc_init_dist(force))
 
             else:
                 md.append(None)
                 rt.append(None)
                 angle.append(None)
-                explained.append(None)
+                explained.append([None] * 5)
+                d.append([None] * 5)
+                sine.append(None)
                 jerk.append(None)
 
     df = dat[['BN', 'TN', 'subNum', 'chordID', 'trialPoint']].copy()
     df['MD'] = md
     df['RT'] = rt
     df['angle'] = angle
-    df['explained'] = explained
+    df['sine'] = sine
     df['jerk'] = jerk
+    for i in range(5):
+        df[f'PC{i}'] = np.array(explained)[:, i]
+    for i in range(5):
+        df[f'd{i}'] = np.array(d)[:, i]
 
     df.to_csv(os.path.join(path, f"{experiment}_{sn}.csv"))
 
