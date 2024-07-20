@@ -79,6 +79,7 @@ def preprocessing(experiment="efc2",
                   participant_id="subj100",
                   session="testing",
                   day="1"):
+
     path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
 
     sn = int(''.join([c for c in participant_id if c.isdigit()]))
@@ -86,7 +87,7 @@ def preprocessing(experiment="efc2",
     dat = pd.read_csv(os.path.join(path, f"{experiment}_{sn}.dat"), sep="\t")
 
     # Init lists
-    md, rt, explained, angle, jerk, sine, d = [], [], [], [], [], [], []
+    md, rt, explained, angle, jerk, sine, d, repetition = [], [], [], [], [], [], [], []
 
     for bl in range(gl.nblocks):
 
@@ -103,6 +104,16 @@ def preprocessing(experiment="efc2",
         dat_tmp = dat[dat.BN == bl + 1].reset_index()
 
         for tr in range(len(mov)):
+
+            if tr == 0:
+                rep = 1
+            else:
+                if dat_tmp.iloc[tr].chordID == dat_tmp.iloc[tr - 1].chordID:
+                    rep += 1
+                else:
+                    rep = 1
+
+            repetition.append(rep)
 
             if bool(dat_tmp.iloc[tr].trialPoint) is True:
                 force = mov[tr][:, gl.diffCols]  # extract only differential forces
@@ -141,6 +152,7 @@ def preprocessing(experiment="efc2",
                 d.append([None] * 5)
                 sine.append(None)
                 jerk.append(None)
+                # repetition.append(None)
 
     df = dat[['BN', 'TN', 'subNum', 'chordID', 'trialPoint']].copy()
     df['MD'] = md
@@ -148,12 +160,13 @@ def preprocessing(experiment="efc2",
     df['angle'] = angle
     df['sine'] = sine
     df['jerk'] = jerk
+    df['repetition'] = repetition
     for i in range(5):
         df[f'PC{i}'] = np.array(explained)[:, i]
     for i in range(5):
         df[f'd{i}'] = np.array(d)[:, i]
 
-    df.to_csv(os.path.join(path, f"{experiment}_{sn}.csv"))
+    # df.to_csv(os.path.join(path, f"{experiment}_{sn}.csv"))
 
     return df
 
@@ -175,6 +188,8 @@ if __name__ == "__main__":
                 'training']
     days = ['1', '2', '3', '4', '5']
 
+    df = pd.DataFrame()
+
     for participant_id in participants:
         for day in days:
             if day == '1' or day == '5':
@@ -182,7 +197,15 @@ if __name__ == "__main__":
             else:
                 session = 'training'
 
-            df = preprocessing(experiment=experiment,
-                               participant_id=participant_id,
-                               session=session,
-                               day=day)
+            df_tmp = preprocessing(experiment=experiment,
+                                   participant_id=participant_id,
+                                   session=session,
+                                   day=day)
+            df_tmp['session'] = session
+            df_tmp['participant_id'] = participant_id
+            df_tmp['day'] = day
+            df_tmp.loc[df_tmp['chordID'].isin(gl.trained), 'chord'] = 'trained'
+            df_tmp.loc[df_tmp['chordID'].isin(gl.untrained), 'chord'] = 'untrained'
+            df = pd.concat([df, df_tmp])
+
+    df.to_csv(os.path.join(gl.baseDir, experiment, 'results.csv'))
