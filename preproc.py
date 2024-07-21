@@ -62,7 +62,7 @@ def calc_jerk(X, fsample=gl.fsample):
     return av_squared_jerk
 
 
-def calc_init_dist(X, latency=.1, fsample=gl.fsample):
+def calc_dist(X, latency=.1, fsample=gl.fsample):
     index = int(latency * fsample)
     x = X[index]
 
@@ -75,98 +75,105 @@ def calc_init_dist(X, latency=.1, fsample=gl.fsample):
     return d
 
 
-def preprocessing(experiment="efc2",
-                  participant_id="subj100",
-                  session="testing",
-                  day="1"):
+def calc_metrics(mov, tr):
+    force = mov[tr][:, gl.diffCols]
+    c = np.any(np.abs(force) > gl.fthresh, axis=1)
+    force = force[c][:int(-gl.hold_time * gl.fsample)]
 
+    rt = np.argmax(c) / gl.fsample
+    md = calc_md(force)
+    exp, loadings, _ = calc_pca(force)
+
+    L = force[-1] - force[0]
+    L_norm = L / np.linalg.norm(L)
+    pc1 = loadings[0]
+    pc1_norm = pc1 / np.linalg.norm(pc1)
+    proj = np.dot(pc1_norm, L_norm)
+    angle = np.arccos(proj)
+    sine = np.sin(angle)
+    jerk = calc_jerk(force)
+    dist = calc_dist(force)
+
+    metrics = {
+        'RT': rt,
+        'MD': md,
+        'PC': exp,
+        'angle': angle,
+        'sine': sine,
+        'jerk': jerk,
+        'dist': dist
+    }
+
+    return metrics
+
+
+def preprocessing(experiment="efc2", participant_id="subj100", session="testing", day="1"):
+    # define path
     path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
 
+    # extract subject number
     sn = int(''.join([c for c in participant_id if c.isdigit()]))
 
+    # load dat file
     dat = pd.read_csv(os.path.join(path, f"{experiment}_{sn}.dat"), sep="\t")
 
-    # Init lists
-    md, rt, explained, angle, jerk, sine, d, repetition = [], [], [], [], [], [], [], []
+    # init dict
+    results = {
+        'MD': [], 'RT': [], 'PC': [], 'angle': [],
+        'jerk': [], 'sine': [], 'dist': [], 'repetition': []
+    }
 
     for bl in range(gl.nblocks):
-
-        block = '%02d' % int(bl + 1)
+        block = f'{bl + 1:02d}'
         print(f"experiment:{experiment}, "
               f"participant_id:{participant_id}, "
               f"session:{session}, "
               f"day:{day}, "
               f"block:{block}")
-
         filename = os.path.join(path, f'{experiment}_{sn}_{block}.mov')
-
         mov = load_mov_block(filename)
+
         dat_tmp = dat[dat.BN == bl + 1].reset_index()
+        rep = 1
 
-        for tr in range(len(mov)):
+        ntrial = len(mov)
 
-            if tr == 0:
+        for tr in range(ntrial):
+            if tr == 0 or dat_tmp.iloc[tr].chordID != dat_tmp.iloc[tr - 1].chordID:
                 rep = 1
             else:
-                if dat_tmp.iloc[tr].chordID == dat_tmp.iloc[tr - 1].chordID:
-                    rep += 1
-                else:
-                    rep = 1
+                rep += 1
+            results['repetition'].append(rep)
 
-            repetition.append(rep)
+            if dat_tmp.iloc[tr].trialPoint:
 
-            if bool(dat_tmp.iloc[tr].trialPoint) is True:
-                force = mov[tr][:, gl.diffCols]  # extract only differential forces
+                metrics = calc_metrics(mov, tr)
 
-                c = np.any(np.abs(force) > gl.fthresh, axis=1)
-                force = force[c][:int(-gl.hold_time * gl.fsample)]
-
-                # compute rt and md
-                rt.append(np.argmax(c) / gl.fsample)
-                md.append(calc_md(force))
-
-                # perform pca
-                exp, loadings, _ = calc_pca(force)
-                explained.append(exp)
-
-                # compute angle between pc1 and ideal trajectory
-                L = force[-1] - force[0]
-                L_norm = L / np.linalg.norm(L)
-                pc1 = loadings[0]
-                pc1_norm = pc1 / np.linalg.norm(pc1)
-                proj = np.dot(pc1_norm, L_norm)
-                angle.append(np.arccos(proj))
-                sine.append(np.sin(np.arccos(proj)))
-
-                # compute squared jerk
-                jerk.append(calc_jerk(force))
-
-                # compute diff at start
-                d.append(calc_init_dist(force))
+                results['RT'].append(metrics['RT'])
+                results['MD'].append(metrics['MD'])
+                results['PC'].append(metrics['PC'])
+                results['angle'].append(metrics['angle'])
+                results['sine'].append(metrics['sine'])
+                results['jerk'].append(metrics['jerk'])
+                results['dist'].append(metrics['dist'])
 
             else:
-                md.append(None)
-                rt.append(None)
-                angle.append(None)
-                explained.append([None] * 5)
-                d.append([None] * 5)
-                sine.append(None)
-                jerk.append(None)
-                # repetition.append(None)
+
+                results['RT'].append(None)
+                results['MD'].append(None)
+                results['PC'].append(None)
+                results['angle'].append(None)
+                results['sine'].append(None)
+                results['jerk'].append(None)
+                results['dist'].append(None)
 
     df = dat[['BN', 'TN', 'subNum', 'chordID', 'trialPoint']].copy()
-    df['MD'] = md
-    df['RT'] = rt
-    df['angle'] = angle
-    df['sine'] = sine
-    df['jerk'] = jerk
-    df['repetition'] = repetition
-    for i in range(5):
-        df[f'PC{i}'] = np.array(explained)[:, i]
-    for i in range(5):
-        df[f'd{i}'] = np.array(d)[:, i]
-
-    # df.to_csv(os.path.join(path, f"{experiment}_{sn}.csv"))
+    for key, values in results.items():
+        if key in ['PC', 'dist']:
+            for i in range(5):
+                df[f'{key}{i}'] = [val[i] if val is not None else None for val in values]
+        else:
+            df[key] = values
 
     return df
 
