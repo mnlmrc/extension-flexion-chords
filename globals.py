@@ -17,10 +17,28 @@ movCols = ['state', 'timeReal', 'time',
            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
 diffCols = [13, 14, 15, 16, 17]
 
-baseDir = [
-           "/Volumes/diedrichsen_data$/data/SequenceAndChord/ExtFlexChord"
-           ]
-for Dir in baseDir:
-    if Path(Dir).exists():
-        baseDir = Dir
-        break
+Dirs = ["/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChords",
+        "/Volumes/diedrichsen_data$/data/SequenceAndChord/ExtFlexChord"]
+
+baseDir = next((Dir for Dir in Dirs if Path(Dir).exists()), None)
+
+if baseDir:
+    print(f"Base directory found: {baseDir}")
+else:
+    print("No valid base directory found.")
+
+participants = {
+    'efc1': ['subj01',
+             'subj02',
+             'subj03',
+             'subj04',
+             'subj05',
+             'subj06',
+             'subj07',
+             'subj08',
+             'subj09',
+             'subj10']
+}
+
+natDir = 'natural'
+chordDir = 'chords'
