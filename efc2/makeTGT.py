@@ -6,7 +6,7 @@ import pandas as pd
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument('--subNum', default='101',
+    parser.add_argument('--subNum', default='108',
                         help='Participant ID (e.g., subj100, subj101, ...)')
     parser.add_argument('--session', default='testing', help='Atlas name')
 
@@ -16,7 +16,7 @@ if __name__ == "__main__":
     session = args.session
 
     if session == 'training':
-        chordIDs = np.array([29212, 92122, 91211, 22911])
+        chordIDs = np.array([21291, 12129, 12291, 19111])
         nChunks = 20  # number of chunks to repeat chords
         nDays = 4
     elif session == 'testing':

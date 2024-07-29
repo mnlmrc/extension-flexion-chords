@@ -28,16 +28,18 @@ else:
     print("No valid base directory found.")
 
 participants = {
-    'efc1': ['subj01',
-             'subj02',
-             'subj03',
-             'subj04',
-             'subj05',
-             'subj06',
-             'subj07',
-             'subj08',
-             'subj09',
-             'subj10']
+    'efc1': [
+        'subj01',
+        # 'subj02',
+        # 'subj03',
+        # 'subj04',
+        # 'subj05',
+        # 'subj06',
+        # 'subj07',
+        # 'subj08',
+        # 'subj09',
+        # 'subj10'
+    ]
 }
 
 natDir = 'natural'
