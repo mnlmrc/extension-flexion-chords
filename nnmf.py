@@ -71,7 +71,7 @@ def iterative_nnmf(X, thresh=0.1):
 
     """
 
-    err, W, H, r2, k = None, None, None, None, None
+    W, H, r2 = None, None, None
     for k in range(X.shape[1]):
         W, H = calc_nnmf(X, k + 1)
         Xhat = np.dot(W, H)
@@ -83,7 +83,7 @@ def iterative_nnmf(X, thresh=0.1):
         if 1 - r2 < thresh:
             break
 
-    return W, H, r2, err, k + 1
+    return W, H, r2,
 
 
 def calc_reconerr(W, Hp, M):

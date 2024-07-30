@@ -17,8 +17,8 @@ movCols = ['state', 'timeReal', 'time',
            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
 diffCols = [13, 14, 15, 16, 17]
 
-Dirs = ["/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChords",
-        "/Volumes/diedrichsen_data$/data/SequenceAndChord/ExtFlexChord"]
+Dirs = ["/Volumes/diedrichsen_data$/data/SequenceAndChord/ExtFlexChord",
+        "/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChords"]
 
 baseDir = next((Dir for Dir in Dirs if Path(Dir).exists()), None)
 
@@ -30,17 +30,30 @@ else:
 participants = {
     'efc1': [
         'subj01',
-        # 'subj02',
-        # 'subj03',
-        # 'subj04',
-        # 'subj05',
-        # 'subj06',
-        # 'subj07',
+        'subj02',
+        'subj03',
+        'subj04',
+        'subj05',
+        'subj06',
+        'subj07',
         # 'subj08',
         # 'subj09',
         # 'subj10'
+    ],
+    'efc2': [
+        'subj100',
+        # 'subj101',
+        # 'subj102',
+        # 'subj103',
+        # 'subj104',
+        # # 'subj105',
+        # 'subj106',
+        # 'subj107',
+
     ]
 }
 
 natDir = 'natural'
 chordDir = 'chords'
+
+days = ['1', '2', '3', '4', '5']

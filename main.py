@@ -11,89 +11,85 @@ import globals as gl
 import argcomplete
 import numpy as np
 
+from force import Force
 from nnmf import iterative_nnmf, optimize_H, calc_reconerr, assert_selected_rows_belong, get_emg_chords
+from variance_decomposition import reliability_var
 
 
-def main(what):
+def main(what, experiment, participant_id, varargin=None):
     match what:
-        case 'FORCE:mov2npz':
-            pass
+        case 'FORCE:preprocessing':
+
+            df = pd.DataFrame()
+            for p in participant_id:
+                for day in gl.days:
+                    if day == '1' or day == '5':
+                        session = 'testing'
+                    else:
+                        session = 'training'
+
+                    force = Force(experiment,
+                                  p,
+                                  session,
+                                  day)
+                    df_tmp = force.preprocessing()
+                    df = pd.concat([df, df_tmp])
+
+            df.to_csv(os.path.join(gl.baseDir, experiment, 'results.csv'))
+
+            return df
+
+        case 'FORCE:variance_decomposition':
+
+            group_cols = ['subNum', 'chord', 'day', 'chordID', 'BN', 'TN']
+            num_cols = [f'dist{i}' for i in range(5)]
+
+            df = pd.read_csv(os.path.join(gl.baseDir, experiment, 'results.csv'))
+            df = df[df['chord'] == 'trained']
+            df = df.groupby(group_cols)[num_cols].mean().reset_index()
+
+            v_g, v_gs, v_gse = [], [], []
+            for day in gl.days:
+                df_tmp = df[df['day'] == int(day)]
+                Y = df_tmp[num_cols].values
+                v_g_tmp, v_gs_tmp, v_gse_tmp = reliability_var(Y,
+                                                               df_tmp['subNum'],
+                                                               df_tmp['BN'],
+                                                               cond_vec=df_tmp['chordID'],
+                                                               centered=True)
+                v_g.append(v_g_tmp)
+                v_gs.append(v_gs_tmp)
+                v_gse.append(v_gse_tmp)
+
+            return np.array(v_g), np.array(v_gs), np.array(v_gse)
 
         case 'EMG:recon_chord2chord':
 
-            path = os.path.join(gl.baseDir, experiment, gl.chordDir)
+            pass
 
-            scaler = MinMaxScaler()
-
-            for p in participant_id:
-
-                M, chords = get_emg_chords(experiment, p)
-
-                W, H, r2, err, k = iterative_nnmf(M)
-
-                pass
-
-
-
-
-
-
-
-
-
-
-
+            # path = os.path.join(gl.baseDir, experiment, gl.chordDir)
+            #
+            # scaler = MinMaxScaler()
+            #
+            # for p in participant_id:
+            #     M, chords = get_emg_chords(experiment, p)
+            #     W, H, r2 = iterative_nnmf(M)
 
         case 'EMG:recon_chord2nat':
 
-            path = os.path.join(gl.baseDir, experiment, gl.natDir)
-
-            scaler = MinMaxScaler()
-
-            Hp_dict = {key: [] for key in participant_id}
-            H_nat_dict = {key: [] for key in participant_id}
-            reconerr_dict = {key: [] for key in participant_id}
-
-            for p in participant_id:
-
-                sn = int(''.join([c for c in p if c.isdigit()]))
-                filename = f'natChord_subj{"{:02}".format(sn)}_emg_natural_whole_sampled.mat'
-                mat = scipy.io.loadmat(os.path.join(path, filename))
-                emg_nat = [np.array(matrix[0]) for matrix in mat['emg_natural_dist']['dist'][0][0]]
-
-                M_chords = pd.read_csv(os.path.join(gl.baseDir, experiment, gl.chordDir, 'natChord_chord.tsv'), sep='\t')
-                M_chords = M_chords[M_chords['sn'] == sn]
-                chords = list(M_chords['chordID'])
-                M_chords = M_chords[[f'emg_hold_avg_e{e+1}' for e in range(5)] +
-                                                      [f'emg_hold_avg_f{f+1}' for f in range(5)]].to_numpy()
-                M_chords = scaler.fit_transform(M_chords)
-
-                for M_nat in emg_nat:
-
-                    M_nat = scaler.fit_transform(M_nat)
-                    W_nat, H_nat, r2_nat, _, _ = iterative_nnmf(M_nat)
-
-                    Hp = optimize_H(W_nat, M_nat, M_chords)
-
-                    assert_selected_rows_belong(M_chords, Hp)
-
-                    reconerr = calc_reconerr(W_nat, Hp, M_nat)
-
-                    Hp_dict[p].append(Hp)
-                    H_nat_dict[p].append(H_nat)
-                    reconerr_dict[p].append(reconerr)
-
-            return Hp_dict, H_nat_dict, reconerr_dict
+            pass
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('what', nargs='?', default=None, choices=[
+        'FORCE:preprocessing',
+        'FORCE:variance_decomposition',
         'EMG:recon_chord2nat',
         'EMG:recon_chord2chord',
     ])
-    parser.add_argument('--experiment', default='efc1', help='')
+    parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
 
     args = parser.parse_args()
@@ -105,7 +101,6 @@ if __name__ == "__main__":
     if participant_id is None:
         participant_id = gl.participants[experiment]
 
-    # pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
+    pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
 
-    Hp_dict, H_nat_dict, reconerr_dict = main(what)
-
+    main(what, experiment, participant_id)
