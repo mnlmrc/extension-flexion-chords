@@ -2,6 +2,8 @@ import pickle
 import warnings
 
 import numpy as np
+from matplotlib import pyplot as plt
+from scipy.signal import correlate
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
@@ -118,11 +120,22 @@ def load_mov(filename):
 
 def calc_xcorr(X):
 
-    for i in range(X.shape[0]):
-        for j in range(X.shape[0]):
-            xcorr = np.correlate(X[i], X[j])
+    tau = np.zeros((X.shape[1], X.shape[1]))
+    xcorr = np.zeros((X.shape[1], X.shape[1], X.shape[0] * 2 - 1))
+    for i in range(X.shape[1]):
+        for j in range(X.shape[1]):
+            a = X[:, i]
+            v = X[:, j]
 
-            pass
+            norm = np.std(a) * np.std(v) * len(a)
+
+            xcorr_tmp = np.correlate(a - a.mean(), v - v.mean(), mode='full') / norm  # this is to map xcorr between -1 and 1
+            xcorr[i, j] = xcorr_tmp
+
+            lags = np.arange(-len(a) + 1, len(a)) / gl.fsample
+            tau[i, j] = lags[np.argmax(xcorr_tmp)]
+
+    return xcorr, tau, lags
 
 
 def get_segment(x):
@@ -163,7 +176,7 @@ def calc_metrics(force):
 
 
 class Force:
-    def __init__(self, experiment, participant_id, session, day):
+    def __init__(self, experiment=None, participant_id=None, session=None, day=None):
 
         self.experiment = experiment
         self.participant_id = participant_id if isinstance(participant_id, str) else participant_id[0]
@@ -195,11 +208,14 @@ class Force:
 
         force_dict = self.load_pkl()
 
+        xcorr, tau, lags = [], [], []
+        for force_trial in force_dict['force']:
+            xcorr_tmp, tau_tmp, lags_tmp = calc_xcorr(force_trial)
+            xcorr.append(xcorr_tmp)
+            lags.append(lags_tmp)
+            tau.append(tau_tmp)
 
-
-
-
-        pass
+        return xcorr, tau, lags
 
     def preprocessing(self):
 

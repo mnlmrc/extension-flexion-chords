@@ -50,6 +50,46 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
             return metrics
 
+        case 'FORCE:xcorr':
+
+            tau_dict = {
+                'tau': [],
+                'experiment': [],
+                'participant_id': [],
+                'session': [],
+                'day': [],
+                'chordID': []
+            }
+
+            for p in participant_id:
+                for day in gl.days:
+
+                    print(f'xcorr - participant_id: {p}, day: {day}')
+
+                    if day == '1' or day == '5':
+                        session = 'testing'
+                    else:
+                        session = 'training'
+
+                    force = Force(experiment, p, session, day)
+                    force_dict = force.load_pkl()
+                    _, tau, _ = force.crosscorrelation()
+                    tau_dict['tau'].append(np.concatenate(tau))
+                    tau_dict['experiment'].append(experiment)
+                    tau_dict['participant_id'].append(p)
+                    tau_dict['session'].append(session)
+                    tau_dict['day'].append(day)
+                    tau_dict['chordID'].append(force_dict['chordID'])
+
+            with open(os.path.join(gl.baseDir, experiment, f'{experiment}_tau.pkl'), "wb") as file:
+                pickle.dump(tau_dict, file)
+
+            return tau_dict
+
+        case 'PLOT:xcorr':
+
+            pass
+
         case 'FORCE:variance_decomposition':
 
             group_cols = ['subNum', 'chord', 'day', 'chordID', 'BN', 'TN', 'repetition', 'trialPoint', 'participant_id']
@@ -176,6 +216,38 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
             pass
 
+        case 'PLOT:xcorr_in_trial':
+
+            if fig is None or axs is None:
+                fig, axs = plt.subplots(5, 5, sharex=True, sharey=True)
+
+            force = Force(experiment=experiment, participant_id=participant_id, session=session, day=day)
+            force_dict = force.load_pkl()
+            chordID = int(force_dict['chordID'][ntrial])
+            # session = force_dict['session'][ntrial]
+            day = force_dict['day'][ntrial]
+            xcorr, _, lags = force.crosscorrelation()
+            xcorr_trial = xcorr[ntrial]
+            lags_trial = lags[ntrial]
+
+            for i in range(xcorr_trial.shape[0]):
+                for j in range(xcorr_trial.shape[1]):
+
+                    axs[i, j].plot(lags_trial, np.abs(xcorr_trial[i, j]))
+                    axs[i, j].axvline(0, color='k', ls='-', lw=.8)
+                    axs[i, j].axvline(lags_trial[np.argmax(np.abs(xcorr_trial[i, j]))], color='k', ls='--', lw=.8)
+
+            fig.supxlabel('lag (s)')
+            fig.supylabel('correlation')
+            fig.suptitle(f'{chordID}, day{day}, {"trained" if chordID in force.trained else "untrained"}')
+
+            plt.show()
+
+
+
+
+
+
 
 
 if __name__ == "__main__":
@@ -184,10 +256,12 @@ if __name__ == "__main__":
     parser.add_argument('what', nargs='?', default=None, choices=[
         'FORCE:preprocessing',
         'FORCE:variance_decomposition',
+        'FORCE:xcorr',
         'EMG:recon_chord2nat',
         'EMG:recon_chord2chord',
         'PLOT:variance_decomposition',
-        'PLOT:force_in_trial'
+        'PLOT:force_in_trial',
+        'PLOT:xcorr_in_trial'
     ])
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
