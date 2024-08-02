@@ -42,14 +42,13 @@ participants = {
     ],
     'efc2': [
         'subj100',
-        # 'subj101',
-        # 'subj102',
-        # 'subj103',
-        # 'subj104',
-        # # 'subj105',
-        # 'subj106',
-        # 'subj107',
-
+        'subj101',
+        'subj102',
+        'subj103',
+        'subj104',
+        # 'subj105',
+        'subj106',
+        'subj107',
     ]
 }
 
@@ -57,3 +56,7 @@ natDir = 'natural'
 chordDir = 'chords'
 
 days = ['1', '2', '3', '4', '5']
+
+channels = {
+    'force': ['thumb', 'index', 'middle', 'ring', 'pinkie'],
+}

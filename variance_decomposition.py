@@ -3,7 +3,7 @@ import warnings
 import numpy as np
 
 
-def reliability_var(Y, subj_vec, part_vec, cond_vec=None, centered=True):
+def reliability_var(Y, subj_vec, part_vec, cond_vec=None, centered=False):
     """
     Description:
         Variance decomposition on dataset. The multi-channel data Y_ij follow the following format:
@@ -58,7 +58,7 @@ def reliability_var(Y, subj_vec, part_vec, cond_vec=None, centered=True):
             A = []
             for j in range(len(partitions)):
                 part_data = Y[(subj_vec == subjects[i]) &
-                              # (part_vec == partitions[j]) &
+                              (part_vec == partitions[j]) &
                               (cond_vec == conds[k]), :]
 
                 if centered:
@@ -100,4 +100,4 @@ def reliability_var(Y, subj_vec, part_vec, cond_vec=None, centered=True):
                 else:
                     v_g += tmp_v_g
 
-    return v_g, v_gs, v_gse
+    return v_g, v_gs, v_gse, conds
