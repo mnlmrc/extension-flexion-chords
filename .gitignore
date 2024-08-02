@@ -1,5 +1,6 @@
 # Ignore the logs directory
 venv/
+.idea/
 
 # Ignore all .env files
 *.tgt
