@@ -9,15 +9,27 @@ from matplotlib.lines import Line2D
 import numpy as np
 
 
-def plot_days(df, y=None):
-    _, axs = plt.subplots()
+def plot_days(df, y=None, title=None, ylabel=None, xlabel=None, save_path=None):
+    if title == None:
+        title = y
+
+    fig, axs = plt.subplots()
     sns.pointplot(df, ax=axs, x='day', y=y, hue='chord', dodge=True, linestyle='none', errorbar='se',
                   palette=['red', 'blue'])
+    axs.set_title(title)
+    axs.set_ylabel(ylabel)
+    axs.set_xlabel(xlabel)
+
+    if save_path is not None:
+        fig.savefig(save_path)
 
 
-def plot_rep(df, y=None):
+def plot_rep(df, y=None, title=None, ylabel=None, xlabel=None, save_path=None):
 
-    _, axs = plt.subplots()
+    if title == None:
+        title = y
+
+    fig, axs = plt.subplots()
     sns.lineplot(data=df[df['chord'] == 'trained'], ax=axs, x='offset', y=y, hue='day', errorbar='se',
                  palette=['red'] * 5, marker='o', markeredgewidth=0, err_kws={'linewidth': 0})
     sns.lineplot(data=df[df['chord'] == 'untrained'], ax=axs, x='offset', y=y, hue='day', errorbar='se',
@@ -37,6 +49,13 @@ def plot_rep(df, y=None):
 
     # Add the custom legend to the plot
     axs.legend(handles=custom_handles, title='chord')
+
+    axs.set_title(title)
+    axs.set_ylabel(ylabel)
+    axs.set_xlabel(xlabel)
+
+    if save_path is not None:
+        fig.savefig(save_path)
 
 
 def calc_avg(X, columns=None, by=None):
@@ -63,6 +82,15 @@ def calc_avg(X, columns=None, by=None):
 
     return avg
 
+def calc_success(X):
+
+    success = X.groupby(['subNum', 'chordID', 'day', 'chord'])['trialPoint'].mean().reset_index()
+    success.rename(columns={'trialPoint': 'success'}, inplace=True)
+
+    success.sort_values(by='chord', inplace=True)
+
+    return success
+
 
 if __name__ == "__main__":
     experiment = 'efc2'
@@ -84,29 +112,47 @@ if __name__ == "__main__":
                'dist3', 'dist4']
 
     results = pd.read_csv(os.path.join(gl.baseDir, experiment, 'results.csv'))
-    df = calc_avg(results, by=['chord', 'day', 'participant_id'], columns=columns)
+    df_day = calc_avg(results, by=['chord', 'day', 'participant_id'], columns=columns)
 
-    plot_days(df, y='RT')
-    plot_days(df, y='MD')
-    plot_days(df, y='sine')
-    plot_days(df, y='jerk')
+    save_path = os.path.join(gl.baseDir, experiment, 'figures')
 
-    _, axs = plt.subplots()
-    df_melted = df.melt(id_vars=['day', 'chord'],
-                        value_vars=[f'PC{i}' for i in range(5)],
-                        var_name='PCs', value_name='Explained')
-    sns.pointplot(df_melted[df_melted['chord'] == 'untrained'], x='PCs', y='Explained', hue='day',
-                  errorbar='se', palette='Blues')
-    sns.pointplot(df_melted[df_melted['chord'] == 'trained'], x='PCs', y='Explained', hue='day',
-                  errorbar='se', palette='Reds')
+    plot_days(df_day, y='RT', ylabel='RT (s)', xlabel='day', title='reaction time', save_path=os.path.join(save_path, 'rt.png'))
+    plot_days(df_day, y='MD', ylabel='MD (a.u.)', xlabel='day', title='mean deviation', save_path=os.path.join(save_path, 'md.png'))
+    plot_days(df_day, y='sine', ylabel='sine of first PC', xlabel='day', title='sine of first principal component', save_path=os.path.join(save_path, 'sine.png'))
+    plot_days(df_day, y='jerk', ylabel='jerk (N/s\u00b3)', xlabel='day', title='jerk', save_path=os.path.join(save_path, 'jerk.png'))
 
-    df = calc_avg(results, by=['chord', 'day', 'repetition', 'participant_id'], columns=columns)
+    # _, axs = plt.subplots()
+    # df_melted = df.melt(id_vars=['day', 'chord'],
+    #                     value_vars=[f'PC{i}' for i in range(5)],
+    #                     var_name='PCs', value_name='Explained')
+    # sns.pointplot(df_melted[df_melted['chord'] == 'untrained'], x='PCs', y='Explained', hue='day',
+    #               errorbar='se', palette='Blues')
+    # sns.pointplot(df_melted[df_melted['chord'] == 'trained'], x='PCs', y='Explained', hue='day',
+    #               errorbar='se', palette='Reds')
+
+    df_rep = calc_avg(results, by=['chord', 'day', 'repetition', 'participant_id'], columns=columns)
     offset = 5
-    df['offset'] = df['repetition'] + df['day'] * offset
+    df_rep['offset'] = df_rep['repetition'] + df_rep['day'] * offset
 
-    plot_rep(df, 'MD')
-    plot_rep(df, 'RT')
-    plot_rep(df, 'jerk')
-    plot_rep(df, 'sine')
+    plot_rep(df_rep, 'MD', ylabel='MD (a.u.)', xlabel='day',
+             title='mean deviation', save_path=os.path.join(save_path, 'md_rep.png'))
+    plot_rep(df_rep, 'RT', ylabel='RT (s)', xlabel='day',
+             title='reaction time', save_path=os.path.join(save_path, 'rt_rep.png'))
+    plot_rep(df_rep, 'jerk', ylabel='jerk (N/s\u00b3)', xlabel='day',
+             title='jerk', save_path=os.path.join(save_path, 'jerk_rep.png'))
+    plot_rep(df_rep, 'sine', ylabel='sine of first PC', xlabel='day',
+             title='sine of first principal component', save_path=os.path.join(save_path, 'sine_rep.png'))
+
+    df_success = calc_success(results)
+    plot_days(df_success, y='success', ylabel='%success', xlabel='day',
+              title='success rate', save_path=os.path.join(save_path, 'success.png'))
+
+    fig, axs = plt.subplots()
+    sns.pointplot(df_success, ax=axs, x='day', y='success', hue='chordID', dodge=True, linestyle='none', errorbar='se',
+                  palette='tab10')
+    axs.set_title('success rate')
+    axs.set_ylabel('%success')
+    axs.set_xlabel('day')
+    fig.savefig(os.path.join(save_path, 'success_chord.png'))
 
     plt.show()
