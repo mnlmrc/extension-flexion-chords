@@ -4,6 +4,8 @@ import os
 
 import scipy
 from matplotlib import pyplot as plt
+from scipy.optimize import nnls
+from sklearn.linear_model import LinearRegression
 
 from sklearn.preprocessing import MinMaxScaler
 
@@ -17,12 +19,19 @@ import numpy as np
 import seaborn as sns
 
 from force import Force
-from nnmf import iterative_nnmf, optimize_H, calc_reconerr, assert_selected_rows_belong, get_emg_chords
+from nnmf import iterative_nnmf, optimize_H, calc_reconerr, assert_selected_rows_belong, calc_r2
+from stats import perm_test_1samp
+from util import load_nat_emg
 from variance_decomposition import reliability_var
 
 
-def main(what, experiment=None, participant_id=None, session=None, day=None, ntrial=None, fig=None, axs=None):
+def main(what, experiment=None, participant_id=None, session=None, day=None, ntrial=None, chordID=None, chord=None,
+         dataset=None, fig=None, axs=None):
+    if len(participant_id) == 1:
+        participant_id = participant_id[0]
+
     match what:
+        # region FORCE:preprocessing
         case 'FORCE:preprocessing':
 
             metrics = pd.DataFrame()
@@ -49,7 +58,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
             metrics.to_csv(os.path.join(gl.baseDir, experiment, 'metrics.csv'))
 
             return metrics
+        # endregion
 
+        # region FORCE:xcorr
         case 'FORCE:xcorr':
 
             tau_dict = {
@@ -58,7 +69,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
                 'participant_id': [],
                 'session': [],
                 'day': [],
-                'chordID': []
+                'chordID': [],
+                'chord': []
             }
 
             for p in participant_id:
@@ -74,22 +86,54 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
                     force = Force(experiment, p, session, day)
                     force_dict = force.load_pkl()
                     _, tau, _ = force.crosscorrelation()
-                    tau_dict['tau'].append(np.concatenate(tau))
+                    tau_dict['tau'].append(np.stack(tau, axis=2))
                     tau_dict['experiment'].append(experiment)
                     tau_dict['participant_id'].append(p)
                     tau_dict['session'].append(session)
                     tau_dict['day'].append(day)
                     tau_dict['chordID'].append(force_dict['chordID'])
+                    tau_dict['chord'].append(['trained' if CID in force.trained
+                                              else 'untrained' for CID in force_dict['chordID']])
 
-            with open(os.path.join(gl.baseDir, experiment, f'{experiment}_tau.pkl'), "wb") as file:
+                    pass
+
+            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "wb") as file:
                 pickle.dump(tau_dict, file)
 
             return tau_dict
 
+        #endregion
+
+        # region PLOT:xcorr
         case 'PLOT:xcorr':
 
-            pass
+            if fig is None or axs is None:
+                fig, axs = plt.subplots()
 
+            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
+                tau_dict = pickle.load(file)
+
+            tau = list()
+
+            for p in participant_id:
+                pix = [i for i, (P, d)
+                       in enumerate(zip(tau_dict['participant_id'],
+                                        tau_dict['day'])) if (P == p) & (d == day)][0]
+                tau_tmp = tau_dict['tau'][pix][..., (np.array(tau_dict['chord'][pix]) == chord) &
+                                                    (np.array(tau_dict['chordID'][pix]) == chordID)]
+                tau.append(tau_tmp.mean(axis=-1))
+
+            tau = np.array(tau).mean(axis=0)
+            np.fill_diagonal(tau, np.nan)
+
+            axs.imshow(tau, vmin=-.5, vmax=.5, cmap='seismic')
+            fig.suptitle(f'{chordID}, {chord}, day{day}')
+
+            plt.show()
+
+        # endregion
+
+        # region FORCE:variance_decomposition
         case 'FORCE:variance_decomposition':
 
             group_cols = ['subNum', 'chord', 'day', 'chordID', 'BN', 'TN', 'repetition', 'trialPoint', 'participant_id']
@@ -138,22 +182,226 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
             return df_out
 
-        case 'EMG:recon_chord2chord':
+        # endregion
 
-            pass
+        # region EMG:nnmf
+        case 'EMG:nnmf':
 
-            # path = os.path.join(gl.baseDir, experiment, gl.chordDir)
-            #
-            # scaler = MinMaxScaler()
-            #
-            # for p in participant_id:
-            #     M, chords = get_emg_chords(experiment, p)
-            #     W, H, r2 = iterative_nnmf(M)
+            M = pd.read_csv(os.path.join(gl.baseDir, experiment, dataset, 'M.tsv'), sep='\t')[
+                gl.channels['emg'] + ['sn']]
 
-        case 'EMG:recon_chord2nat':
+            W, H, r2, k = [], [], [], []
+            for p in participant_id:
+                sn = int(''.join([c for c in p if c.isdigit()]))
+                M_tmp = M[M['sn'] == sn].to_numpy()
+                W_tmp, H_tmp, r2_tmp = iterative_nnmf(M_tmp, thresh=0.1)
 
-            pass
+                k_tmp = H_tmp.shape[0]
 
+                W.append(W_tmp)
+                H.append(H_tmp)
+                r2.append(r2_tmp)
+                k.append(k_tmp)
+
+            return W, H, np.array(r2), np.array(k)
+        # endregion
+
+        # region RECONSTRUCT:emg_chord_2_force_chord
+        case 'RECONSTRUCT:emg_chord_2_force_chord':
+
+            M = pd.read_csv(os.path.join(gl.baseDir, experiment, dataset, 'M.tsv'), sep='\t')[gl.channels['emg'] +
+                                                                                              ['sn', 'chordID']]
+            F = pd.read_csv(os.path.join(gl.baseDir, experiment, dataset, 'M.tsv'), sep='\t')[gl.channels['force'] +
+                                                                                              ['sn', 'chordID']]
+
+            model = LinearRegression()
+            scaler = MinMaxScaler()
+
+            r2_red, r2_all = [], []
+            for p in participant_id:
+                sn = int(''.join([c for c in p if c.isdigit()]))
+                M_tmp = M[M['sn'] == sn].groupby(['chordID']).mean().reset_index()[gl.channels['emg']].to_numpy()
+                M_tmp = scaler.fit_transform(M_tmp)
+                W_tmp, H_tmp, r2_tmp = iterative_nnmf(M_tmp, thresh=0.1)
+
+                F_tmp = F[F['sn'] == sn].groupby(['chordID']).mean().reset_index()[gl.channels['force']].to_numpy()
+
+                model.fit(np.dot(W_tmp, H_tmp), F_tmp)
+                F_hat = model.predict(np.dot(W_tmp, H_tmp))
+                r2_red.append(calc_r2(F_tmp, F_hat))
+
+                model.fit(M_tmp, F_tmp)
+                F_hat = model.predict(M_tmp)
+                r2_all.append(calc_r2(F_tmp, F_hat))
+
+                pass
+
+            return np.array(r2_red), np.array(r2_all)
+        # endregion
+
+        # region RECONSTRUCT:emg_chord_2_emg_nat
+        case 'RECONSTRUCT:emg':
+
+            M = pd.read_csv(os.path.join(gl.baseDir, experiment, 'chords', 'M.tsv'), sep='\t')[gl.channels['emg'] +
+                                                                                               ['sn', 'chordID']]
+
+            recon_dict = {
+                'participant_id': [],
+                'partition': [],
+                # 'matches': [],
+                'r2_chord2nat': [],
+                'r2_nat2chord': [],
+                'nc_natural': [],
+                'nc_chords': [],
+                'r2_chord2nat_shuffle': [],
+                'r2_nat2chord_shuffle': [],
+                'nat_recon': [],
+                'chord_recon': []
+            }
+
+            scaler = MinMaxScaler()
+
+            for p in participant_id:
+                sn = int(''.join([c for c in p if c.isdigit()]))
+
+                M_tmp = M[M['sn'] == sn].groupby(['chordID']).mean().reset_index()[gl.channels['emg']].to_numpy()
+                M_tmp = scaler.fit_transform(M_tmp)
+                W_tmp, H_tmp, r2_tmp = iterative_nnmf(M_tmp, thresh=0.1)
+
+                M_nat = load_nat_emg(os.path.join(gl.baseDir, experiment, 'natural',
+                                                  f'natChord_{p}_emg_natural_whole_sampled.mat'))
+
+                # noise ceiling chords
+                nc_chords = list()
+                for j in range(M_tmp.shape[0]):
+                    M_tmp_j = M_tmp[j, :]
+                    M_tmp_not_j = np.delete(M_tmp, j, axis=0)
+
+                    W_j, H_j, _ = iterative_nnmf(M_tmp_not_j, thresh=0.1)
+                    W_c, _ = nnls(H_j.T, M_tmp_j)
+                    M_rec = np.dot(W_c, H_j)
+
+                    nc_chords.append(calc_r2(M_tmp_j, M_rec))
+                recon_dict['nc_chords'].append(np.array(nc_chords).mean())
+
+                matches = [[] for _ in range(len(M_nat))]
+                for m, M_nat_tmp in enumerate(M_nat):
+                    norm = np.linalg.norm(M_nat_tmp, axis=1)
+                    # M_nat_tmp = M_nat_tmp[norm > norm.mean()]
+                    M_nat_tmp = scaler.fit_transform(M_nat_tmp)
+                    W_nat_tmp, H_nat_tmp, r2_nat_tmp = iterative_nnmf(M_nat_tmp, thresh=0.1)
+
+                    # find matching synergies
+                    dprod = np.dot(H_tmp, H_nat_tmp.T)
+                    idx_matched = np.argmax(dprod, axis=0)
+
+                    for i in range(H_nat_tmp.shape[0]):
+                        matches[m].append((H_nat_tmp[i], H_tmp[idx_matched[i]]))
+
+                    # reconstruct chords from natural
+                    W_c = np.zeros((M_tmp.shape[0], H_nat_tmp.shape[0]))
+                    res = np.zeros(M_tmp.shape[0])
+                    for i in range(M_tmp.shape[0]):
+                        W_c[i], res[i] = nnls(H_nat_tmp.T, M_tmp[i])
+
+                    M_rec = np.dot(W_c, H_nat_tmp)
+
+                    recon_dict['r2_nat2chord'].append(calc_r2(M_tmp, M_rec))
+
+                    # shuffle synergies
+                    nrep = 10
+                    r2_shuffle = list()
+                    for j in range(nrep):
+                        H_nat_tmp_shuffle = H_nat_tmp.copy().T
+                        np.random.shuffle(H_nat_tmp_shuffle)
+                        W_c = np.zeros((M_tmp.shape[0], H_nat_tmp.shape[0]))
+                        for i in range(M_tmp.shape[0]):
+                            W_c[i], res_shuffle_tmp = nnls(H_nat_tmp_shuffle, M_tmp[i])
+                        r2_shuffle.append(calc_r2(M_tmp, np.dot(W_c, H_nat_tmp_shuffle.T)))
+
+                    recon_dict['r2_nat2chord_shuffle'].append(np.array(r2_shuffle).mean())
+
+                    # noise ceiling natural
+                    nc_natural = []
+                    for j, M_nat_j in enumerate(M_nat):
+                        if j != m:
+                            norm = np.linalg.norm(M_nat_j, axis=1)
+                            M_nat_j = M_nat_j[norm > norm.mean()]
+                            M_nat_j = scaler.fit_transform(M_nat_j)
+                            _, H_nat_j, _ = iterative_nnmf(M_nat_j, thresh=0.1)
+                            W_c = np.zeros((M_nat_tmp.shape[0], H_nat_j.shape[0]))
+                            for k in range(M_nat_tmp.shape[0]):
+                                W_c[k], _ = nnls(H_nat_j.T, M_nat_tmp[k])
+                            nc_natural.append(calc_r2(M_nat_tmp, np.dot(W_c, H_nat_j)))
+
+                    recon_dict['nc_natural'].append(np.array(nc_natural).mean())
+
+                    # reconstruct natural from chords
+                    W_c = np.zeros((M_nat_tmp.shape[0], M_tmp.shape[0]))
+                    res = np.zeros(M_nat_tmp.shape[0])
+                    for i in range(M_nat_tmp.shape[0]):
+                        W_c[i], res[i] = nnls(M_tmp.T, M_nat_tmp[i])
+
+                    M_rec = np.dot(W_c, M_tmp)
+                    recon_dict['r2_chord2nat'].append(calc_r2(M_nat_tmp, M_rec))
+                    recon_dict['nat_recon'].append(M_rec)
+
+                    # shuffle chords
+                    nrep = 10
+                    r2_shuffle = list()
+                    for j in range(nrep):
+                        M_tmp_shuffle = M_tmp.copy().T
+                        np.random.shuffle(M_tmp_shuffle)
+                        W_c = np.zeros((M_nat_tmp.shape[0], M_tmp.shape[0]))
+                        for i in range(M_nat_tmp.shape[0]):
+                            W_c[i], _ = nnls(M_tmp_shuffle, M_nat_tmp[i])
+                        r2_shuffle.append(calc_r2(M_nat_tmp, np.dot(W_c, M_tmp_shuffle.T)))
+
+                    recon_dict['r2_chord2nat_shuffle'].append(np.array(r2_shuffle).mean())
+
+                    recon_dict['participant_id'].append(p)
+                    recon_dict['partition'].append(m)
+
+                    pass
+
+            with open(os.path.join(gl.baseDir, experiment, f'recon_emg.pkl'), "wb") as file:
+                pickle.dump(recon_dict, file)
+
+            return recon_dict
+
+        # endregion
+
+        # region FORCE:noise_ceiling
+        case 'FORCE:noise_ceiling':
+
+            F = pd.read_csv(os.path.join(gl.baseDir, experiment, 'force', 'M.tsv'), sep='\t')[gl.channels['force'] +
+                                                                                              ['sn', 'chordID']]
+            model = LinearRegression()
+
+            nc_up, nc_low = [], []
+
+            # noise ceiling upper
+            F_avg = F.groupby(['chordID'])[gl.channels['force']].mean().reset_index()[gl.channels['force']].to_numpy()
+            for p in participant_id:
+                sn = int(''.join([c for c in p if c.isdigit()]))
+                F_tmp = F[F['sn'] == sn].groupby(['chordID']).mean().reset_index()[gl.channels['force']].to_numpy()
+                model.fit(F_avg, F_tmp)
+                F_hat = model.predict(F_tmp)
+                nc_up.append(calc_r2(F_avg, F_hat))
+
+            # noise ceiling lower
+            for p in participant_id:
+                sn = int(''.join([c for c in p if c.isdigit()]))
+                F_tmp = F[F['sn'] == sn].groupby(['chordID']).mean().reset_index()[gl.channels['force']].to_numpy()
+                F_avg_tmp = F[F['sn'] != sn].groupby(['chordID']).mean().reset_index()[gl.channels['force']].to_numpy()
+                model.fit(F_avg_tmp, F_tmp)
+                F_hat = model.predict(F_tmp)
+                nc_low.append(calc_r2(F_avg_tmp, F_hat))
+
+            return np.array(nc_up).mean(), np.array(nc_low).mean()
+        # endregion
+
+        # region PLOT:variance_decomposition
         case 'PLOT:variance_decomposition':
 
             df = main('FORCE:variance_decomposition', experiment, participant_id)
@@ -167,10 +415,10 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
             for ch, chord in enumerate(chords):
                 sns.barplot(data=df[df['conds'] == chord],
-                             ax=axs[ch],
-                             x='days',
-                             y='value',
-                             hue='variance')
+                            ax=axs[ch],
+                            x='days',
+                            y='value',
+                            hue='variance')
                 axs[ch].legend_.remove()
                 axs[ch].set_ylabel('')
                 axs[ch].set_title(chord)
@@ -184,6 +432,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
             plt.show()
 
+        # endregion
+
+        # region PLOT:force_in_trial
         case 'PLOT:force_in_trial':
 
             if fig is None or axs is None:
@@ -191,7 +442,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
             force = Force(experiment, participant_id, session=session, day=day)
             force_dict = force.load_pkl()
-            force_trial = force_dict['force'][ntrial] * np.array([1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
+            force_trial = force_dict['force'][ntrial] * np.array(
+                [1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
             chordID = int(force_dict['chordID'][ntrial])
             # session = force_dict['session'][ntrial]
             day = force_dict['day'][ntrial]
@@ -216,6 +468,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
             pass
 
+        # endregion
+
+        # region PLOT:xcorr_in_trial
         case 'PLOT:xcorr_in_trial':
 
             if fig is None or axs is None:
@@ -232,7 +487,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
             for i in range(xcorr_trial.shape[0]):
                 for j in range(xcorr_trial.shape[1]):
-
                     axs[i, j].plot(lags_trial, np.abs(xcorr_trial[i, j]))
                     axs[i, j].axvline(0, color='k', ls='-', lw=.8)
                     axs[i, j].axvline(lags_trial[np.argmax(np.abs(xcorr_trial[i, j]))], color='k', ls='--', lw=.8)
@@ -242,12 +496,56 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
             fig.suptitle(f'{chordID}, day{day}, {"trained" if chordID in force.trained else "untrained"}')
 
             plt.show()
+        # endregion
 
+        # region PLOT:recon_emg
+        case 'PLOT:recon_emg':
+            if fig is None or axs is None:
+                fig, axs = plt.subplots(figsize=(3, 4))
 
+            with open(os.path.join(gl.baseDir, experiment, 'recon_emg.pkl'), 'rb') as file:
+                recon_dict = pickle.load(file)
 
+            df = pd.DataFrame({key: recon_dict[key] for key in ['participant_id',
+                                                                'partition',
+                                                                'r2_chord2nat',
+                                                                'r2_nat2chord',
+                                                                'r2_chord2nat_shuffle',
+                                                                'r2_nat2chord_shuffle']})
+            df_r2 = df.groupby('participant_id')[['r2_chord2nat',
+                                                  'r2_nat2chord']].mean().reset_index()
+            df_shuffle = df.groupby('participant_id')[['r2_chord2nat_shuffle',
+                                                       'r2_nat2chord_shuffle']].mean().reset_index()
 
+            df_r2_melt = df_r2.melt(id_vars=['participant_id'],
+                               value_vars=['r2_chord2nat', 'r2_nat2chord'],
+                               var_name='reconstruction', value_name='R²')
 
+            pval_chord2nat, pval_perm_chord2nat = perm_test_1samp(df_r2['r2_chord2nat'], df_shuffle['r2_chord2nat_shuffle'], nperm=5000)
+            pval_nat2chord, pval_perm_nat2chord = perm_test_1samp(df_r2['r2_nat2chord'], df_shuffle['r2_nat2chord_shuffle'], nperm=5000)
 
+            width = .5
+            H = sns.boxplot(ax=axs, x='reconstruction', y='R²', data=df_r2_melt, width=width)
+
+            pos = H.get_xticks()
+            shuffle_chord = df_shuffle['r2_chord2nat_shuffle']
+            axs.hlines(y=shuffle_chord.mean(), xmin=pos[0] - width / 2, xmax=pos[0] + width / 2, color='k', ls='-',
+                       lw=2)
+            axs.hlines(y=shuffle_chord, xmin=pos[0] - width / 2, xmax=pos[0] + width / 2, color='k', ls='-',
+                       alpha=0.2, lw=.8)
+
+            shuffle_nat = df_shuffle['r2_nat2chord_shuffle']
+            axs.hlines(y=shuffle_nat.mean(), xmin=pos[1] - width / 2, xmax=pos[1] + width / 2, color='k', ls='-',
+                       lw=2)
+            axs.hlines(y=shuffle_nat, xmin=pos[1] - width / 2, xmax=pos[1] + width / 2, color='k', ls='-',
+                       alpha=0.2, lw=.8)
+
+            fig.subplots_adjust(left=0.2)
+
+            plt.show()
+
+            pass
+        # endregion
 
 
 if __name__ == "__main__":
@@ -257,17 +555,26 @@ if __name__ == "__main__":
         'FORCE:preprocessing',
         'FORCE:variance_decomposition',
         'FORCE:xcorr',
+        'FORCE:noise_ceiling',
         'EMG:recon_chord2nat',
         'EMG:recon_chord2chord',
+        'EMG:nnmf',
+        'RECONSTRUCT:force',
+        'RECONSTRUCT:emg',
         'PLOT:variance_decomposition',
         'PLOT:force_in_trial',
-        'PLOT:xcorr_in_trial'
+        'PLOT:xcorr',
+        'PLOT:xcorr_in_trial',
+        'PLOT:recon_emg'
     ])
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
     parser.add_argument('--session', default=None, help='')
     parser.add_argument('--day', default=None, help='')
     parser.add_argument('--ntrial', default=None, help='')
+    parser.add_argument('--chordID', default=None, help='')
+    parser.add_argument('--chord', default=None, help='', choices=['trained', 'untrained'])
+    parser.add_argument('--dataset', default=None, help='', choices=['natural', 'chords'])
 
     args = parser.parse_args()
 
@@ -277,10 +584,14 @@ if __name__ == "__main__":
     session = args.session
     day = args.day
     ntrial = int(args.ntrial) if args.ntrial is not None else None
+    chordID = int(args.chordID) if args.chordID is not None else None
+    chord = args.chord
+    dataset = args.dataset
 
     if participant_id is None:
         participant_id = gl.participants[experiment]
 
     pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
 
-    main(what, experiment=experiment, participant_id=participant_id, session=session, day=day, ntrial=ntrial)
+    out = main(what, experiment=experiment, participant_id=participant_id, session=session, day=day, ntrial=ntrial,
+               chordID=chordID, chord=chord, dataset=dataset)
