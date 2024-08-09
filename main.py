@@ -104,69 +104,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
         #endregion
 
-        # region FORCE:xcorr_corr
-        case 'PLOT:xcorr_corr':
-
-            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
-                tau_dict = pickle.load(file)
-
-            xcorr_corr = {
-                'participant_id': [],
-                'day': [],
-                'chordID': [],
-                'chord': [],
-                'corr': []
-            }
-
-            for p in participant_id:
-                for day in gl.days:
-                    for chordID in gl.chordID:
-
-                        if day == '1' or day == '5':
-                            session = 'testing'
-                        else:
-                            session = 'training'
-
-                        if chordID in Force(experiment, p, session, day).trained:
-                            chord = 'trained'
-                        else:
-                            chord = 'untrained'
-
-                        pix = [i for i, (P, d)
-                               in enumerate(zip(tau_dict['participant_id'],
-                                                tau_dict['day'])) if (P == p) & (d == day)][0]
-                        tau = tau_dict['tau'][pix][..., (np.array(tau_dict['chord'][pix]) == chord) &
-                                                        (np.array(tau_dict['chordID'][pix]) == chordID)]
-
-                        chordID_str = str(chordID)
-                        fingers = np.array([f != '9' for f in chordID_str])
-
-                        tau_vec = np.zeros((tau.shape[-1], 10))
-                        for t in range(tau.shape[-1]):
-                            tau_tmp = tau[..., t].copy()
-                            np.fill_diagonal(tau_tmp, np.nan)
-                            tau_tmp[fingers == False, :] = np.nan
-                            tau_tmp[:, fingers == False] = np.nan
-                            triu = np.triu(np.ones(tau_tmp.shape), k=1)
-                            tau_vec[t] = np.extract(triu, tau_tmp)
-
-                        corr = pd.DataFrame(tau_vec.T).corr().to_numpy()
-                        np.fill_diagonal(corr, np.nan)
-
-                        xcorr_corr['participant_id'].append(p)
-                        xcorr_corr['day'].append(day)
-                        xcorr_corr['chordID'].append(chordID)
-                        xcorr_corr['chord'].append(chord)
-                        xcorr_corr['corr'].append(np.nanmean(corr))
-
-            df = pd.DataFrame(xcorr_corr)
-
-            sns.boxplot(data=df, x='day', y='corr', hue='chord')
-
-            plt.show()
-
-        # endregion
-
         # region FORCE:variance_decomposition
         case 'FORCE:variance_decomposition':
 
@@ -506,41 +443,10 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
             axs.legend(gl.channels['force'])
 
             plt.show()
-
-            pass
-
-        # endregion
-
-        # region PLOT:xcorr_in_trial
-        case 'PLOT:xcorr_in_trial':
-
-            if fig is None or axs is None:
-                fig, axs = plt.subplots(5, 5, sharex=True, sharey=True)
-
-            force = Force(experiment=experiment, participant_id=participant_id, session=session, day=day)
-            force_dict = force.load_pkl()
-            chordID = int(force_dict['chordID'][ntrial])
-            # session = force_dict['session'][ntrial]
-            day = force_dict['day'][ntrial]
-            xcorr, _, lags = force.crosscorrelation()
-            xcorr_trial = xcorr[ntrial]
-            lags_trial = lags[ntrial]
-
-            for i in range(xcorr_trial.shape[0]):
-                for j in range(xcorr_trial.shape[1]):
-                    axs[i, j].plot(lags_trial, np.abs(xcorr_trial[i, j]))
-                    axs[i, j].axvline(0, color='k', ls='-', lw=.8)
-                    axs[i, j].axvline(lags_trial[np.argmax(np.abs(xcorr_trial[i, j]))], color='k', ls='--', lw=.8)
-
-            fig.supxlabel('lag (s)')
-            fig.supylabel('correlation')
-            fig.suptitle(f'{chordID}, day{day}, {"trained" if chordID in force.trained else "untrained"}')
-
-            plt.show()
         # endregion
 
         # region PLOT:xcorr
-        case 'PLOT:xcorr':
+        case 'PLOT:xcorr_chord':
 
             if fig is None or axs is None:
                 fig, axs = plt.subplots()
@@ -570,6 +476,136 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
             fig.suptitle(f'{chordID}, {chord}, day{day}')
 
             plt.show()
+
+        # endregion
+
+        # region FORCE:xcorr_corr
+        case 'PLOT:xcorr_corr':
+
+            if fig is None or axs is None:
+                fig, axs = plt.subplots(figsize=(3, 4))
+
+            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
+                tau_dict = pickle.load(file)
+
+            xcorr_corr = {
+                'participant_id': [],
+                'day': [],
+                'chordID': [],
+                'chord': [],
+                'corr': []
+            }
+
+            for p in participant_id:
+                for day in gl.days:
+                    for chordID in gl.chordID:
+
+                        if day == '1' or day == '5':
+                            session = 'testing'
+                        else:
+                            session = 'training'
+
+                        if chordID in Force(experiment, p, session, day).trained:
+                            chord = 'trained'
+                        else:
+                            chord = 'untrained'
+
+                        pix = [i for i, (P, d)
+                               in enumerate(zip(tau_dict['participant_id'],
+                                                tau_dict['day'])) if (P == p) & (d == day)][0]
+                        tau = tau_dict['tau'][pix][..., (np.array(tau_dict['chord'][pix]) == chord) &
+                                                        (np.array(tau_dict['chordID'][pix]) == chordID)]
+
+                        chordID_str = str(chordID)
+                        fingers = np.array([f != '9' for f in chordID_str])
+
+                        tau_vec = np.zeros((tau.shape[-1], 10))
+                        for t in range(tau.shape[-1]):
+                            tau_tmp = tau[..., t].copy()
+                            np.fill_diagonal(tau_tmp, np.nan)
+                            tau_tmp[fingers == False, :] = np.nan
+                            tau_tmp[:, fingers == False] = np.nan
+                            triu = np.triu(np.ones(tau_tmp.shape), k=1)
+                            tau_vec[t] = np.extract(triu, tau_tmp)
+
+                        corr = pd.DataFrame(tau_vec.T).corr().to_numpy()
+                        np.fill_diagonal(corr, np.nan)
+
+                        xcorr_corr['participant_id'].append(p)
+                        xcorr_corr['day'].append(day)
+                        xcorr_corr['chordID'].append(chordID)
+                        xcorr_corr['chord'].append(chord)
+                        xcorr_corr['corr'].append(np.nanmean(corr))
+
+            df = pd.DataFrame(xcorr_corr)
+
+            sns.boxplot(data=df, ax=axs, x='day', y='corr', hue='chord')
+
+            plt.show()
+
+        # endregion
+
+        # region PLOT:xcorr_day
+        case 'PLOT:xcorr_day':
+
+            if fig is None or axs is None:
+                fig, axs = plt.subplots(figsize=(3, 4))
+
+            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
+                tau_dict = pickle.load(file)
+
+            xcorr = {
+                'participant_id': [],
+                'day': [],
+                'chordID': [],
+                'chord': [],
+                'tau': []
+            }
+
+            for p in participant_id:
+                for day in gl.days:
+                    for chordID in gl.chordID:
+
+                        if day == '1' or day == '5':
+                            session = 'testing'
+                        else:
+                            session = 'training'
+
+                        if chordID in Force(experiment, p, session, day).trained:
+                            chord = 'trained'
+                        else:
+                            chord = 'untrained'
+
+                        pix = [i for i, (P, d)
+                               in enumerate(zip(tau_dict['participant_id'],
+                                                tau_dict['day'])) if (P == p) & (d == day)][0]
+                        tau = tau_dict['tau'][pix][..., (np.array(tau_dict['chord'][pix]) == chord) &
+                                                        (np.array(tau_dict['chordID'][pix]) == chordID)]
+
+                        chordID_str = str(chordID)
+                        fingers = np.array([f != '9' for f in chordID_str])
+
+                        tau_avg = np.zeros(tau.shape[-1])
+                        for t in range(tau.shape[-1]):
+                            tau_tmp = tau[..., t].copy()
+                            np.fill_diagonal(tau_tmp, np.nan)
+                            tau_tmp[fingers == False, :] = np.nan
+                            tau_tmp[:, fingers == False] = np.nan
+                            tau_avg[t] = np.nanmean(np.abs(tau_tmp))
+
+                        xcorr['participant_id'].append(p)
+                        xcorr['day'].append(day)
+                        xcorr['chordID'].append(chordID)
+                        xcorr['chord'].append(chord)
+                        xcorr['tau'].append(tau_avg.mean())
+
+            df = pd.DataFrame(xcorr)
+
+            sns.boxplot(data=df, ax=axs, x='day', y='tau', hue='chord')
+
+            plt.show()
+
+            pass
 
         # endregion
 
@@ -633,7 +669,6 @@ if __name__ == "__main__":
         'FORCE:variance_decomposition',
         'FORCE:xcorr',
         'FORCE:noise_ceiling',
-
         'EMG:recon_chord2nat',
         'EMG:recon_chord2chord',
         'EMG:nnmf',
@@ -641,8 +676,8 @@ if __name__ == "__main__":
         'RECONSTRUCT:emg',
         'PLOT:variance_decomposition',
         'PLOT:force_in_trial',
-        'PLOT:xcorr',
-        'PLOT:xcorr_in_trial',
+        'PLOT:xcorr_chord',
+        'PLOT:xcorr_day',
         'PLOT:recon_emg',
         'PLOT:xcorr_corr',
     ])
