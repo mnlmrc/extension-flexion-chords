@@ -86,14 +86,15 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
                     force = Force(experiment, p, session, day)
                     force_dict = force.load_pkl()
                     _, tau, _ = force.crosscorrelation()
-                    tau_dict['tau'].append(np.stack(tau, axis=2))
-                    tau_dict['experiment'].append(experiment)
-                    tau_dict['participant_id'].append(p)
-                    tau_dict['session'].append(session)
-                    tau_dict['day'].append(day)
-                    tau_dict['chordID'].append(force_dict['chordID'])
-                    tau_dict['chord'].append(['trained' if CID in force.trained
-                                              else 'untrained' for CID in force_dict['chordID']])
+                    for T, t in enumerate(tau):
+                        tau_dict['tau'].append(t)
+                        tau_dict['experiment'].append(experiment)
+                        tau_dict['participant_id'].append(p)
+                        tau_dict['session'].append(session)
+                        tau_dict['day'].append(day)
+                        tau_dict['chordID'].append(force_dict['chordID'][T])
+                        tau_dict['chord'].append('trained' if force_dict['chordID'][T]
+                                                               in force.trained else 'untrained')
 
                     pass
 
@@ -349,8 +350,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
 
         # endregion
 
-        # region FORCE:noise_ceiling
-        case 'FORCE:noise_ceiling':
+        # region NOISE_CEILING:force
+        case 'NOISE_CEILING:force':
 
             F = pd.read_csv(os.path.join(gl.baseDir, experiment, 'force', 'M.tsv'), sep='\t')[gl.channels['force'] +
                                                                                               ['sn', 'chordID']]
@@ -377,6 +378,97 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
                 nc_low.append(calc_r2(F_avg_tmp, F_hat))
 
             return np.array(nc_up).mean(), np.array(nc_low).mean()
+        # endregion
+
+        # region NOISE_CEILING:tau
+        case 'NOISE_CEILING:tau':
+
+            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
+                tau_dict = pickle.load(file)
+
+            df_tau = pd.DataFrame(tau_dict)
+            tau = np.array([x.flatten() for x in df_tau['tau']])
+            df_tau_tmp = pd.DataFrame(tau)
+            df_tau_tmp = df_tau_tmp.loc[:, (df_tau_tmp != 0).any(axis=0)]
+            df_tau_tmp.columns = [i for i in range(20)]
+            df_tau = pd.concat([df_tau, df_tau_tmp.iloc[:, :10]], axis=1).drop(columns=['tau'])
+            df_tau = df_tau.loc[df_tau['chord'] == 'trained']
+            # df_tau['partition'] = np.random.randint(low=0, high=2, size=len(df_tau))
+
+            tau_avg = df_tau.groupby(['chordID'])[[i for i in range(10)]].mean().reset_index()[[i for i in range(10)]].to_numpy()
+
+            model = LinearRegression()
+
+            nc_up, nc_low = [], []
+
+            # noise ceiling upper
+            for p in participant_id:
+                df_tau_tmp = df_tau.loc[df_tau['participant_id'] == p]
+                tau_tmp = df_tau_tmp.groupby(['chordID'])[[i for i in range(10)]].mean().reset_index()[[i for i in range(10)]].to_numpy()
+                model.fit(tau_avg, tau_tmp)
+                tau_hat = model.predict(tau_tmp)
+                nc_up.append(calc_r2(tau_avg, tau_hat))
+
+            # noice ceiling lower
+            for p in participant_id:
+                df_tau_tmp = df_tau.loc[df_tau['participant_id'] == p]
+                tau_tmp = df_tau_tmp.groupby(['chordID'])[[i for i in range(10)]].mean().reset_index()[[i for i in range(10)]].to_numpy()
+                tau_avg_tmp = df_tau.loc[df_tau['participant_id'] != p].groupby(['chordID'])[[i for i in range(10)]].mean().reset_index()[[i for i in range(10)]].to_numpy()
+                model.fit(tau_avg_tmp, tau_tmp)
+                tau_hat = model.predict(tau_tmp)
+                nc_low.append(calc_r2(tau_avg_tmp, tau_hat))
+
+            return np.array(nc_up).mean(), np.array(nc_low).mean()
+
+        # endregion
+
+        # region PLOT:model_xcorr_day
+        case 'PLOT:model_xcorr_day':
+
+            if fig is None or axs is None:
+                fig, axs = plt.subplots()
+
+            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
+                tau_dict = pickle.load(file)
+
+            model = LinearRegression()
+
+            df_tau = pd.DataFrame(tau_dict)                                                                             # make df
+
+            tau = np.array([x.flatten() for x in df_tau['tau']])                                                        # extract tau
+            df_tau_tmp = pd.DataFrame(tau)                                                                              # make df from tau
+            df_tau_tmp = df_tau_tmp.loc[:, (df_tau_tmp != 0).any(axis=0)]                                               # remove zero cols
+            df_tau_tmp.columns = [i for i in range(20)]                                                                 # rename columns
+
+            df_tau = pd.concat([df_tau, df_tau_tmp], axis=1).drop(columns=['tau'])                                 # add flattened tau matrix
+            df_tau = df_tau.loc[df_tau['chord'] == 'trained']                                                       # select one dataset
+
+            tau_r2 = {
+                'participant_id': [],
+                'day': [],
+                'r2': []
+            }
+            for p in participant_id:
+                for day in gl.days:
+                    df_tau_tmp = df_tau.loc[(df_tau['participant_id'] == p) & (df_tau['day'] == day)]
+
+                    X = pd.get_dummies(df_tau_tmp['chordID']).to_numpy()
+                    Y = df_tau_tmp[[i for i in range(10)]].to_numpy()
+
+                    model.fit(X, Y)
+                    tau_hat = model.predict(X)
+
+                    r2 = calc_r2(Y, tau_hat)
+
+                    tau_r2['participant_id'].append(p)
+                    tau_r2['day'].append(day)
+                    tau_r2['r2'].append(r2)
+
+
+            sns.boxplot(x='day', y='r2', ax=axs, data=pd.DataFrame(tau_r2))
+
+            plt.show()
+
         # endregion
 
         # region PLOT:variance_decomposition
@@ -436,13 +528,17 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
             axs.axhline(2, color='k', lw=.8, ls='-.')
             axs.axhline(-2, color='k', lw=.8, ls='-.')
 
-            axs.set_xlabel('time (s)')
-            axs.set_ylabel('force (N)')
-            axs.set_title(f'{chordID}, day{day}, {"trained" if chordID in force.trained else "untrained"}')
+            chord = "trained" if chordID in force.trained else "untrained"
 
-            axs.legend(gl.channels['force'])
+            # axs.set_xlabel('time (s)')
+            # axs.set_ylabel('force (N)')
+            # axs.set_title(f'{chordID}, day{day}, {"trained" if chordID in force.trained else "untrained"}')
 
-            plt.show()
+            # axs.legend(gl.channels['force'])
+
+            # plt.show()
+
+            return fig, axs, chordID, day, chord
         # endregion
 
         # region PLOT:xcorr
@@ -488,13 +584,18 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
             with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
                 tau_dict = pickle.load(file)
 
+            df_tau = pd.DataFrame(tau_dict)
+
             xcorr_corr = {
                 'participant_id': [],
                 'day': [],
                 'chordID': [],
                 'chord': [],
-                'corr': []
+                'corr': [],
+                'corr_shuff': []
             }
+
+            nperm = 10
 
             for p in participant_id:
                 for day in gl.days:
@@ -510,38 +611,59 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, ntr
                         else:
                             chord = 'untrained'
 
-                        pix = [i for i, (P, d)
-                               in enumerate(zip(tau_dict['participant_id'],
-                                                tau_dict['day'])) if (P == p) & (d == day)][0]
-                        tau = tau_dict['tau'][pix][..., (np.array(tau_dict['chord'][pix]) == chord) &
-                                                        (np.array(tau_dict['chordID'][pix]) == chordID)]
+                        df_tau_tmp = df_tau[(df_tau['participant_id'] == p) &
+                                            (df_tau['day'] == day) &
+                                            (df_tau['chord'] == chord) &
+                                            (df_tau['chordID'] == chordID)]
 
-                        chordID_str = str(chordID)
-                        fingers = np.array([f != '9' for f in chordID_str])
+                        if len(df_tau_tmp) > 0:
 
-                        tau_vec = np.zeros((tau.shape[-1], 10))
-                        for t in range(tau.shape[-1]):
-                            tau_tmp = tau[..., t].copy()
-                            np.fill_diagonal(tau_tmp, np.nan)
-                            tau_tmp[fingers == False, :] = np.nan
-                            tau_tmp[:, fingers == False] = np.nan
-                            triu = np.triu(np.ones(tau_tmp.shape), k=1)
-                            tau_vec[t] = np.extract(triu, tau_tmp)
+                            tau = np.stack(df_tau_tmp['tau'].values)
 
-                        corr = pd.DataFrame(tau_vec.T).corr().to_numpy()
-                        np.fill_diagonal(corr, np.nan)
+                            chordID_str = str(chordID)
+                            fingers = np.array([f != '9' for f in chordID_str])
 
-                        xcorr_corr['participant_id'].append(p)
-                        xcorr_corr['day'].append(day)
-                        xcorr_corr['chordID'].append(chordID)
-                        xcorr_corr['chord'].append(chord)
-                        xcorr_corr['corr'].append(np.nanmean(corr))
+                            tau_vec = np.zeros((tau.shape[0], 10))
+                            for t in range(tau.shape[0]):
+                                tau_tmp = tau[t, ...].copy()
+                                np.fill_diagonal(tau_tmp, np.nan)
+                                tau_tmp[fingers == False, :] = np.nan
+                                tau_tmp[:, fingers == False] = np.nan
+                                triu = np.triu(np.ones(tau_tmp.shape), k=1)
+                                tau_vec[t] = np.extract(triu, tau_tmp)
+
+                            df_tau_vec = pd.DataFrame(tau_vec.T).dropna(axis=0, how='all')
+                            corr = df_tau_vec.corr().to_numpy()
+                            np.fill_diagonal(corr, np.nan)
+
+                            mcorr_shuff = np.zeros(nperm)
+                            for i in range(nperm):
+                                df_tau_vec_shuff = pd.DataFrame(np.apply_along_axis(np.random.permutation,
+                                                                                    1, df_tau_vec.values),
+                                                                columns=df_tau_vec.columns)
+                                corr_shuff = df_tau_vec_shuff.corr().to_numpy()
+                                np.fill_diagonal(corr_shuff, np.nan)
+                                mcorr_shuff[i] = np.nanmean(corr_shuff)
+
+                            xcorr_corr['participant_id'].append(p)
+                            xcorr_corr['day'].append(day)
+                            xcorr_corr['chordID'].append(chordID)
+                            xcorr_corr['chord'].append(chord)
+                            xcorr_corr['corr'].append(np.nanmean(corr))
+                            xcorr_corr['corr_shuff'].append(mcorr_shuff.mean())
 
             df = pd.DataFrame(xcorr_corr)
 
             sns.boxplot(data=df, ax=axs, x='day', y='corr', hue='chord')
 
+            axs.axhline(df['corr_shuff'].mean(), color='k', lw=.8, ls='--')
+            axs.axhline(0, color='k', lw=.8, ls='-')
+
             plt.show()
+
+        # endregion
+
+        # region
 
         # endregion
 
@@ -668,13 +790,14 @@ if __name__ == "__main__":
         'FORCE:preprocessing',
         'FORCE:variance_decomposition',
         'FORCE:xcorr',
-        'FORCE:noise_ceiling',
+        'NOISE_CEILING:tau',
         'EMG:recon_chord2nat',
         'EMG:recon_chord2chord',
         'EMG:nnmf',
         'RECONSTRUCT:force',
         'RECONSTRUCT:emg',
         'PLOT:variance_decomposition',
+        'PLOT:model_xcorr_day',
         'PLOT:force_in_trial',
         'PLOT:xcorr_chord',
         'PLOT:xcorr_day',
