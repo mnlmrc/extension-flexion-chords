@@ -1,3 +1,4 @@
+import pandas as pd
 import scipy
 
 
@@ -15,6 +16,31 @@ def load_nat_emg(file_path):
 
     return emg_nat_list
 
-file_path = '/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChords/efc1/natural/natChord_subj01_emg_natural_whole_sampled.mat'
 
-load_nat_emg(file_path)
+def calc_avg(X, columns=None, by=None):
+    """
+        Computes the average value of variables in <columns> grouped by <by>.
+
+        Parameters:
+        data (pd.DataFrame): The input dataframe.
+
+        Returns:
+        pd.DataFrame: A dataframe with averaged values.
+        """
+
+    if isinstance(columns, str):
+        columns = [columns]
+
+    # Group by 'chordID' and compute the mean of 'MD'
+    if X is str:
+        data = pd.read_csv(X)
+    elif isinstance(X, pd.DataFrame):
+        data = X
+    else:
+        data = None
+
+    columns = {col: 'mean' for col in columns}
+    avg = data.groupby(by).agg(columns).reset_index()
+    # md.rename(columns={'MD': 'average_MD'}, inplace=True)
+
+    return avg

@@ -78,6 +78,7 @@ def calc_dist(X, latency=.01, fsample=gl.fsample):
 
     return d
 
+
 def load_mov(filename):
     """
     load .mov file of one block
@@ -119,7 +120,6 @@ def load_mov(filename):
 
 
 def calc_xcorr(X):
-
     tau = np.zeros((X.shape[1], X.shape[1]))
     xcorr = np.zeros((X.shape[1], X.shape[1], X.shape[0] * 2 - 1))
     for i in range(X.shape[1]):
@@ -129,7 +129,8 @@ def calc_xcorr(X):
 
             norm = np.std(a) * np.std(v) * len(a)
 
-            xcorr_tmp = np.correlate(a - a.mean(), v - v.mean(), mode='full') / norm  # this is to map xcorr between -1 and 1
+            xcorr_tmp = np.correlate(a - a.mean(), v - v.mean(),
+                                     mode='full') / norm  # this is to map xcorr between -1 and 1
             xcorr[i, j] = xcorr_tmp
 
             lags = np.arange(-len(a) + 1, len(a)) / gl.fsample
@@ -138,18 +139,24 @@ def calc_xcorr(X):
     return xcorr, tau, lags
 
 
-def get_segment(x):
+def get_segment(x, hold_time=gl.hold_time):
     c = np.any(np.abs(x) > gl.fthresh, axis=1)
-    x = x[np.argmax(c):-int(gl.hold_time * gl.fsample)]
 
-    starttime = np.argmax(c) / gl.fsample
-    endtime = (len(x) - int(gl.hold_time * gl.fsample)) / gl.fsample
+    start_samp_exec = np.argmax(c)
 
-    return x, starttime, endtime
+    if hold_time is None:
+        x_s = x[start_samp_exec:]
+        starttime = start_samp_exec / gl.fsample
+        endtime = (len(x) / gl.fsample) - starttime
+    else:
+        x_s = x[start_samp_exec:-int(hold_time * gl.fsample)]
+        starttime = start_samp_exec / gl.fsample
+        endtime = ((len(x) - int(hold_time * gl.fsample)) / gl.fsample) - starttime
+
+    return x_s, starttime, endtime
 
 
 def calc_metrics(force):
-
     md = calc_md(force)
     exp, loadings, _ = calc_pca(force)
 
@@ -187,7 +194,8 @@ class Force:
         self.dat = pd.read_csv(os.path.join(self.path, f"{experiment}_{self.sn}.dat"), sep="\t")
 
         pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
-        self.trained = [int(x) for x in pinfo[pinfo['participant_id'] == self.participant_id]['trained'].iloc[0].split('.')]
+        self.trained = [int(x) for x in
+                        pinfo[pinfo['participant_id'] == self.participant_id]['trained'].iloc[0].split('.')]
         self.untrained = [int(x) for x in
                           pinfo[pinfo['participant_id'] == self.participant_id]['untrained'].iloc[0].split('.')]
 
@@ -210,10 +218,15 @@ class Force:
 
         xcorr, tau, lags = [], [], []
         for force_trial in force_dict['force']:
-            xcorr_tmp, tau_tmp, lags_tmp = calc_xcorr(force_trial)
-            xcorr.append(xcorr_tmp)
-            lags.append(lags_tmp)
-            tau.append(tau_tmp)
+            if force_trial is not None:
+                xcorr_tmp, tau_tmp, lags_tmp = calc_xcorr(force_trial)
+                xcorr.append(xcorr_tmp)
+                lags.append(lags_tmp)
+                tau.append(tau_tmp)
+            else:
+                xcorr.append(None)
+                lags.append(None)
+                tau.append(None)
 
         return xcorr, tau, lags
 
@@ -228,7 +241,7 @@ class Force:
         sn = self.sn
 
         # init dict metrics
-        metrics = {
+        metrics_dict = {
             'MD': [],
             'RT': [],
             'ET': [],
@@ -248,7 +261,8 @@ class Force:
             'session': [],
             'day': [],
             'block': [],
-            'chordID': []
+            'chordID': [],
+            'success': [],
         }
 
         for bl in range(gl.nblocks):
@@ -271,26 +285,24 @@ class Force:
                     rep = 1
                 else:
                     rep += 1
-                metrics['repetition'].append(rep)
+                metrics_dict['repetition'].append(rep)
 
-                force = mov[tr][:, gl.diffCols][mov[tr][:, 0] < 4]  # take only states 2-4 (i.e., exclude GIVE_FEEDBACK, state 5)
+                if dat_tmp.iloc[tr].trialPoint == 1:
 
-                force, rt, endtime = get_segment(force)
+                    force = mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3]  # take only states 3 (i.e., WAIT_EXEC)
+                    force, rt, endtime = get_segment(force)
 
-                et = endtime - rt
+                    et = endtime - rt
 
-                metrics_tmp = calc_metrics(force)
-                # metrics['dist'].append(metrics_tmp['dist'])
+                    metrics_tmp = calc_metrics(force)
 
-                if dat_tmp.iloc[tr].trialPoint:
-
-                    metrics['RT'].append(rt)
-                    metrics['ET'].append(et)
-                    metrics['MD'].append(metrics_tmp['MD'])
-                    metrics['PC'].append(metrics_tmp['PC'])
-                    metrics['angle'].append(metrics_tmp['angle'])
-                    metrics['sine'].append(metrics_tmp['sine'])
-                    metrics['jerk'].append(metrics_tmp['jerk'])
+                    metrics_dict['RT'].append(rt)
+                    metrics_dict['ET'].append(et)
+                    metrics_dict['MD'].append(metrics_tmp['MD'])
+                    metrics_dict['PC'].append(metrics_tmp['PC'])
+                    metrics_dict['angle'].append(metrics_tmp['angle'])
+                    metrics_dict['sine'].append(metrics_tmp['sine'])
+                    metrics_dict['jerk'].append(metrics_tmp['jerk'])
 
                     force_dict['force'].append(force)
                     force_dict['experiment'].append(experiment)
@@ -299,24 +311,30 @@ class Force:
                     force_dict['day'].append(day)
                     force_dict['block'].append(bl + 1)
                     force_dict['chordID'].append(dat_tmp.iloc[tr].chordID)
+                    force_dict['success'].append('successful')
 
                 else:
 
-                    metrics['RT'].append(None)
-                    metrics['ET'].append(None)
-                    metrics['MD'].append(None)
-                    metrics['PC'].append(None)
-                    metrics['angle'].append(None)
-                    metrics['sine'].append(None)
-                    metrics['jerk'].append(None)
+                    metrics_dict['RT'].append(None)
+                    metrics_dict['ET'].append(None)
+                    metrics_dict['MD'].append(None)
+                    metrics_dict['PC'].append(None)
+                    metrics_dict['angle'].append(None)
+                    metrics_dict['sine'].append(None)
+                    metrics_dict['jerk'].append(None)
+
+                    force_dict['force'].append(None)
+                    force_dict['experiment'].append(experiment)
+                    force_dict['participant_id'].append(participant_id)
+                    force_dict['session'].append(session)
+                    force_dict['day'].append(day)
+                    force_dict['block'].append(bl + 1)
+                    force_dict['chordID'].append(dat_tmp.iloc[tr].chordID)
+                    force_dict['success'].append('unsuccessful')
 
         metrics = dat[['BN', 'TN', 'subNum', 'chordID', 'trialPoint']].copy()
-        for key, values in metrics.items():
-            if key in ['PC', 'dist']:
-                for i in range(5):
-                    metrics[f'{key}{i}'] = [val[i] if val is not None else None for val in values]
-            else:
-                metrics[key] = values
+        for key, values in metrics_dict.items():
+            metrics[key] = values
 
         metrics['day'] = day
         metrics['session'] = session

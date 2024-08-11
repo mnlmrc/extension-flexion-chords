@@ -111,7 +111,7 @@ if __name__ == "__main__":
     columns = ['MD', 'RT', 'angle', 'sine', 'jerk', 'PC0', 'PC1', 'PC2', 'PC3', 'PC4', 'dist0', 'dist1', 'dist2',
                'dist3', 'dist4']
 
-    results = pd.read_csv(os.path.join(gl.baseDir, experiment, 'results.csv'))
+    results = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.csv'))
     df_day = calc_avg(results, by=['chord', 'day', 'participant_id'], columns=columns)
 
     save_path = os.path.join(gl.baseDir, experiment, 'figures')
@@ -121,15 +121,6 @@ if __name__ == "__main__":
     plot_days(df_day, y='sine', ylabel='sine of first PC', xlabel='day', title='sine of first principal component', save_path=os.path.join(save_path, 'sine.png'))
     plot_days(df_day, y='jerk', ylabel='jerk (N/s\u00b3)', xlabel='day', title='jerk', save_path=os.path.join(save_path, 'jerk.png'))
 
-    # _, axs = plt.subplots()
-    # df_melted = df.melt(id_vars=['day', 'chord'],
-    #                     value_vars=[f'PC{i}' for i in range(5)],
-    #                     var_name='PCs', value_name='Explained')
-    # sns.pointplot(df_melted[df_melted['chord'] == 'untrained'], x='PCs', y='Explained', hue='day',
-    #               errorbar='se', palette='Blues')
-    # sns.pointplot(df_melted[df_melted['chord'] == 'trained'], x='PCs', y='Explained', hue='day',
-    #               errorbar='se', palette='Reds')
-
     df_rep = calc_avg(results, by=['chord', 'day', 'repetition', 'participant_id'], columns=columns)
     offset = 5
     df_rep['offset'] = df_rep['repetition'] + df_rep['day'] * offset
@@ -138,10 +129,10 @@ if __name__ == "__main__":
              title='mean deviation', save_path=os.path.join(save_path, 'md_rep.png'))
     plot_rep(df_rep, 'RT', ylabel='RT (s)', xlabel='day',
              title='reaction time', save_path=os.path.join(save_path, 'rt_rep.png'))
-    plot_rep(df_rep, 'jerk', ylabel='jerk (N/s\u00b3)', xlabel='day',
-             title='jerk', save_path=os.path.join(save_path, 'jerk_rep.png'))
-    plot_rep(df_rep, 'sine', ylabel='sine of first PC', xlabel='day',
-             title='sine of first principal component', save_path=os.path.join(save_path, 'sine_rep.png'))
+    # plot_rep(df_rep, 'jerk', ylabel='jerk (N/s\u00b3)', xlabel='day',
+    #          title='jerk', save_path=os.path.join(save_path, 'jerk_rep.png'))
+    # plot_rep(df_rep, 'sine', ylabel='sine of first PC', xlabel='day',
+    #          title='sine of first principal component', save_path=os.path.join(save_path, 'sine_rep.png'))
 
     df_success = calc_success(results)
     plot_days(df_success, y='success', ylabel='%success', xlabel='day',
