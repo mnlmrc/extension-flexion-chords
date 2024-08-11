@@ -78,7 +78,7 @@ def iterative_nnmf(X, thresh=0.1):
         r2 = calc_r2(X, Xhat)
         err = mse(X, Xhat)
 
-        print(f"k:{k + 1}, R²: {r2:.4f}")
+        # print(f"k:{k + 1}, R²: {r2:.4f}")
 
         if 1 - r2 < thresh:
             break

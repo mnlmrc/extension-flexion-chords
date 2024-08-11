@@ -27,7 +27,7 @@ from util import load_nat_emg, calc_avg, calc_success
 from variance_decomposition import reliability_var
 
 
-def main(what, experiment=None, participant_id=None, session=None, day=None,
+def main(what, experiment=None, participant_id=None, session=None, day=None, dataset=None,
          chordID=None, chord=None, ntrial=None, metric=None, fig=None, axs=None):
     if participant_id is None:
         participant_id = gl.participants[experiment]
@@ -113,23 +113,60 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
         # region EMG:nnmf
         case 'EMG:nnmf':
 
-            M = pd.read_csv(os.path.join(gl.baseDir, experiment, dataset, 'M.tsv'), sep='\t')[
-                gl.channels['emg'] + ['sn']]
+            M = pd.read_csv(os.path.join(gl.baseDir, experiment, 'chords', 'M.tsv'), sep='\t')[
+                gl.channels['emg'] + ['sn', 'chordID']]
 
-            W, H, r2, k = [], [], [], []
+            chords = {
+                'W': [],
+                'H': [],
+                'r2': [],
+                'k': []
+            }
+
+            natural = {
+                'W': [],
+                'H': [],
+                'r2': [],
+                'k': []
+            }
+
+            scaler = MinMaxScaler()
+
             for p in participant_id:
                 sn = int(''.join([c for c in p if c.isdigit()]))
-                M_tmp = M[M['sn'] == sn].to_numpy()
+                M_tmp = M[M['sn'] == sn].groupby(['chordID']).mean().reset_index()[gl.channels['emg']].to_numpy()
+                M_tmp = scaler.fit_transform(M_tmp)
                 W_tmp, H_tmp, r2_tmp = iterative_nnmf(M_tmp, thresh=0.1)
 
                 k_tmp = H_tmp.shape[0]
 
-                W.append(W_tmp)
-                H.append(H_tmp)
-                r2.append(r2_tmp)
-                k.append(k_tmp)
+                chords['W'].append(W_tmp)
+                chords['H'].append(H_tmp)
+                chords['r2'].append(r2_tmp)
+                chords['k'].append(k_tmp)
 
-            return W, H, np.array(r2), np.array(k)
+                M_nat = load_nat_emg(os.path.join(gl.baseDir, experiment, 'natural',
+                                                  f'natChord_{p}_emg_natural_whole_sampled.mat'))
+
+                W_nat_tmp, H_nat_tmp, r2_nat_tmp, k_nat_tmp = [], [], [], []
+                for m, M_nat_tmp in enumerate(M_nat):
+                    M_nat_tmp = scaler.fit_transform(M_nat_tmp)
+                    norm = np.linalg.norm(M_nat_tmp, axis=1)
+                    M_nat_tmp = M_nat_tmp[norm > 2 * norm.mean()]
+
+                    W, H, r2 = iterative_nnmf(M_nat_tmp, thresh=0.1)
+
+                    W_nat_tmp.append(W)
+                    H_nat_tmp.append(H)
+                    r2_nat_tmp.append(r2)
+                    k_nat_tmp.append(H.shape[0])
+
+                natural['W'].append(W_nat_tmp)
+                natural['H'].append(H_nat_tmp)
+                natural['r2'].append(np.median(np.array(r2_nat_tmp)))
+                natural['k'].append(np.median(np.array(k_nat_tmp)))
+
+            return chords, natural
         # endregion
 
         # region RECONSTRUCT:emg
@@ -563,6 +600,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
 
             return fig, axs
 
+        # endregion
+
         # region PLOT:xcorr_corr
         case 'PLOT:xcorr_corr':
 
@@ -667,6 +706,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
                                                                 'r2_nat2chord',
                                                                 'r2_chord2nat_shuffle',
                                                                 'r2_nat2chord_shuffle']})
+
             df_r2 = df.groupby('participant_id')[['r2_chord2nat',
                                                   'r2_nat2chord']].mean().reset_index()
             df_shuffle = df.groupby('participant_id')[['r2_chord2nat_shuffle',
@@ -686,22 +726,24 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
 
             pos = H.get_xticks()
             shuffle_chord = df_shuffle['r2_chord2nat_shuffle']
-            axs.hlines(y=shuffle_chord.mean(), xmin=pos[0] - width / 2, xmax=pos[0] + width / 2, color='k', ls='-',
-                       lw=2)
-            axs.hlines(y=shuffle_chord, xmin=pos[0] - width / 2, xmax=pos[0] + width / 2, color='k', ls='-',
-                       alpha=0.2, lw=.8)
+            axs.hlines(y=shuffle_chord.mean(), xmin=pos[0] - width / 2,
+                       xmax=pos[0] + width / 2, color='k', ls='--', lw=.8)
+            axs.hlines(y=np.array(recon_dict['nc_natural']).mean(), xmin=pos[0] - width / 2,
+                       xmax=pos[0] + width / 2, color='grey', ls='-', lw=2)
+            # axs.hlines(y=shuffle_chord, xmin=pos[0] - width / 2, xmax=pos[0] + width / 2, color='k', ls='-',
+            #            alpha=0.2, lw=.8)
 
             shuffle_nat = df_shuffle['r2_nat2chord_shuffle']
-            axs.hlines(y=shuffle_nat.mean(), xmin=pos[1] - width / 2, xmax=pos[1] + width / 2, color='k', ls='-',
-                       lw=2)
-            axs.hlines(y=shuffle_nat, xmin=pos[1] - width / 2, xmax=pos[1] + width / 2, color='k', ls='-',
-                       alpha=0.2, lw=.8)
+            axs.hlines(y=shuffle_nat.mean(), xmin=pos[1] - width / 2, xmax=pos[1] + width / 2, color='k', ls='--',
+                       lw=.8)
+            axs.hlines(y=np.array(recon_dict['nc_chords']).mean(), xmin=pos[1] - width / 2,
+                       xmax=pos[1] + width / 2, color='grey', ls='-', lw=2)
+            # axs.hlines(y=shuffle_nat, xmin=pos[1] - width / 2, xmax=pos[1] + width / 2, color='k', ls='-',
+            #            alpha=0.2, lw=.8)
 
-            fig.subplots_adjust(left=0.2)
+            # fig.subplots_adjust(left=0.2)
 
-            plt.show()
-
-            pass
+            return fig, axs
         # endregion
 
 
@@ -736,7 +778,7 @@ if __name__ == "__main__":
     parser.add_argument('--metric', default=None, choices=['MD', 'RT', 'ET'], help='')
     parser.add_argument('--chordID', default=None, help='')
     parser.add_argument('--chord', default=None, help='', choices=['trained', 'untrained'])
-    # parser.add_argument('--dataset', default=None, help='', choices=['natural', 'chords'])
+    parser.add_argument('--dataset', default=None, help='', choices=['natural', 'chords'])
 
     args = parser.parse_args()
 
@@ -749,7 +791,7 @@ if __name__ == "__main__":
     metric = args.metric
     chordID = int(args.chordID) if args.chordID is not None else None
     chord = args.chord
-    # dataset = args.dataset
+    dataset = args.dataset
 
     if participant_id is None:
         participant_id = gl.participants[experiment]
