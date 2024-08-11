@@ -16,6 +16,14 @@ def load_nat_emg(file_path):
 
     return emg_nat_list
 
+def calc_success(X):
+
+    success = X.groupby(['subNum', 'chordID', 'day', 'chord'])['trialPoint'].mean().reset_index()
+    success.rename(columns={'trialPoint': 'success'}, inplace=True)
+
+    success.sort_values(by='chord', inplace=True)
+
+    return success
 
 def calc_avg(X, columns=None, by=None):
     """
