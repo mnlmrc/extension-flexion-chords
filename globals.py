@@ -52,6 +52,7 @@ participants = {
         # 'subj105',
         'subj106',
         'subj107',
+        # 'subj108'
     ]
 }
 

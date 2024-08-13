@@ -8,6 +8,8 @@ from matplotlib.lines import Line2D
 from scipy.optimize import nnls
 from sklearn.linear_model import LinearRegression
 
+from scipy.stats import ttest_1samp
+
 from sklearn.preprocessing import MinMaxScaler
 
 import pandas as pd
@@ -27,7 +29,7 @@ from util import load_nat_emg, calc_avg, calc_success
 from variance_decomposition import reliability_var
 
 
-def main(what, experiment=None, participant_id=None, session=None, day=None, dataset=None,
+def main(what, experiment=None, participant_id=None, session=None, day=None,
          chordID=None, chord=None, ntrial=None, metric=None, fig=None, axs=None):
     if participant_id is None:
         participant_id = gl.participants[experiment]
@@ -174,6 +176,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, dat
 
             M = pd.read_csv(os.path.join(gl.baseDir, experiment, 'chords', 'M.tsv'), sep='\t')[gl.channels['emg'] +
                                                                                                ['sn', 'chordID']]
+            M_avg = M.groupby('chordID').mean().reset_index().sort_values(by='chordID')[gl.channels['emg']].to_numpy()
 
             recon_dict = {
                 'participant_id': [],
@@ -194,7 +197,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, dat
             for p in participant_id:
                 sn = int(''.join([c for c in p if c.isdigit()]))
 
-                M_tmp = M[M['sn'] == sn].groupby(['chordID']).mean().reset_index()[gl.channels['emg']].to_numpy()
+                M_tmp = M[M['sn'] == sn].groupby(['chordID']).mean().reset_index().sort_values(by='chordID')[gl.channels['emg']].to_numpy()
                 M_tmp = scaler.fit_transform(M_tmp)
                 W_tmp, H_tmp, r2_tmp = iterative_nnmf(M_tmp, thresh=0.1)
 
@@ -202,20 +205,17 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, dat
                                                   f'natChord_{p}_emg_natural_whole_sampled.mat'))
 
                 # noise ceiling chords
-                nc_chords = list()
-                for j in range(M_tmp.shape[0]):
-                    M_tmp_j = M_tmp[j, :]
-                    M_tmp_not_j = np.delete(M_tmp, j, axis=0)
+                B = np.zeros((M_avg.shape[1], M_avg.shape[1]))
+                for m in range(M_tmp.shape[1]):
+                    B[:, m], _ = nnls(M_tmp, M_avg[:, m])
 
-                    W_j, H_j, _ = iterative_nnmf(M_tmp_not_j, thresh=0.1)
-                    W_c, _ = nnls(H_j.T, M_tmp_j)
-                    M_rec = np.dot(W_c, H_j)
-
-                    nc_chords.append(calc_r2(M_tmp_j, M_rec))
-                recon_dict['nc_chords'].append(np.array(nc_chords).mean())
+                recon_dict['nc_chords'].append(calc_r2(M_avg, np.dot(M_tmp, B)))
 
                 matches = [[] for _ in range(len(M_nat))]
                 for m, M_nat_tmp in enumerate(M_nat):
+
+                    print(f'RECONSTRUCT:emg - participant_id: {p}, partition: {m}')
+
                     M_nat_tmp = scaler.fit_transform(M_nat_tmp)
                     norm = np.linalg.norm(M_nat_tmp, axis=1)
                     M_nat_tmp = M_nat_tmp[norm > 2 * norm.mean()]
@@ -256,9 +256,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, dat
                     nc_natural = []
                     for j, M_nat_j in enumerate(M_nat):
                         if j != m:
+                            M_nat_j = scaler.fit_transform(M_nat_j)
                             norm = np.linalg.norm(M_nat_j, axis=1)
                             M_nat_j = M_nat_j[norm > norm.mean()]
-                            M_nat_j = scaler.fit_transform(M_nat_j)
 
                             if M_nat_tmp.shape[0] > M_nat_j.shape[0]:
                                 M_nat_tmp = M_nat_tmp[:M_nat_j.shape[0]]
@@ -275,9 +275,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, dat
 
                     # reconstruct natural from chords
                     W_c = np.zeros((M_nat_tmp.shape[0], M_tmp.shape[0]))
-                    res = np.zeros(M_nat_tmp.shape[0])
                     for i in range(M_nat_tmp.shape[0]):
-                        W_c[i], res[i] = nnls(M_tmp.T, M_nat_tmp[i])
+                        W_c[i], _ = nnls(M_tmp.T, M_nat_tmp[i])
 
                     M_rec = np.dot(W_c, M_tmp)
                     recon_dict['r2_chord2nat'].append(calc_r2(M_nat_tmp, M_rec))
@@ -695,7 +694,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, dat
         # region PLOT:recon_emg
         case 'PLOT:recon_emg':
             if fig is None or axs is None:
-                fig, axs = plt.subplots(figsize=(3, 4))
+                fig, axs = plt.subplots()
 
             with open(os.path.join(gl.baseDir, experiment, 'recon_emg.pkl'), 'rb') as file:
                 recon_dict = pickle.load(file)
@@ -716,34 +715,45 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, dat
                                     value_vars=['r2_chord2nat', 'r2_nat2chord'],
                                     var_name='reconstruction', value_name='R²')
 
-            pval_chord2nat, pval_perm_chord2nat = perm_test_1samp(df_r2['r2_chord2nat'],
-                                                                  df_shuffle['r2_chord2nat_shuffle'], nperm=5000)
-            pval_nat2chord, pval_perm_nat2chord = perm_test_1samp(df_r2['r2_nat2chord'],
-                                                                  df_shuffle['r2_nat2chord_shuffle'], nperm=5000)
+            pval = {
+                'pval_chord2nat_shuffle': [],
+                'pval_nat2chord_shuffle': [],
+                'pval_chord2nat_ceiling': [],
+                'pval_nat2chord_ceiling': []
+            }
+
+            _, pval['pval_chord2nat_shuffle'] = ttest_1samp(df_r2['r2_chord2nat'], df_shuffle['r2_chord2nat_shuffle'].mean(),
+                                                  alternative='greater')
+            _, pval['pval_nat2chord_shuffle'] = ttest_1samp(df_r2['r2_nat2chord'], df_shuffle['r2_nat2chord_shuffle'].mean(),
+                                                    alternative='greater')
+            _, pval['pval_chord2nat_ceiling'] = ttest_1samp(df_r2['r2_chord2nat'], np.array(recon_dict['nc_natural']).mean(),
+                                                    alternative='greater')
+            _, pval['pval_nat2chord_ceiling'] = ttest_1samp(df_r2['r2_nat2chord'], np.array(recon_dict['nc_chords']).mean(),
+                                                    alternative='greater')
 
             width = .5
-            H = sns.boxplot(ax=axs, x='reconstruction', y='R²', data=df_r2_melt, width=width)
+            H = sns.boxplot(ax=axs, x='reconstruction', y='R²', data=df_r2_melt, width=width, color='lightgrey')
 
             pos = H.get_xticks()
             shuffle_chord = df_shuffle['r2_chord2nat_shuffle']
             axs.hlines(y=shuffle_chord.mean(), xmin=pos[0] - width / 2,
                        xmax=pos[0] + width / 2, color='k', ls='--', lw=.8)
             axs.hlines(y=np.array(recon_dict['nc_natural']).mean(), xmin=pos[0] - width / 2,
-                       xmax=pos[0] + width / 2, color='grey', ls='-', lw=2)
-            # axs.hlines(y=shuffle_chord, xmin=pos[0] - width / 2, xmax=pos[0] + width / 2, color='k', ls='-',
-            #            alpha=0.2, lw=.8)
-
+                       xmax=pos[0] + width / 2, color='dimgrey', ls='-', lw=2)
             shuffle_nat = df_shuffle['r2_nat2chord_shuffle']
             axs.hlines(y=shuffle_nat.mean(), xmin=pos[1] - width / 2, xmax=pos[1] + width / 2, color='k', ls='--',
                        lw=.8)
             axs.hlines(y=np.array(recon_dict['nc_chords']).mean(), xmin=pos[1] - width / 2,
-                       xmax=pos[1] + width / 2, color='grey', ls='-', lw=2)
-            # axs.hlines(y=shuffle_nat, xmin=pos[1] - width / 2, xmax=pos[1] + width / 2, color='k', ls='-',
-            #            alpha=0.2, lw=.8)
+                       xmax=pos[1] + width / 2, color='dimgrey', ls='-', lw=2)
 
-            # fig.subplots_adjust(left=0.2)
+            axs.text(axs.get_xlim()[1], shuffle_nat.mean(), 'shuffled data', va='center', ha='left', color='k')
+            axs.text(axs.get_xlim()[0], shuffle_chord.mean(), 'shuffled data', va='center', ha='right', color='k')
+            axs.text(axs.get_xlim()[0], np.array(recon_dict['nc_natural']).mean(), 'noise ceiling',
+                     va='center', ha='right', color='dimgrey')
+            axs.text(axs.get_xlim()[1], np.array(recon_dict['nc_chords']).mean(), 'noise ceiling',
+                     va='center', ha='left', color='dimgrey')
 
-            return fig, axs
+            return fig, axs, pval
         # endregion
 
 
