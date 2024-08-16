@@ -33,9 +33,11 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
          chordID=None, chord=None, ntrial=None, metric=None, fig=None, axs=None):
     if participant_id is None:
         participant_id = gl.participants[experiment]
+    # elif isinstance(participant_id, str):
+    #     participant_id = [participant_id]
 
-    if len(participant_id) == 1:
-        participant_id = participant_id[0]
+    # if len(participant_id) == 1:
+    #     participant_id = participant_id[0]
 
     match what:
         # region FORCE:preprocessing
@@ -49,10 +51,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
                     else:
                         session = 'training'
 
-                    force = Force(experiment,
-                                  p,
-                                  session,
-                                  day)
+                    force = Force(experiment, p, session, day)
                     metrics_tmp, force_dict = force.preprocessing()
                     metrics = pd.concat([metrics, metrics_tmp])
 
