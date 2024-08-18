@@ -25,12 +25,14 @@ from force import Force
 from nnmf import iterative_nnmf, optimize_H, calc_reconerr, assert_selected_rows_belong, calc_r2
 from plot import plot_days
 from stats import perm_test_1samp
-from util import load_nat_emg, calc_avg, calc_success
+from util import load_nat_emg, calc_avg, calc_success, lp_butter
 from variance_decomposition import reliability_var
 
 
-def main(what, experiment=None, participant_id=None, session=None, day=None,
-         chordID=None, chord=None, ntrial=None, metric=None, fig=None, axs=None):
+def main(what, experiment=None, participant_id=None, session=None, day=None, chordID=None, chord=None, ntrial=None,
+         metric=None,
+         fig=None, axs=None, width=None, linewidth=None, linecolor=None, showfliers=True, color=None, palette=None,
+         err_kw=None):
     if participant_id is None:
         participant_id = gl.participants[experiment]
     # elif isinstance(participant_id, str):
@@ -101,8 +103,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
                         tau_dict['chordID'].append(force_dict['chordID'][T])
                         tau_dict['chord'].append('trained' if force_dict['chordID'][T]
                                                               in force.trained else 'untrained')
-
-                    pass
 
             with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "wb") as file:
                 pickle.dump(tau_dict, file)
@@ -196,7 +196,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
             for p in participant_id:
                 sn = int(''.join([c for c in p if c.isdigit()]))
 
-                M_tmp = M[M['sn'] == sn].groupby(['chordID']).mean().reset_index().sort_values(by='chordID')[gl.channels['emg']].to_numpy()
+                M_tmp = M[M['sn'] == sn].groupby(['chordID']).mean().reset_index().sort_values(by='chordID')[
+                    gl.channels['emg']].to_numpy()
                 M_tmp = scaler.fit_transform(M_tmp)
                 W_tmp, H_tmp, r2_tmp = iterative_nnmf(M_tmp, thresh=0.1)
 
@@ -457,6 +458,31 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
             return fig, axs, custom_handles
         # endregion
 
+        # region PLOT:metric_day
+        case 'PLOT:metric_day':
+
+            if fig is None or axs is None:
+                fig, axs = plt.subplots()
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.csv'))
+            df = calc_avg(metrics, by=['chord', 'day', 'participant_id'], columns=metric)
+            df.loc[df['chord'] == 'trained', 'day'] = df.loc[df['chord'] == 'trained', 'day'].astype('float') + .05
+            df.loc[df['chord'] == 'untrained', 'day'] = df.loc[df['chord'] == 'untrained', 'day'].astype('float') - .05
+
+            sns.lineplot(data=df[df['chord'] == 'trained'], ax=axs, x='day', y=metric, errorbar='se', err_style='bars',
+                         color=palette[0], marker='o', markeredgewidth=0, linewidth=linewidth, err_kws=err_kw)
+            sns.lineplot(data=df[df['chord'] == 'untrained'], ax=axs, x='day', y=metric, errorbar='se',
+                         err_style='bars',
+                         color=palette[1], marker='o', markeredgewidth=0, linewidth=linewidth, err_kws=err_kw)
+
+            custom_handles = [
+                Line2D([0], [0], marker='o', color='blue', markerfacecolor='blue', label='untrained'),
+                Line2D([0], [0], marker='o', color='red', markerfacecolor='red', label='trained')
+            ]
+
+            return fig, axs, custom_handles
+        # endregion
+
         # region PLOT:force_in_trial
         case 'PLOT:force_in_trial':
 
@@ -467,6 +493,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
             force_dict = force.load_pkl()
             force_trial = force_dict['force'][ntrial] * np.array(
                 [1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
+            force_trial = lp_butter(force_trial.T, 30, gl.fsample).T
             chordID = int(force_dict['chordID'][ntrial])
             # session = force_dict['session'][ntrial]
             day = force_dict['day'][ntrial]
@@ -476,8 +503,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
             axs.plot(tAx, force_trial)
 
             axs.axhline(0, color='k', lw=.8, ls='-')
-            axs.axhline(-1.2, color='k', lw=.8, ls='--')
-            axs.axhline(1.2, color='k', lw=.8, ls='--')
+            # axs.axhline(-1.2, color='k', lw=.8, ls='--')
+            # axs.axhline(1.2, color='k', lw=.8, ls='--')
+            axs.axhspan(-1.2, 1.2, color='grey', alpha=0.3, lw=0)
             axs.axhline(2, color='k', lw=.8, ls='-.')
             axs.axhline(-2, color='k', lw=.8, ls='-.')
             axs.axhline(5, color='k', lw=.8, ls='-.')
@@ -721,36 +749,21 @@ def main(what, experiment=None, participant_id=None, session=None, day=None,
                 'pval_nat2chord_ceiling': []
             }
 
-            _, pval['pval_chord2nat_shuffle'] = ttest_1samp(df_r2['r2_chord2nat'], df_shuffle['r2_chord2nat_shuffle'].mean(),
-                                                  alternative='greater')
-            _, pval['pval_nat2chord_shuffle'] = ttest_1samp(df_r2['r2_nat2chord'], df_shuffle['r2_nat2chord_shuffle'].mean(),
-                                                    alternative='greater')
-            _, pval['pval_chord2nat_ceiling'] = ttest_1samp(df_r2['r2_chord2nat'], np.array(recon_dict['nc_natural']).mean(),
-                                                    alternative='greater')
-            _, pval['pval_nat2chord_ceiling'] = ttest_1samp(df_r2['r2_nat2chord'], np.array(recon_dict['nc_chords']).mean(),
-                                                    alternative='greater')
+            _, pval['pval_chord2nat_shuffle'] = ttest_1samp(df_r2['r2_chord2nat'],
+                                                            df_shuffle['r2_chord2nat_shuffle'].mean(),
+                                                            alternative='greater')
+            _, pval['pval_nat2chord_shuffle'] = ttest_1samp(df_r2['r2_nat2chord'],
+                                                            df_shuffle['r2_nat2chord_shuffle'].mean(),
+                                                            alternative='greater')
+            _, pval['pval_chord2nat_ceiling'] = ttest_1samp(df_r2['r2_chord2nat'],
+                                                            np.array(recon_dict['nc_natural']).mean(),
+                                                            alternative='greater')
+            _, pval['pval_nat2chord_ceiling'] = ttest_1samp(df_r2['r2_nat2chord'],
+                                                            np.array(recon_dict['nc_chords']).mean(),
+                                                            alternative='greater')
 
-            width = .5
-            H = sns.boxplot(ax=axs, x='reconstruction', y='R²', data=df_r2_melt, width=width, color='lightgrey')
-
-            pos = H.get_xticks()
-            shuffle_chord = df_shuffle['r2_chord2nat_shuffle']
-            axs.hlines(y=shuffle_chord.mean(), xmin=pos[0] - width / 2,
-                       xmax=pos[0] + width / 2, color='k', ls='--', lw=.8)
-            axs.hlines(y=np.array(recon_dict['nc_natural']).mean(), xmin=pos[0] - width / 2,
-                       xmax=pos[0] + width / 2, color='dimgrey', ls='-', lw=2)
-            shuffle_nat = df_shuffle['r2_nat2chord_shuffle']
-            axs.hlines(y=shuffle_nat.mean(), xmin=pos[1] - width / 2, xmax=pos[1] + width / 2, color='k', ls='--',
-                       lw=.8)
-            axs.hlines(y=np.array(recon_dict['nc_chords']).mean(), xmin=pos[1] - width / 2,
-                       xmax=pos[1] + width / 2, color='dimgrey', ls='-', lw=2)
-
-            axs.text(axs.get_xlim()[1], shuffle_nat.mean(), 'shuffled data', va='center', ha='left', color='k')
-            axs.text(axs.get_xlim()[0], shuffle_chord.mean(), 'shuffled data', va='center', ha='right', color='k')
-            axs.text(axs.get_xlim()[0], np.array(recon_dict['nc_natural']).mean(), 'noise ceiling',
-                     va='center', ha='right', color='dimgrey')
-            axs.text(axs.get_xlim()[1], np.array(recon_dict['nc_chords']).mean(), 'noise ceiling',
-                     va='center', ha='left', color='dimgrey')
+            sns.boxplot(ax=axs, x='reconstruction', y='R²', data=df_r2_melt, width=width, linewidth=linewidth,
+                        linecolor=linecolor, showfliers=showfliers, color=color, palette=palette)
 
             return fig, axs, pval
         # endregion

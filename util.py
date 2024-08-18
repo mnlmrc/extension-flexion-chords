@@ -1,5 +1,7 @@
+import numpy as np
 import pandas as pd
 import scipy
+from scipy.signal import butter, filtfilt
 
 
 def load_nat_emg(file_path):
@@ -52,3 +54,29 @@ def calc_avg(X, columns=None, by=None):
     # md.rename(columns={'MD': 'average_MD'}, inplace=True)
 
     return avg
+
+
+def lp_butter(signal, cutoff, fs, order=5):
+    """
+    Apply a low-pass filter to a 5-by-t signal array.
+
+    Parameters:
+    signal (np.ndarray): 5-by-t array where each row is a signal to be filtered.
+    cutoff (float): The cutoff frequency of the filter.
+    fs (float): The sampling frequency of the signal.
+    order (int): The order of the Butterworth filter (default is 5).
+
+    Returns:
+    np.ndarray: The filtered 5-by-t signal array.
+    """
+    # Design a Butterworth low-pass filter
+    nyquist = 0.5 * fs
+    normal_cutoff = cutoff / nyquist
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+
+    # Apply the filter to each row
+    filtered_signal = np.zeros_like(signal)
+    for i in range(signal.shape[0]):
+        filtered_signal[i, :] = filtfilt(b, a, signal[i, :])
+
+    return filtered_signal
