@@ -23,6 +23,8 @@ sns.boxplot(x='sess', y='trialCorr', data=data, ax=axs, color='darkgrey', width=
 
 axs.set_ylim([0, 1.1])
 axs.spines[['right', 'top']].set_visible(False)
+axs.spines[['left', 'bottom']].set_linewidth(2)
+axs.tick_params(axis='both', width=2)
 
 axs.set_xticklabels(axs.get_xticklabels(), fontsize=16)
 axs.set_yticklabels(axs.get_yticklabels(), fontsize=16)
@@ -31,6 +33,6 @@ axs.set_xlabel('day', fontsize=16)
 axs.set_ylabel('success rate', fontsize=16)
 
 fig.tight_layout()
-# fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'success_rates.svg'), dpi=600)
+fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'success_rates.svg'), dpi=600)
 
 plt.show()

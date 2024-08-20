@@ -18,7 +18,7 @@ movCols = ['state', 'timeReal', 'time',
            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
 diffCols = [13, 14, 15, 16, 17]
 
-Dirs = ["/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChords"]
+Dirs = ["/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord"]
 
 # natChord_chordDir = "/Users/mnlmrc/Downloads/natChord_chord.tsv"
 

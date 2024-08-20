@@ -6,9 +6,9 @@ import pandas as pd
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument('--subNum', default='108',
+    parser.add_argument('--subNum', default='113',
                         help='Participant ID (e.g., subj100, subj101, ...)')
-    parser.add_argument('--session', default='testing', help='Atlas name')
+    parser.add_argument('--session', default='training', help='Atlas name')
 
     args = parser.parse_args()
 

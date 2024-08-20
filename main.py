@@ -500,7 +500,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             tAx = np.linspace(0, force_trial.shape[0] / gl.fsample, force_trial.shape[0])
 
-            axs.plot(tAx, force_trial)
+            axs.plot(tAx, force_trial, lw=linewidth)
 
             axs.axhline(0, color='k', lw=.8, ls='-')
             # axs.axhline(-1.2, color='k', lw=.8, ls='--')
