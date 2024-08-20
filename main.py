@@ -16,13 +16,12 @@ import pandas as pd
 import pickle
 import json
 import globals as gl
-import argcomplete
 import numpy as np
 
 import seaborn as sns
 
 from force import Force
-from nnmf import iterative_nnmf, optimize_H, calc_reconerr, assert_selected_rows_belong, calc_r2
+from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2
 from plot import plot_days
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lp_butter
@@ -469,10 +468,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             df.loc[df['chord'] == 'trained', 'day'] = df.loc[df['chord'] == 'trained', 'day'].astype('float') + .05
             df.loc[df['chord'] == 'untrained', 'day'] = df.loc[df['chord'] == 'untrained', 'day'].astype('float') - .05
 
-            sns.lineplot(data=df[df['chord'] == 'trained'], ax=axs, x='day', y=metric, errorbar='se', err_style='bars',
+            sns.lineplot(data=df[df['chord'] == 'trained'], ax=axs, x='day', y=metric, errorbar='se', err_style='band',
                          color=palette[0], marker='o', markeredgewidth=0, linewidth=linewidth, err_kws=err_kw)
-            sns.lineplot(data=df[df['chord'] == 'untrained'], ax=axs, x='day', y=metric, errorbar='se',
-                         err_style='bars',
+            sns.lineplot(data=df[df['chord'] == 'untrained'], ax=axs, x='day', y=metric, errorbar='se', err_style='band',
                          color=palette[1], marker='o', markeredgewidth=0, linewidth=linewidth, err_kws=err_kw)
 
             custom_handles = [

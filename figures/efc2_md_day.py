@@ -30,12 +30,14 @@ print(pval)
 
 fig, axs = plt.subplots(figsize=(3.5, 5))
 fig, axs, custom_handles = main('PLOT:metric_day', experiment, metric='MD', fig=fig, axs=axs,
-                                palette=['red', 'blue'], linewidth=3, err_kw={'linewidth': 1.5})
+                                palette=['red', 'blue'], linewidth=3, err_kw={'linewidth': 0})
 
 fig.legend(handles=custom_handles, loc='upper right', ncol=1, frameon=False, fontsize=12)
 
 fontsize = 12
 
+axs.spines['bottom'].set_bounds(1, 5)  # Set x-axis spine to be shorter
+axs.spines['left'].set_bounds(.6, 1.6)  # Set y-axis spine to be shorter
 axs.set_ylabel('MD (a.u.)', fontsize=fontsize)
 axs.set_xlabel('day', fontsize=fontsize)
 axs.set_yticklabels(axs.get_yticklabels(), fontsize=fontsize)
