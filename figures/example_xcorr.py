@@ -43,7 +43,7 @@ fig.supylabel('correlation')
 
 fig.tight_layout()
 
-fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'xcorr_example.svg'), dpi=600)
+fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'xcorr_example.svg'), dpi=300)
 
 plt.show()
 

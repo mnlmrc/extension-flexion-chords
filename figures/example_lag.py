@@ -1,3 +1,5 @@
+import os
+
 import matplotlib.pyplot as plt
 import globals as gl
 from main import main
@@ -31,6 +33,8 @@ ax.set_xticklabels(ax.get_xticklabels(), fontsize=fontsize)
 
 ax.set_xlim([.5, 4.5])
 ax.set_ylim([.5, 4.5])
+
+fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'lag_example.svg'), dpi=300)
 
 plt.show()
 

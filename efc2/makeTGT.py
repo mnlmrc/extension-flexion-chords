@@ -6,7 +6,7 @@ import pandas as pd
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument('--subNum', default='113',
+    parser.add_argument('--subNum', default='112',
                         help='Participant ID (e.g., subj100, subj101, ...)')
     parser.add_argument('--session', default='training', help='Atlas name')
 

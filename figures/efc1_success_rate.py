@@ -26,11 +26,11 @@ axs.spines[['right', 'top']].set_visible(False)
 axs.spines[['left', 'bottom']].set_linewidth(2)
 axs.tick_params(axis='both', width=2)
 
-axs.set_xticklabels(axs.get_xticklabels(), fontsize=16)
-axs.set_yticklabels(axs.get_yticklabels(), fontsize=16)
+axs.set_xticklabels(axs.get_xticklabels(), fontsize=12)
+axs.set_yticklabels(axs.get_yticklabels(), fontsize=12)
 
-axs.set_xlabel('day', fontsize=16)
-axs.set_ylabel('success rate', fontsize=16)
+axs.set_xlabel('day', fontsize=12)
+axs.set_ylabel('success rate', fontsize=12)
 
 fig.tight_layout()
 fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'success_rates.svg'), dpi=600)

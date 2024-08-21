@@ -12,11 +12,6 @@ np.random.seed(8)
 
 data = pd.read_csv(os.path.join(gl.baseDir, experiment, 'efc1_chord.tsv'), sep='\t')
 data['MD'] = pd.to_numeric(data['MD'], errors='coerce')
-# hues = np.random.permutation(data['num_fingers'].unique())
-# offset = .05
-# hue_mapping = {h: i * offset for i, h in enumerate(hues)}
-# data['sess'] = data['sess'] + data['num_fingers'].map(hue_mapping)
-# data['MD'] = data['MD']
 
 fig, axs = plt.subplots(figsize=(3.5, 5))
 
@@ -36,6 +31,7 @@ axs.set_yticklabels(axs.get_yticklabels(), fontsize=fontsize)
 axs.set_xticklabels(axs.get_xticklabels(), fontsize=fontsize)
 axs.spines[['right', 'top']].set_visible(False)
 axs.spines[['left', 'bottom']].set_linewidth(2)
+
 axs.tick_params(axis='both', width=2)
 
 axs.legend(frameon=False, fontsize=fontsize, title='number\nof fingers', title_fontsize=fontsize, loc='upper right')

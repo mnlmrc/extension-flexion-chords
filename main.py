@@ -412,6 +412,130 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
         # endregion
 
+        # region XCORR:correlation_and_slope
+        case 'XCORR:correlation_and_slope':
+
+            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
+                tau_dict = pickle.load(file)
+
+            df_tau = pd.DataFrame(tau_dict)
+
+            xcorr_corr = {
+                'participant_id': [],
+                'day': [],
+                'chordID': [],
+                'chord': [],
+                'corr': [],
+                'corr_shuff': [],
+                'slope': [],
+                'slope_shuff': []
+            }
+
+            nperm = 10
+
+            for p in participant_id:
+                for day in gl.days:
+                    for chordID in gl.chordID:
+
+                        print(f'participant_id:{p}, day:{day}, chordID:{chordID}')
+
+                        if day == '1' or day == '5':
+                            session = 'testing'
+                        else:
+                            session = 'training'
+
+                        if chordID in Force(experiment, p, session, day).trained:
+                            chord = 'trained'
+                        else:
+                            chord = 'untrained'
+
+                        df_tau_tmp = df_tau[(df_tau['participant_id'] == p) &
+                                            (df_tau['day'] == day) &
+                                            (df_tau['chordID'] == chordID)]
+
+                        if len(df_tau_tmp) > 0:
+
+                            tau = [t for t in df_tau_tmp['tau'] if t is not None]
+                            tau = np.stack(tau)
+
+                            chordID_str = str(chordID)
+                            fingers = np.array([f != '9' for f in chordID_str])
+
+                            tau_vec = np.zeros((tau.shape[0], 10))
+                            for t in range(tau.shape[0]):
+                                tau_tmp = tau[t, ...].copy()
+                                np.fill_diagonal(tau_tmp, np.nan)
+                                tau_tmp[fingers == False, :] = np.nan
+                                tau_tmp[:, fingers == False] = np.nan
+                                triu = np.triu(np.ones(tau_tmp.shape), k=1)
+                                tau_vec[t] = np.extract(triu, tau_tmp)
+
+                            df_tau_vec = pd.DataFrame(tau_vec.T).dropna(axis=0, how='all')
+
+                            # compute correlation
+                            corr = df_tau_vec.corr().to_numpy()
+                            np.fill_diagonal(corr, np.nan)
+
+                            # compute slope
+                            slope_matrix = np.full((df_tau_vec.shape[1], df_tau_vec.shape[1]), np.nan)
+                            for i in range(df_tau_vec.shape[1]):
+                                for j in range(df_tau_vec.shape[1]):  # Start from i+1 to avoid redundant calculations
+                                    x = df_tau_vec.iloc[:, i].values.reshape(-1, 1)
+                                    y = df_tau_vec.iloc[:, j].values
+
+                                    # Fit a linear regression model to (x, y)
+                                    model = LinearRegression().fit(x, y)
+
+                                    # Store the slope in the matrix
+                                    slope_matrix[i, j] = model.coef_[0]
+                                    slope_matrix[j, i] = model.coef_[0]
+                            np.fill_diagonal(slope_matrix, np.nan)
+
+                            # compute shuffled
+                            mcorr_shuff = np.zeros(nperm)
+                            mslope_matrix_shuff = np.zeros(nperm)
+                            for prm in range(nperm):
+                                df_tau_vec_shuff = pd.DataFrame(
+                                    np.apply_along_axis(np.random.permutation, 1, df_tau_vec.values),
+                                    columns=df_tau_vec.columns)
+
+                                # shuffled correlation
+                                corr_shuff = df_tau_vec_shuff.corr().to_numpy()
+                                np.fill_diagonal(corr_shuff, np.nan)
+                                mcorr_shuff[prm] = np.nanmean(corr_shuff)
+
+                                # shuffled slope
+                                slope_matrix_shuff = np.full((df_tau_vec_shuff.shape[1],
+                                                              df_tau_vec_shuff.shape[1]), np.nan)
+                                for i in range(df_tau_vec_shuff.shape[1]):
+                                    for j in range(df_tau_vec_shuff.shape[1]):  # Start from i+1 to avoid redundant calculations
+                                        x = df_tau_vec_shuff.iloc[:, i].values.reshape(-1, 1)
+                                        y = df_tau_vec_shuff.iloc[:, j].values
+
+                                        # Fit a linear regression model to (x, y)
+                                        model = LinearRegression().fit(x, y)
+
+                                        # Store the slope in the matrix
+                                        slope_matrix_shuff[i, j] = model.coef_[0]
+                                        slope_matrix_shuff[j, i] = model.coef_[0]
+                                np.fill_diagonal(slope_matrix_shuff, np.nan)
+                                mslope_matrix_shuff[prm] = np.nanmean(slope_matrix_shuff)
+
+                            xcorr_corr['participant_id'].append(p)
+                            xcorr_corr['day'].append(day)
+                            xcorr_corr['chordID'].append(str(chordID))
+                            xcorr_corr['chord'].append(chord)
+                            xcorr_corr['corr'].append(np.nanmean(corr))
+                            xcorr_corr['slope'].append(np.nanmean(slope_matrix))
+                            xcorr_corr['corr_shuff'].append(mcorr_shuff.mean())
+                            xcorr_corr['slope_shuff'].append(np.nanmean(mslope_matrix_shuff.mean()))
+
+            df = pd.DataFrame(xcorr_corr)
+            df.to_csv(os.path.join(gl.baseDir, experiment, f'xcorr_corr_slope.tsv'), index=False, sep='\t')
+
+            return df
+        # endregion
+
         # region PLOT:success
         case 'PLOT:success':
             if fig is None or axs is None:
@@ -632,86 +756,26 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             if fig is None or axs is None:
                 fig, axs = plt.subplots()
 
-            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
-                tau_dict = pickle.load(file)
+            df = pd.read_csv(os.path.join(gl.baseDir, experiment, f'xcorr_corr_slope.tsv'), sep='\t')
 
-            df_tau = pd.DataFrame(tau_dict)
+            sns.boxplot(data=df, ax=axs, x='day', y='corr', hue='chord', palette=['red', 'blue'], linewidth=2,
+                        linecolor='k', showfliers=False)
 
-            xcorr_corr = {
-                'participant_id': [],
-                'day': [],
-                'chordID': [],
-                'chord': [],
-                'corr': [],
-                'corr_shuff': []
-            }
+            # axs.axhline(df['corr_shuff'].mean(), color='k', lw=.8, ls='--')
+            # axs.axhline(0, color='k', lw=.8, ls='-')
+            # axs.legend().remove()
+            #
+            # axs.text(axs.get_xlim()[1], df['corr_shuff'].mean(), 'shuffled\ndata', va='center', ha='left')
 
-            nperm = 10
+            return fig, axs
+        # endregion
 
-            for p in participant_id:
-                for day in gl.days:
-                    for chordID in gl.chordID:
+        # region PLOT:xcorr_slope
+        case 'PLOT:xcorr_slope':
 
-                        if day == '1' or day == '5':
-                            session = 'testing'
-                        else:
-                            session = 'training'
+            df = pd.read_csv(os.path.join(gl.baseDir, experiment, f'xcorr_corr_slope.tsv'), sep='\t')
 
-                        if chordID in Force(experiment, p, session, day).trained:
-                            chord = 'trained'
-                        else:
-                            chord = 'untrained'
-
-                        df_tau_tmp = df_tau[(df_tau['participant_id'] == p) &
-                                            (df_tau['day'] == day) &
-                                            (df_tau['chordID'] == chordID)]
-
-                        if len(df_tau_tmp) > 0:
-
-                            tau = [t for t in df_tau_tmp['tau'] if t is not None]
-                            tau = np.stack(tau)
-
-                            chordID_str = str(chordID)
-                            fingers = np.array([f != '9' for f in chordID_str])
-
-                            tau_vec = np.zeros((tau.shape[0], 10))
-                            for t in range(tau.shape[0]):
-                                tau_tmp = tau[t, ...].copy()
-                                np.fill_diagonal(tau_tmp, np.nan)
-                                tau_tmp[fingers == False, :] = np.nan
-                                tau_tmp[:, fingers == False] = np.nan
-                                triu = np.triu(np.ones(tau_tmp.shape), k=1)
-                                tau_vec[t] = np.extract(triu, tau_tmp)
-
-                            df_tau_vec = pd.DataFrame(tau_vec.T).dropna(axis=0, how='all')
-                            corr = df_tau_vec.corr().to_numpy()
-                            np.fill_diagonal(corr, np.nan)
-
-                            mcorr_shuff = np.zeros(nperm)
-                            for i in range(nperm):
-                                df_tau_vec_shuff = pd.DataFrame(
-                                    np.apply_along_axis(np.random.permutation, 1, df_tau_vec.values),
-                                    columns=df_tau_vec.columns)
-                                corr_shuff = df_tau_vec_shuff.corr().to_numpy()
-                                np.fill_diagonal(corr_shuff, np.nan)
-                                mcorr_shuff[i] = np.nanmean(corr_shuff)
-
-                            xcorr_corr['participant_id'].append(p)
-                            xcorr_corr['day'].append(day)
-                            xcorr_corr['chordID'].append(str(chordID))
-                            xcorr_corr['chord'].append(chord)
-                            xcorr_corr['corr'].append(np.nanmean(corr))
-                            xcorr_corr['corr_shuff'].append(mcorr_shuff.mean())
-
-            df = pd.DataFrame(xcorr_corr)
-
-            sns.boxplot(data=df, ax=axs, x='day', y='corr', hue='chord', palette=['red', 'blue'])
-
-            axs.axhline(df['corr_shuff'].mean(), color='k', lw=.8, ls='--')
-            axs.axhline(0, color='k', lw=.8, ls='-')
-            axs.legend().remove()
-
-            axs.text(axs.get_xlim()[1], df['corr_shuff'].mean(), 'shuffled data', va='center', ha='left')
+            sns.boxplot(data=df, ax=axs, x='day', y='slope', hue='chord', palette=['red', 'blue'], showfliers=False)
 
             return fig, axs
         # endregion
@@ -780,6 +844,7 @@ if __name__ == "__main__":
         'EMG:nnmf',
         'RECONSTRUCT:force',
         'RECONSTRUCT:emg',
+        'XCORR:correlation_and_slope',
         'PLOT:success',
         # 'PLOT:variance_decomposition',
         'PLOT:metric_repetition',  # ok
@@ -789,6 +854,7 @@ if __name__ == "__main__":
         # 'PLOT:xcorr_day',
         'PLOT:recon_emg',
         'PLOT:xcorr_corr',  # ok
+        'PLOT:xcorr_slope',
     ])
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
