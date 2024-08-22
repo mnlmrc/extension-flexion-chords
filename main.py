@@ -688,11 +688,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return fig, axs, cax
         # endregion
 
-        # region PLOT:xcorr_day
-        case 'PLOT:xcorr_day':
-
-            if fig is None or axs is None:
-                fig, axs = plt.subplots()
+        # region XCORR:tau_day
+        case 'XCORR:tau_day':
 
             with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
                 tau_dict = pickle.load(file)
@@ -743,32 +740,33 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         xcorr['tau'].append(np.array(tau_avg).mean())
 
             df = pd.DataFrame(xcorr)
+            df.to_csv(os.path.join(gl.baseDir, experiment, f'tau.tsv'), index=False, sep='\t')
 
-            sns.boxplot(data=df, ax=axs, x='day', y='tau', hue='chord', palette=['red', 'blue'])
-
-            return fig, axs
-
-        # endregion
-
-        # region PLOT:xcorr_corr
-        case 'PLOT:xcorr_corr':
-
-            if fig is None or axs is None:
-                fig, axs = plt.subplots()
-
-            df = pd.read_csv(os.path.join(gl.baseDir, experiment, f'xcorr_corr_slope.tsv'), sep='\t')
-
-            sns.boxplot(data=df, ax=axs, x='day', y='corr', hue='chord', palette=['red', 'blue'], linewidth=2,
-                        linecolor='k', showfliers=False)
-
-            # axs.axhline(df['corr_shuff'].mean(), color='k', lw=.8, ls='--')
-            # axs.axhline(0, color='k', lw=.8, ls='-')
-            # axs.legend().remove()
+            # sns.boxplot(data=df, ax=axs, x='day', y='tau', hue='chord', palette=['red', 'blue'])
             #
-            # axs.text(axs.get_xlim()[1], df['corr_shuff'].mean(), 'shuffled\ndata', va='center', ha='left')
+            return df
 
-            return fig, axs
         # endregion
+
+        # # region PLOT:xcorr_corr
+        # case 'PLOT:xcorr_corr':
+        #
+        #     if fig is None or axs is None:
+        #         fig, axs = plt.subplots()
+        #
+        #     df = pd.read_csv(os.path.join(gl.baseDir, experiment, f'xcorr_corr_slope.tsv'), sep='\t')
+        #
+        #     sns.boxplot(data=df, ax=axs, x='day', y='corr', hue='chord', palette=['red', 'blue'], linewidth=2,
+        #                 linecolor='k', showfliers=False)
+        #
+        #     # axs.axhline(df['corr_shuff'].mean(), color='k', lw=.8, ls='--')
+        #     # axs.axhline(0, color='k', lw=.8, ls='-')
+        #     # axs.legend().remove()
+        #     #
+        #     # axs.text(axs.get_xlim()[1], df['corr_shuff'].mean(), 'shuffled\ndata', va='center', ha='left')
+        #
+        #     return fig, axs
+        # # endregion
 
         # region PLOT:xcorr_slope
         case 'PLOT:xcorr_slope':
@@ -845,6 +843,7 @@ if __name__ == "__main__":
         'RECONSTRUCT:force',
         'RECONSTRUCT:emg',
         'XCORR:correlation_and_slope',
+        'XCORR:tau_day',
         'PLOT:success',
         # 'PLOT:variance_decomposition',
         'PLOT:metric_repetition',  # ok
