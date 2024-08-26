@@ -42,6 +42,6 @@ axs.text(axs.get_xlim()[1], df['corr_shuff'].mean(), 'shuffled\ndata', va='cente
 
 fig.tight_layout()
 
-fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'xcorr_corr_day.svg'), dpi=600)
+# fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'xcorr_corr_day.svg'), dpi=600)
 
 plt.show()

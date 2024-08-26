@@ -134,7 +134,9 @@ def calc_xcorr(X):
             xcorr[i, j] = xcorr_tmp
 
             lags = np.arange(-len(a) + 1, len(a)) / gl.fsample
-            tau[i, j] = lags[np.argmax(xcorr_tmp)]
+            tau[i, j] = lags[np.argmax(np.abs(xcorr_tmp))]
+
+            pass
 
     return xcorr, tau, lags
 

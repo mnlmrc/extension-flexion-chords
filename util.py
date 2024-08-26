@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 import pandas as pd
 import scipy
@@ -80,3 +82,17 @@ def lp_butter(signal, cutoff, fs, order=5):
         filtered_signal[i, :] = filtfilt(b, a, signal[i, :])
 
     return filtered_signal
+
+
+def savefig(path, fig):
+    # Check if file exists
+    if os.path.exists(path):
+        response = input(f"The file {path} already exists. Do you want to overwrite it? (y/n): ")
+        if response.lower() == 'y':
+            fig.savefig(path, dpi=600)
+            print(f"File {path} has been overwritten.")
+        else:
+            print("File not saved. Please choose a different name or path.")
+    else:
+        fig.savefig(path, dpi=600)
+        print(f"File saved as {path}.")

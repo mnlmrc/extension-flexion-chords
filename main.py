@@ -22,7 +22,6 @@ import seaborn as sns
 
 from force import Force
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2
-from plot import plot_days
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lp_butter
 from variance_decomposition import reliability_var
@@ -34,11 +33,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
          err_kw=None):
     if participant_id is None:
         participant_id = gl.participants[experiment]
-    # elif isinstance(participant_id, str):
-    #     participant_id = [participant_id]
-
-    # if len(participant_id) == 1:
-    #     participant_id = participant_id[0]
 
     match what:
         # region FORCE:preprocessing
@@ -70,8 +64,10 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region FORCE:xcorr
         case 'FORCE:xcorr':
 
+            # Dictionary
             tau_dict = {
                 'tau': [],
+                'tauAbs': [],
                 'experiment': [],
                 'participant_id': [],
                 'session': [],
@@ -79,6 +75,11 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 'chordID': [],
                 'chord': []
             }
+
+            # add inter-finger lag channels
+            for I, i in enumerate(gl.channels['force']):
+                for J, j in enumerate(gl.channels['force']):
+                    tau_dict[f'{i}-{j}'] = []
 
             for p in participant_id:
                 for day in gl.days:
@@ -99,14 +100,35 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         tau_dict['participant_id'].append(p)
                         tau_dict['session'].append(session)
                         tau_dict['day'].append(day)
-                        tau_dict['chordID'].append(force_dict['chordID'][T])
+                        chordID = force_dict['chordID'][T]
+                        tau_dict['chordID'].append(chordID)
                         tau_dict['chord'].append('trained' if force_dict['chordID'][T]
                                                               in force.trained else 'untrained')
+
+                        chordID_str = str(chordID.astype(int))
+                        fingers = np.array([f != '9' for f in chordID_str])
+
+                        if t is not None:
+                            np.fill_diagonal(t, np.nan)
+                            t[fingers == False, :] = np.nan
+                            t[:, fingers == False] = np.nan
+                            tau_dict['tauAbs'].append(np.nanmean(np.abs(t)))
+                            for I, i in enumerate(gl.channels['force']):
+                                for J, j in enumerate(gl.channels['force']):
+                                    tau_dict[f'{i}-{j}'].append(t[I, J])
+                        else:
+                            tau_dict['tauAbs'].append(None)
+                            for I, i in enumerate(gl.channels['force']):
+                                for J, j in enumerate(gl.channels['force']):
+                                    tau_dict[f'{i}-{j}'].append(None)
 
             with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "wb") as file:
                 pickle.dump(tau_dict, file)
 
-            return tau_dict
+            df_tau = pd.DataFrame(tau_dict)
+            df_tau.to_csv(os.path.join(gl.baseDir, experiment, f'tau.tsv'), index=False, sep='\t')
+
+            return tau_dict, df_tau
 
         #endregion
 
@@ -508,7 +530,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                 slope_matrix_shuff = np.full((df_tau_vec_shuff.shape[1],
                                                               df_tau_vec_shuff.shape[1]), np.nan)
                                 for i in range(df_tau_vec_shuff.shape[1]):
-                                    for j in range(df_tau_vec_shuff.shape[1]):  # Start from i+1 to avoid redundant calculations
+                                    for j in range(df_tau_vec_shuff.shape[
+                                                       1]):  # Start from i+1 to avoid redundant calculations
                                         x = df_tau_vec_shuff.iloc[:, i].values.reshape(-1, 1)
                                         y = df_tau_vec_shuff.iloc[:, j].values
 
@@ -594,7 +617,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             sns.lineplot(data=df[df['chord'] == 'trained'], ax=axs, x='day', y=metric, errorbar='se', err_style='band',
                          color=palette[0], marker='o', markeredgewidth=0, linewidth=linewidth, err_kws=err_kw)
-            sns.lineplot(data=df[df['chord'] == 'untrained'], ax=axs, x='day', y=metric, errorbar='se', err_style='band',
+            sns.lineplot(data=df[df['chord'] == 'untrained'], ax=axs, x='day', y=metric, errorbar='se',
+                         err_style='band',
                          color=palette[1], marker='o', markeredgewidth=0, linewidth=linewidth, err_kws=err_kw)
 
             custom_handles = [
