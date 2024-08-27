@@ -61,8 +61,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return metrics
         # endregion
 
-        # region FORCE:xcorr
-        case 'FORCE:xcorr':
+        # region XCORR:tau
+        case 'XCORR:tau':
 
             # Dictionary
             tau_dict = {
@@ -434,129 +434,48 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
         # endregion
 
-        # region XCORR:correlation_and_slope
-        case 'XCORR:correlation_and_slope':
+        # region XCORR:corr
+        case 'XCORR:corr':
 
-            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
-                tau_dict = pickle.load(file)
+            tau = pd.read_csv(os.path.join(gl.baseDir, experiment, 'tau.tsv'), sep='\t')
+            chordIDs = tau['chordID'].unique()
 
-            df_tau = pd.DataFrame(tau_dict)
-
-            xcorr_corr = {
+            corr = {
                 'participant_id': [],
                 'day': [],
                 'chordID': [],
                 'chord': [],
                 'corr': [],
-                'corr_shuff': [],
-                'slope': [],
-                'slope_shuff': []
             }
-
-            nperm = 10
-
             for p in participant_id:
-                for day in gl.days:
-                    for chordID in gl.chordID:
+                for day in range(1, 6):
+                    for c, chordID in enumerate(chordIDs):
 
-                        print(f'participant_id:{p}, day:{day}, chordID:{chordID}')
+                        tau_tmp = tau[(tau['chordID'] == chordID) & (tau['participant_id'] == p) & (tau['day'] == day)]
 
-                        if day == '1' or day == '5':
-                            session = 'testing'
+                        if tau_tmp['session'].unique() == 'testing':
+                            chord = tau_tmp['chord'].unique()[0]
                         else:
-                            session = 'training'
-
-                        if chordID in Force(experiment, p, session, day).trained:
                             chord = 'trained'
-                        else:
-                            chord = 'untrained'
 
-                        df_tau_tmp = df_tau[(df_tau['participant_id'] == p) &
-                                            (df_tau['day'] == day) &
-                                            (df_tau['chordID'] == chordID)]
+                        tau_tmp = tau_tmp.iloc[:, 8:]
 
-                        if len(df_tau_tmp) > 0:
+                        finger_combinations = tau_tmp.columns
+                        unique_combinations = set(
+                            '-'.join(sorted(combo.split('-'))) for combo in finger_combinations
+                        )
 
-                            tau = [t for t in df_tau_tmp['tau'] if t is not None]
-                            tau = np.stack(tau)
+                        tau_tmp = tau_tmp[list(unique_combinations)].dropna(axis=0, how='all').dropna(axis=1, how='all')
 
-                            chordID_str = str(chordID)
-                            fingers = np.array([f != '9' for f in chordID_str])
+                        corr['participant_id'].append(p)
+                        corr['chordID'].append(chordID)
+                        corr['day'].append(day)
+                        corr['chord'].append(chord)
+                        corr['corr'].append(np.nanmean(tau_tmp.transpose().corr().to_numpy()))
 
-                            tau_vec = np.zeros((tau.shape[0], 10))
-                            for t in range(tau.shape[0]):
-                                tau_tmp = tau[t, ...].copy()
-                                np.fill_diagonal(tau_tmp, np.nan)
-                                tau_tmp[fingers == False, :] = np.nan
-                                tau_tmp[:, fingers == False] = np.nan
-                                triu = np.triu(np.ones(tau_tmp.shape), k=1)
-                                tau_vec[t] = np.extract(triu, tau_tmp)
+                        pass
 
-                            df_tau_vec = pd.DataFrame(tau_vec.T).dropna(axis=0, how='all')
-
-                            # compute correlation
-                            corr = df_tau_vec.corr().to_numpy()
-                            np.fill_diagonal(corr, np.nan)
-
-                            # compute slope
-                            slope_matrix = np.full((df_tau_vec.shape[1], df_tau_vec.shape[1]), np.nan)
-                            for i in range(df_tau_vec.shape[1]):
-                                for j in range(df_tau_vec.shape[1]):  # Start from i+1 to avoid redundant calculations
-                                    x = df_tau_vec.iloc[:, i].values.reshape(-1, 1)
-                                    y = df_tau_vec.iloc[:, j].values
-
-                                    # Fit a linear regression model to (x, y)
-                                    model = LinearRegression().fit(x, y)
-
-                                    # Store the slope in the matrix
-                                    slope_matrix[i, j] = model.coef_[0]
-                                    slope_matrix[j, i] = model.coef_[0]
-                            np.fill_diagonal(slope_matrix, np.nan)
-
-                            # compute shuffled
-                            mcorr_shuff = np.zeros(nperm)
-                            mslope_matrix_shuff = np.zeros(nperm)
-                            for prm in range(nperm):
-                                df_tau_vec_shuff = pd.DataFrame(
-                                    np.apply_along_axis(np.random.permutation, 1, df_tau_vec.values),
-                                    columns=df_tau_vec.columns)
-
-                                # shuffled correlation
-                                corr_shuff = df_tau_vec_shuff.corr().to_numpy()
-                                np.fill_diagonal(corr_shuff, np.nan)
-                                mcorr_shuff[prm] = np.nanmean(corr_shuff)
-
-                                # shuffled slope
-                                slope_matrix_shuff = np.full((df_tau_vec_shuff.shape[1],
-                                                              df_tau_vec_shuff.shape[1]), np.nan)
-                                for i in range(df_tau_vec_shuff.shape[1]):
-                                    for j in range(df_tau_vec_shuff.shape[
-                                                       1]):  # Start from i+1 to avoid redundant calculations
-                                        x = df_tau_vec_shuff.iloc[:, i].values.reshape(-1, 1)
-                                        y = df_tau_vec_shuff.iloc[:, j].values
-
-                                        # Fit a linear regression model to (x, y)
-                                        model = LinearRegression().fit(x, y)
-
-                                        # Store the slope in the matrix
-                                        slope_matrix_shuff[i, j] = model.coef_[0]
-                                        slope_matrix_shuff[j, i] = model.coef_[0]
-                                np.fill_diagonal(slope_matrix_shuff, np.nan)
-                                mslope_matrix_shuff[prm] = np.nanmean(slope_matrix_shuff)
-
-                            xcorr_corr['participant_id'].append(p)
-                            xcorr_corr['day'].append(day)
-                            xcorr_corr['chordID'].append(str(chordID))
-                            xcorr_corr['chord'].append(chord)
-                            xcorr_corr['corr'].append(np.nanmean(corr))
-                            xcorr_corr['slope'].append(np.nanmean(slope_matrix))
-                            xcorr_corr['corr_shuff'].append(mcorr_shuff.mean())
-                            xcorr_corr['slope_shuff'].append(np.nanmean(mslope_matrix_shuff.mean()))
-
-            df = pd.DataFrame(xcorr_corr)
-            df.to_csv(os.path.join(gl.baseDir, experiment, f'xcorr_corr_slope.tsv'), index=False, sep='\t')
-
-            return df
+            return pd.DataFrame(corr)
         # endregion
 
         # region PLOT:success
@@ -859,22 +778,16 @@ if __name__ == "__main__":
     parser.add_argument('what', nargs='?', default=None, choices=[
         'FORCE:preprocessing',  # ok
         # 'FORCE:variance_decomposition',
-        'FORCE:xcorr',  # ok
+        'XCORR:tau',  # ok
         'NOISE_CEILING:tau',  # ok
-        # 'EMG:recon_chord2nat',
-        # 'EMG:recon_chord2chord',
         'EMG:nnmf',
         'RECONSTRUCT:force',
         'RECONSTRUCT:emg',
-        'XCORR:correlation_and_slope',
-        'XCORR:tau_day',
+        'XCORR:corr',
         'PLOT:success',
-        # 'PLOT:variance_decomposition',
-        'PLOT:metric_repetition',  # ok
-        # 'PLOT:model_xcorr_day',
+        'PLOT:metric_repetition'
         'PLOT:force_in_trial',  # ok
         'PLOT:xcorr_chord',  # ok
-        # 'PLOT:xcorr_day',
         'PLOT:recon_emg',
         'PLOT:xcorr_corr',  # ok
         'PLOT:xcorr_slope',
