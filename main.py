@@ -56,7 +56,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         pickle.dump(force_dict, file)
 
             print('saving...')
-            metrics.to_csv(os.path.join(gl.baseDir, experiment, 'metrics.csv'))
+            metrics.to_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
 
             return metrics
         # endregion
@@ -93,6 +93,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                     force = Force(experiment, p, session, day)
                     force_dict = force.load_pkl()
+                    pass
                     _, tau, _ = force.crosscorrelation()
                     for T, t in enumerate(tau):
                         tau_dict['tau'].append(t)
@@ -102,8 +103,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         tau_dict['day'].append(day)
                         chordID = force_dict['chordID'][T]
                         tau_dict['chordID'].append(chordID)
-                        tau_dict['chord'].append('trained' if force_dict['chordID'][T]
-                                                              in force.trained else 'untrained')
+                        tau_dict['chord'].append('trained' if force_dict['chordID'][T] in force.trained
+                                                 else 'untrained')
 
                         chordID_str = str(chordID.astype(int))
                         fingers = np.array([f != '9' for f in chordID_str])
@@ -130,7 +131,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             return tau_dict, df_tau
 
-        #endregion
+        # endregion
 
         # region EMG:nnmf
         case 'EMG:nnmf':
@@ -361,77 +362,49 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region NOISE_CEILING:tau
         case 'NOISE_CEILING:tau':
 
-            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
-                tau_dict = pickle.load(file)
+            tau = pd.read_csv(os.path.join(gl.baseDir, experiment, 'tau.tsv'), sep='\t')
+            chordIDs = tau['chordID'].unique()
 
-            df_tau = pd.DataFrame(tau_dict)
+            noise_ceiling = {
+                'corr': [],
+                'day': [],
+                'participant_id': [],
+                'chordID': [],
+                'chord': []
+            }
 
-            tau_vec = np.zeros((len(df_tau), 10))
-            for i, df in df_tau[['tau', 'chordID']].iterrows():
-                if df['tau'] is not None:
-                    chordID_str = f"{int(df['chordID']):d}"
-                    fingers = np.array([f != '9' for f in chordID_str])
+            for day in range(1, 6):
+                for p in participant_id:
+                    for c, chordID in enumerate(chordIDs):
 
-                    tau_tmp = df['tau'].copy()
-                    np.fill_diagonal(tau_tmp, np.nan)
-                    tau_tmp[fingers == False, :] = np.nan
-                    tau_tmp[:, fingers == False] = np.nan
-                    triu = np.triu(np.ones(tau_tmp.shape), k=1)
-                    tau_vec[i] = np.extract(triu, tau_tmp)
-                else:
-                    tau_vec[i] = np.nan
+                        tau_tmp = tau[(tau['chordID'] == chordID) & (tau['participant_id'] == p) & (
+                                    tau['day'] == day)].reset_index()
 
-            tau = np.array([x.flatten() for x in df_tau['tau'] if x is not None])
-            df_tau_tmp = pd.DataFrame(tau_vec)
-            # df_tau_tmp = df_tau_tmp.loc[:, (df_tau_tmp != 0).any(axis=0)]
-            # df_tau_tmp.columns = [i for i in range(20)]
-            df_tau = pd.concat([df_tau, df_tau_tmp], axis=1).drop(columns=['tau'])
-            # df_tau = df_tau.loc[df_tau['chord'] == 'trained']
-            # df_tau['partition'] = np.random.randint(low=0, high=2, size=len(df_tau))
+                        if len(tau_tmp) > 0:
+                            chord = tau_tmp['chord']
+                            tau_tmp = tau_tmp.iloc[:, 8:]
 
-            df_tau_avg = df_tau.groupby(['chordID'])[[i for i in range(10)]].mean().reset_index()[
-                [i for i in range(10)] + ['chordID']]
+                            finger_combinations = tau_tmp.columns
+                            unique_combinations = set(
+                                '-'.join(sorted(combo.split('-'))) for combo in finger_combinations
+                            )
 
-            model = LinearRegression()
+                            tau_tmp = tau_tmp[list(unique_combinations)]
+                            # tau_tmp['chord'] = pd.DataFrame(chord)
+                            tau_tmp = tau_tmp.dropna(axis=1, how='all').dropna(axis=0, how='all')
 
-            nc_up, nc_low = [], []
+                            tau_avg = tau_tmp.mean(axis=0)
 
-            # noise ceiling upper
-            corr = list()
-            for p in participant_id:
-                for ch in df_tau['chordID'].unique():
-                    df_tau_tmp = df_tau[(df_tau['chordID'] == ch) & (df_tau['participant_id'] == p)]
-                    tau_tmp = df_tau_tmp[[i for i in range(10)]].to_numpy()
-                    tau_tmp = tau_tmp[~np.isnan(tau_tmp).all(axis=1)]
-                    tau_avg_tmp = tau_tmp.mean(axis=0)
-                    for t in tau_tmp:
-                        corr_tmp = np.corrcoef(t[~np.isnan(t)], tau_avg_tmp[~np.isnan(tau_avg_tmp)])[0, 1]
-                        # if np.isnan(corr_tmp):
-                        #     pass
-                        corr.append(corr_tmp)
-            corr = np.array(corr)
-            nc = np.nanmean(corr)
-            # model.fit(tau_avg, tau_tmp)
-            # tau_hat = model.predict(tau_tmp)
-            # nc_up.append(calc_r2(tau_avg, tau_hat))
+                            noise_ceiling['corr'].append(tau_tmp.corrwith(tau_avg, axis=1).mean())
+                            noise_ceiling['day'].append(day)
+                            noise_ceiling['participant_id'].append(p)
+                            noise_ceiling['chordID'].append(chordID.astype(int))
+                            noise_ceiling['chord'].append(chord[0])
 
-            # # noice ceiling lower
-            # for p in participant_id:
-            #     df_tau_tmp = df_tau.loc[df_tau['participant_id'] == p]
-            #     tau_tmp = df_tau_tmp.groupby(['chordID'])[[i for i in range(10)]].mean().reset_index()[
-            #         [i for i in range(10)]].to_numpy()
-            #     tau_avg_tmp = df_tau.loc[df_tau['participant_id'] != p].groupby(['chordID'])[
-            #         [i for i in range(10)]].mean().reset_index()[[i for i in range(10)]].to_numpy()
-            #     corr = list()
-            #     for c1, c2 in zip(tau_tmp, tau_avg_tmp):
-            #         corr.append(np.corrcoef(c1[~np.isnan(c1)], c2[~np.isnan(c2)])[0, 1])
-            #     nc_low.append(np.array(corr).mean())
-            #     # model.fit(tau_avg_tmp, tau_tmp)
-            #     # tau_hat = model.predict(tau_tmp)
-            #     # nc_low.append(calc_r2(tau_avg_tmp, tau_hat))
+            noise_ceiling = pd.DataFrame(noise_ceiling)
+            noise_ceiling.to_csv(os.path.join(gl.baseDir, experiment, 'corr_noise_ceiling.tsv'), sep='\t')
 
-            return nc
-
+            return noise_ceiling
         # endregion
 
         # region XCORR:corr
@@ -468,14 +441,43 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         tau_tmp = tau_tmp[list(unique_combinations)].dropna(axis=0, how='all').dropna(axis=1, how='all')
 
                         corr['participant_id'].append(p)
-                        corr['chordID'].append(chordID)
+                        corr['chordID'].append(chordID.astype(int))
                         corr['day'].append(day)
                         corr['chord'].append(chord)
                         corr['corr'].append(np.nanmean(tau_tmp.transpose().corr().to_numpy()))
 
                         pass
 
-            return pd.DataFrame(corr)
+            corr_df = pd.DataFrame(corr)
+            corr_df.to_csv(os.path.join(gl.baseDir, experiment, 'corr.tsv'), sep='\t')
+
+            return corr_df
+        # endregion
+
+        # region XCORR:variance_decomposition
+        case 'XCORR:variance_decomposition':
+            tau = pd.read_csv(os.path.join(gl.baseDir, experiment, 'tau.tsv'), sep='\t')
+            part_vec = (tau.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
+            chordIDs = tau['chordID'].unique()
+
+            for chordID in chordIDs:
+                part_vec_tmp = part_vec[tau[tau['chordID'] == chordID].index]
+                tau_tmp = tau[tau['chordID'] == chordID]
+                subj_vec = tau_tmp['participant_id']
+
+                tau_tmp = tau_tmp.iloc[:, 8:]
+
+                finger_combinations = tau_tmp.columns
+                unique_combinations = set(
+                    '-'.join(sorted(combo.split('-'))) for combo in finger_combinations
+                )
+
+                Y = tau_tmp[list(unique_combinations)].dropna(axis=1, how='all').to_numpy()
+
+                v_g, v_gs, v_gse, _ = reliability_var(Y, subj_vec, part_vec_tmp, centered=True)
+
+                pass
+
         # endregion
 
         # region PLOT:success
@@ -631,86 +633,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return fig, axs, cax
         # endregion
 
-        # region XCORR:tau_day
-        case 'XCORR:tau_day':
-
-            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
-                tau_dict = pickle.load(file)
-
-            df_tau = pd.DataFrame(tau_dict)
-
-            xcorr = {
-                'participant_id': [],
-                'day': [],
-                'chordID': [],
-                'chord': [],
-                'tau': []
-            }
-
-            for p in participant_id:
-                for day in gl.days:
-                    for chordID in gl.chordID:
-
-                        if day == '1' or day == '5':
-                            session = 'testing'
-                        else:
-                            session = 'training'
-
-                        if chordID in Force(experiment, p, session, day).trained:
-                            chord = 'trained'
-                        else:
-                            chord = 'untrained'
-
-                        df_tau_tmp = df_tau[(df_tau['participant_id'] == p) &
-                                            (df_tau['day'] == day) &
-                                            (df_tau['chordID'] == chordID)]
-
-                        chordID_str = str(chordID)
-                        fingers = np.array([f != '9' for f in chordID_str])
-
-                        tau_avg = []
-                        for tau_tmp in df_tau_tmp['tau']:
-                            if tau_tmp is not None:
-                                np.fill_diagonal(tau_tmp, np.nan)
-                                tau_tmp[fingers == False, :] = np.nan
-                                tau_tmp[:, fingers == False] = np.nan
-                                tau_avg.append(np.nanmean(np.abs(tau_tmp)))
-
-                        xcorr['participant_id'].append(p)
-                        xcorr['day'].append(day)
-                        xcorr['chordID'].append(chordID)
-                        xcorr['chord'].append(chord)
-                        xcorr['tau'].append(np.array(tau_avg).mean())
-
-            df = pd.DataFrame(xcorr)
-            df.to_csv(os.path.join(gl.baseDir, experiment, f'tau.tsv'), index=False, sep='\t')
-
-            # sns.boxplot(data=df, ax=axs, x='day', y='tau', hue='chord', palette=['red', 'blue'])
-            #
-            return df
-
-        # endregion
-
-        # # region PLOT:xcorr_corr
-        # case 'PLOT:xcorr_corr':
-        #
-        #     if fig is None or axs is None:
-        #         fig, axs = plt.subplots()
-        #
-        #     df = pd.read_csv(os.path.join(gl.baseDir, experiment, f'xcorr_corr_slope.tsv'), sep='\t')
-        #
-        #     sns.boxplot(data=df, ax=axs, x='day', y='corr', hue='chord', palette=['red', 'blue'], linewidth=2,
-        #                 linecolor='k', showfliers=False)
-        #
-        #     # axs.axhline(df['corr_shuff'].mean(), color='k', lw=.8, ls='--')
-        #     # axs.axhline(0, color='k', lw=.8, ls='-')
-        #     # axs.legend().remove()
-        #     #
-        #     # axs.text(axs.get_xlim()[1], df['corr_shuff'].mean(), 'shuffled\ndata', va='center', ha='left')
-        #
-        #     return fig, axs
-        # # endregion
-
         # region PLOT:xcorr_slope
         case 'PLOT:xcorr_slope':
 
@@ -784,6 +706,7 @@ if __name__ == "__main__":
         'RECONSTRUCT:force',
         'RECONSTRUCT:emg',
         'XCORR:corr',
+        'XCORR:variance_decomposition',
         'PLOT:success',
         'PLOT:metric_repetition'
         'PLOT:force_in_trial',  # ok

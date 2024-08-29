@@ -122,6 +122,7 @@ def load_mov(filename):
 def calc_xcorr(X):
     tau = np.zeros((X.shape[1], X.shape[1]))
     xcorr = np.zeros((X.shape[1], X.shape[1], X.shape[0] * 2 - 1))
+    lags = None
     for i in range(X.shape[1]):
         for j in range(X.shape[1]):
             a = X[:, i]
@@ -135,8 +136,6 @@ def calc_xcorr(X):
 
             lags = np.arange(-len(a) + 1, len(a)) / gl.fsample
             tau[i, j] = lags[np.argmax(np.abs(xcorr_tmp))]
-
-            pass
 
     return xcorr, tau, lags
 
@@ -325,7 +324,7 @@ class Force:
                     metrics_dict['sine'].append(None)
                     metrics_dict['jerk'].append(None)
 
-                    force_dict['force'].append(None)
+                    force_dict['force'].append(mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3])
                     force_dict['experiment'].append(experiment)
                     force_dict['participant_id'].append(participant_id)
                     force_dict['session'].append(session)
