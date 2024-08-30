@@ -382,7 +382,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                         if len(tau_tmp) > 0:
                             chord = tau_tmp['chord']
-                            tau_tmp = tau_tmp.iloc[:, 8:]
+                            tau_tmp = tau_tmp.drop(['index', 'tau', 'tauAbs', 'experiment', 'participant_id', 'session',
+                                                    'day', 'chordID', 'chord'], axis=1)
 
                             finger_combinations = tau_tmp.columns
                             unique_combinations = set(
@@ -449,7 +450,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         pass
 
             corr_df = pd.DataFrame(corr)
-            corr_df.to_csv(os.path.join(gl.baseDir, experiment, 'corr.tsv'), sep='\t')
+            corr_df.to_csv(os.path.join(gl.baseDir, experiment, 'corr.tsv'), sep='\t', index=False)
 
             return corr_df
         # endregion
@@ -523,25 +524,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             var_dec.to_csv(os.path.join(gl.baseDir, experiment, 'var_dec.tsv'), sep='\t')
 
             return var_dec
-
-        # endregion
-
-        # region PLOT:success
-        case 'PLOT:success':
-            if fig is None or axs is None:
-                fig, axs = plt.subplots()
-
-            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.csv'))
-            df_success = calc_success(metrics)
-
-            sns.boxplot(df_success, ax=axs, x='day', y='success', hue='chord', dodge=True, palette=['red', 'blue'])
-
-            custom_handles = [
-                Line2D([0], [0], marker='o', color='blue', markerfacecolor='blue', label='untrained'),
-                Line2D([0], [0], marker='o', color='red', markerfacecolor='red', label='trained')
-            ]
-
-            return fig, axs, custom_handles
 
         # endregion
 
