@@ -324,7 +324,7 @@ class Force:
                     metrics_dict['sine'].append(None)
                     metrics_dict['jerk'].append(None)
 
-                    force_dict['force'].append(mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3])
+                    force_dict['force'].append(mov[tr][:, gl.diffCols][(mov[tr][:, 0] == 3) | (mov[tr][:, 0] == 2)])
                     force_dict['experiment'].append(experiment)
                     force_dict['participant_id'].append(participant_id)
                     force_dict['session'].append(session)

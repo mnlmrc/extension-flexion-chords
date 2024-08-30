@@ -456,27 +456,73 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
         # region XCORR:variance_decomposition
         case 'XCORR:variance_decomposition':
+            # Load the data
             tau = pd.read_csv(os.path.join(gl.baseDir, experiment, 'tau.tsv'), sep='\t')
-            part_vec = (tau.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
-            chordIDs = tau['chordID'].unique()
 
-            for chordID in chordIDs:
-                part_vec_tmp = part_vec[tau[tau['chordID'] == chordID].index]
-                tau_tmp = tau[tau['chordID'] == chordID]
-                subj_vec = tau_tmp['participant_id']
+            # Initialize the variance decomposition dictionary
+            var_dec = {
+                'v_g': [],
+                'v_gs': [],
+                'v_gse': [],
+                'v_s': [],
+                'v_e': [],
+                'chordID': [],
+                'chord': [],
+                'day': []
+            }
 
-                tau_tmp = tau_tmp.iloc[:, 8:]
+            # Precompute minimum trials per chordID
+            trial_counts = tau.groupby(['participant_id', 'chordID']).size().reset_index(name='trial_count')
+            min_trials_per_chordID = trial_counts.groupby('chordID')['trial_count'].min()
 
-                finger_combinations = tau_tmp.columns
-                unique_combinations = set(
-                    '-'.join(sorted(combo.split('-'))) for combo in finger_combinations
-                )
+            # Group by chord and day
+            grouped_tau = tau.groupby(['chord', 'day'])
 
-                Y = tau_tmp[list(unique_combinations)].dropna(axis=1, how='all').to_numpy()
+            # Iterate through each chord and day combination
+            for (chord, day), tauD in grouped_tau:
+                chordIDs = tauD['chordID'].unique()
 
-                v_g, v_gs, v_gse, _ = reliability_var(Y, subj_vec, part_vec_tmp, centered=True)
+                for chordID in chordIDs:
+                    tau_tmp = tauD[tauD['chordID'] == chordID]
+                    min_trials = min_trials_per_chordID.loc[chordID]
 
-                pass
+                    # Ensure that we do not sample more than the available number of trials
+                    tau_tmp_counts = tau_tmp.groupby('participant_id').size()
+                    max_available_trials = tau_tmp_counts.min()
+
+                    if min_trials > max_available_trials:
+                        min_trials = max_available_trials
+
+                    # Sample the minimum number of trials for each participant
+                    sampled_tau_tmp = tau_tmp.groupby('participant_id', group_keys=False).sample(n=min_trials,
+                                                                                                 random_state=42)
+
+                    part_vec = (sampled_tau_tmp.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
+                    subj_vec = sampled_tau_tmp['participant_id'].to_numpy()
+
+                    # Keep only relevant columns (finger combinations)
+                    sampled_tau_tmp = sampled_tau_tmp.iloc[:, 8:]
+                    unique_combinations = sampled_tau_tmp.columns.str.split('-').map(sorted).str.join('-').unique()
+
+                    Y = sampled_tau_tmp[list(unique_combinations)].dropna(axis=1, how='all').to_numpy()
+
+                    # Perform variance decomposition
+                    v_g, v_gs, v_gse, _ = reliability_var(Y, subj_vec, part_vec, centered=True)
+
+                    # Store the results
+                    var_dec['v_g'].append(v_g / v_gse)
+                    var_dec['v_gs'].append(v_gs)
+                    var_dec['v_gse'].append(v_gse)
+                    var_dec['v_s'].append((v_gs - v_g) / v_gse)
+                    var_dec['v_e'].append((v_gse - v_gs) / v_gse)
+                    var_dec['chordID'].append(chordID)
+                    var_dec['chord'].append(chord)
+                    var_dec['day'].append(day)
+
+            var_dec = pd.DataFrame(var_dec)
+            var_dec.to_csv(os.path.join(gl.baseDir, experiment, 'var_dec.tsv'), sep='\t')
+
+            return var_dec
 
         # endregion
 
