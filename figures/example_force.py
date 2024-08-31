@@ -49,6 +49,6 @@ fig.supxlabel('time (s)', fontsize=12)
 
 fig.tight_layout()
 
-fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'force_example.svg'))
+# fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'force_example.svg'))
 
 plt.show()
