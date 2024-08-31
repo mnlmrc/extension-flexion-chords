@@ -527,57 +527,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
         # endregion
 
-        # region PLOT:metric_repetition
-        case 'PLOT:metric_repetition':
-
-            if fig is None or axs is None:
-                fig, axs = plt.subplots()
-
-            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.csv'))
-            df = calc_avg(metrics, by=['chord', 'day', 'repetition', 'participant_id'], columns=metric)
-            offset = 5
-            df['offset'] = df['repetition'] + df['day'] * offset
-
-            sns.lineplot(data=df[df['chord'] == 'trained'], ax=axs, x='offset', y=metric, hue='day', errorbar='se',
-                         palette=['red'] * 5, marker='o', markeredgewidth=0, err_kws={'linewidth': 0})
-            sns.lineplot(data=df[df['chord'] == 'untrained'], ax=axs, x='offset', y=metric, hue='day', errorbar='se',
-                         palette=['blue'] * 2, marker='o', markeredgewidth=0, err_kws={'linewidth': 0})
-            axs.set_xticks(np.linspace(8, 28, 5))
-            axs.set_xticklabels(np.linspace(1, 5, 5, dtype=int))
-
-            custom_handles = [
-                Line2D([0], [0], marker='o', color='blue', markerfacecolor='blue', label='untrained'),
-                Line2D([0], [0], marker='o', color='red', markerfacecolor='red', label='trained')
-            ]
-
-            return fig, axs, custom_handles
-        # endregion
-
-        # region PLOT:metric_day
-        case 'PLOT:metric_day':
-
-            if fig is None or axs is None:
-                fig, axs = plt.subplots()
-
-            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.csv'))
-            df = calc_avg(metrics, by=['chord', 'day', 'participant_id'], columns=metric)
-            df.loc[df['chord'] == 'trained', 'day'] = df.loc[df['chord'] == 'trained', 'day'].astype('float') + .05
-            df.loc[df['chord'] == 'untrained', 'day'] = df.loc[df['chord'] == 'untrained', 'day'].astype('float') - .05
-
-            sns.lineplot(data=df[df['chord'] == 'trained'], ax=axs, x='day', y=metric, errorbar='se', err_style='band',
-                         color=palette[0], marker='o', markeredgewidth=0, linewidth=linewidth, err_kws=err_kw)
-            sns.lineplot(data=df[df['chord'] == 'untrained'], ax=axs, x='day', y=metric, errorbar='se',
-                         err_style='band',
-                         color=palette[1], marker='o', markeredgewidth=0, linewidth=linewidth, err_kws=err_kw)
-
-            custom_handles = [
-                Line2D([0], [0], marker='o', color='blue', markerfacecolor='blue', label='untrained'),
-                Line2D([0], [0], marker='o', color='red', markerfacecolor='red', label='trained')
-            ]
-
-            return fig, axs, custom_handles
-        # endregion
-
         # region PLOT:force_in_trial
         case 'PLOT:force_in_trial':
 
@@ -617,58 +566,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             # plt.show()
 
             return fig, axs, chordID, day, chord
-        # endregion
-
-        # region PLOT:xcorr_chord
-        case 'PLOT:xcorr_chord':
-
-            if fig is None or axs is None:
-                fig, axs = plt.subplots()
-
-            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
-                tau_dict = pickle.load(file)
-
-            tau = list()
-            df_tau = pd.DataFrame(tau_dict)
-
-            chordID_str = str(chordID)
-            fingers = np.array([f != '9' for f in chordID_str])
-
-            for p in participant_id:
-                df_tau_tmp = df_tau[(df_tau['participant_id'] == p) &
-                                    (df_tau['day'] == day) &
-                                    (df_tau['chord'] == chord) &
-                                    (df_tau['chordID'] == chordID)]
-                df_tau_tmp.dropna(subset=['tau'], inplace=True)
-
-                if len(df_tau_tmp) > 0:
-                    tau.append(np.stack(df_tau_tmp['tau'].values).mean(axis=0))
-
-            tau = np.array(tau).mean(axis=0)
-            np.fill_diagonal(tau, np.nan)
-            tau[fingers == False, :] = np.nan
-            tau[:, fingers == False] = np.nan
-
-            cax = axs.imshow(tau, vmin=-.5, vmax=.5, cmap='PiYG')
-
-            axs.set_xticks(np.linspace(0, 4, 5))
-            axs.set_yticks(np.linspace(0, 4, 5))
-            axs.set_xticklabels(gl.channels['force'], rotation=45)
-            axs.set_yticklabels(gl.channels['force'], rotation=45)
-
-            # fig.suptitle(f'{chordID}, {chord}, day{day}')
-
-            return fig, axs, cax
-        # endregion
-
-        # region PLOT:xcorr_slope
-        case 'PLOT:xcorr_slope':
-
-            df = pd.read_csv(os.path.join(gl.baseDir, experiment, f'xcorr_corr_slope.tsv'), sep='\t')
-
-            sns.boxplot(data=df, ax=axs, x='day', y='slope', hue='chord', palette=['red', 'blue'], showfliers=False)
-
-            return fig, axs
         # endregion
 
         # region PLOT:recon_emg
