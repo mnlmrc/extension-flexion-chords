@@ -6,6 +6,7 @@ import scipy
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
 from scipy.optimize import nnls
+from scipy.signal import resample
 from sklearn.linear_model import LinearRegression
 
 from scipy.stats import ttest_1samp
@@ -28,7 +29,7 @@ from variance_decomposition import reliability_var
 
 
 def main(what, experiment=None, participant_id=None, session=None, day=None, chordID=None, chord=None, ntrial=None,
-         metric=None,
+         metric=None, fname=None, muscles=None, trigger=None,
          fig=None, axs=None, width=None, linewidth=None, linecolor=None, showfliers=True, color=None, palette=None,
          err_kw=None):
     if participant_id is None:
@@ -60,6 +61,112 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             return metrics
         # endregion
+
+        # region EMG:csv2df
+        case 'EMG:csv2df':
+
+            filepath = os.path.join(gl.baseDir, experiment, session, participant_id, fname)
+
+            # read data from .csv file (Delsys output)
+            with open(filepath, 'rt') as fid:
+                A = []
+                for line in fid:
+                    # Strip whitespace and newline characters, then split
+                    split_line = [elem.strip() for elem in line.strip().split(',')]
+                    A.append(split_line)
+
+            # identify columns with data from each muscle
+            muscle_columns = {}
+            for muscle in muscles:
+                for c, col in enumerate(A[3]):
+                    if muscle in col:
+                        muscle_columns[muscle] = c + 1  # EMG is on the right of Timeseries data (that's why + 1)
+                        break
+                for c, col in enumerate(A[5]):
+                    if f'{muscle} (mV)' in col:
+                        muscle_columns[muscle] = c
+                        break
+
+            df_raw = pd.DataFrame(A[8:])  # get rid of header
+            df_out = pd.DataFrame()  # init final dataframe
+
+            for muscle in muscle_columns:
+                df_out[muscle] = pd.to_numeric(df_raw[muscle_columns[muscle]],
+                                               errors='coerce').replace('', np.nan).dropna()  # add EMG to dataframe
+
+            # add trigger column
+            trigger_column = None
+            for c, col in enumerate(A[5]):
+                if f'{trigger} (V)' in col:
+                    trigger_column = c
+
+            try:
+                trigger = df_raw[trigger_column].to_numpy().astype(float)
+                trigger = resample(trigger, len(df_out))
+            except IOError as e:
+                raise IOError("Trigger not found") from e
+
+            df_out[trigger] = trigger
+
+            # add time column
+            # df_out['time'] = df_raw.loc[:, 0]
+
+            return df_out
+        # endregion
+
+        # region EMG:df2mep
+        case 'EMG:df2mep':
+
+            for p in participant_id:
+                filepath = os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, fname)
+                df = pd.read_csv(filepath, sep='\t', index_col=False)
+                df = df.drop(df.columns[0], axis=1)
+
+                trigger = df['Trigger'].to_numpy()
+                df = df.drop('Trigger', axis=1)
+                trigOn = trigger > 4
+                trigOn_diff = np.diff(trigOn.astype(int))
+                trigOn_times = np.where(trigOn_diff == 1)[0]  # Trigger turning on (rising edge)
+
+                nsamples = int(.05 * gl.fsample['emg'])
+                mep = np.zeros((len(trigOn_times),  df.shape[1], nsamples))
+                for TN in range(len(trigOn_times)):
+                    mep[TN] = df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy().T
+
+                np.save(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mep.npy'), mep)
+
+            return mep
+        # endregion
+
+        # region EMG:mep_amplitude
+        case 'EMG:mep_amplitude':
+
+            for p in participant_id:
+                mep = np.load(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mep.npy'))
+
+                mepAmp = np.ptp(mep, axis=-1)
+                df_mepAmp = pd.DataFrame(mepAmp, columns=gl.channels['emgTMS'])
+                df_mepAmp.to_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mepAmp.tsv'), sep='\t')
+
+            return df_mepAmp
+        # endregion
+
+        # region EMG:mep_amplitude
+        case 'MEP:nnmf':
+
+            scaler = MinMaxScaler()
+
+            for p in participant_id:
+                mepAmp = pd.read_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mepAmp.tsv'), sep='\t').to_numpy()[:, 1:]
+                mepAmp = scaler.fit_transform(mepAmp)
+                W, H, r2 = iterative_nnmf(mepAmp, thresh=0.1)
+
+                df_H = pd.DataFrame(H, columns=gl.channels['emgTMS'])
+                df_H.to_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'preTraining_H.tsv'), sep='\t')
+                pass
+
+        # endregion
+
 
         # region XCORR:tau
         case 'XCORR:tau':
@@ -378,7 +485,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     for c, chordID in enumerate(chordIDs):
 
                         tau_tmp = tau[(tau['chordID'] == chordID) & (tau['participant_id'] == p) & (
-                                    tau['day'] == day)].reset_index()
+                                tau['day'] == day)].reset_index()
 
                         if len(tau_tmp) > 0:
                             chord = tau_tmp['chord']
@@ -628,6 +735,10 @@ if __name__ == "__main__":
         'XCORR:tau',  # ok
         'NOISE_CEILING:tau',  # ok
         'EMG:nnmf',
+        'EMG:csv2df',
+        'EMG:df2mep',
+        'MEP:nnmf',
+        'EMG:mep_amplitude',
         'RECONSTRUCT:force',
         'RECONSTRUCT:emg',
         'XCORR:corr',
@@ -642,13 +753,14 @@ if __name__ == "__main__":
     ])
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
-    parser.add_argument('--session', default=None, help='', choices=['training', 'testing'])
+    parser.add_argument('--session', default=None, help='', choices=['training', 'testing', 'emgTMS'])
     parser.add_argument('--day', default=gl.days, help='')
     parser.add_argument('--ntrial', default=None, help='')
     parser.add_argument('--metric', default=None, choices=['MD', 'RT', 'ET'], help='')
     parser.add_argument('--chordID', default=None, help='')
     parser.add_argument('--chord', default=None, help='', choices=['trained', 'untrained'])
     parser.add_argument('--dataset', default=None, help='', choices=['natural', 'chords'])
+    parser.add_argument('--fname', default='preTraining.tsv', help='', choices=['natural', 'chords'])
 
     args = parser.parse_args()
 
@@ -662,6 +774,7 @@ if __name__ == "__main__":
     chordID = int(args.chordID) if args.chordID is not None else None
     chord = args.chord
     dataset = args.dataset
+    fname = args.fname
 
     if participant_id is None:
         participant_id = gl.participants[experiment]
@@ -669,6 +782,6 @@ if __name__ == "__main__":
     pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
 
     main(what, experiment=experiment, participant_id=participant_id, session=session, day=day,
-         ntrial=ntrial, chordID=chordID, chord=chord, metric=metric)
+         ntrial=ntrial, chordID=chordID, chord=chord, metric=metric, fname=fname)
 
     plt.show()

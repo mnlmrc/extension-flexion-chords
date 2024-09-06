@@ -5,6 +5,11 @@ fsample = 500
 fthresh = 1.2  # threshold to exit the baseline area
 hold_time = .6  # in seconds
 
+fsample = {
+    'emg': 2148,
+    'force': 500,
+}
+
 nblocks = 8
 
 chordID = [29212, 92122, 91211, 22911, 21291, 12129, 12291, 19111]
@@ -58,6 +63,9 @@ participants = {
         'subj111',
         'subj112',
         'subj113'
+    ],
+    'efc3': [
+        'subj100'
     ]
 }
 
@@ -81,5 +89,23 @@ channels = {
             'emg_hold_avg_f2',
             'emg_hold_avg_f3',
             'emg_hold_avg_f4',
-            'emg_hold_avg_f5']
+            'emg_hold_avg_f5'],
+    'emgTMS': [
+        'ext_D3',
+        'ext_D4',
+        'ext_D5',
+        'ext_D1',
+        'ext_D2',
+        'flx_D3',
+        'flx_D4',
+        'flx_D2',
+        'flx_D1',
+        'flx_D5',
+        'FDI',
+        'lum1',
+        'lum2',
+        'lum3',
+    ]
 }
+
+
