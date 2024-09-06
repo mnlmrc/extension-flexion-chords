@@ -165,7 +165,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         chord.append(chord_tmp)
 
                     df_out = pd.DataFrame(np.stack(pattern, axis=0), columns=df.columns)
-                    df_out['chordID'] = chordID
+                    df_out = pd.concat([df_out, pd.DataFrame(chordID, columns=['chordID'])], axis=1)
 
                     # np.save(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mep.npy'), mep)
                     pass
