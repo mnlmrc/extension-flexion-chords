@@ -6,7 +6,7 @@ import scipy
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
 from scipy.optimize import nnls
-from scipy.signal import resample
+from scipy.signal import resample, find_peaks
 from sklearn.linear_model import LinearRegression
 
 from scipy.stats import ttest_1samp
@@ -24,7 +24,7 @@ import seaborn as sns
 from force import Force
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2
 from stats import perm_test_1samp
-from util import load_nat_emg, calc_avg, calc_success, lp_butter, time_to_seconds
+from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir
 from variance_decomposition import reliability_var
 
 
@@ -65,7 +65,13 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region EMG:csv2df
         case 'EMG:csv2df':
 
-            filepath = os.path.join(gl.baseDir, experiment, session, participant_id, fname)
+            if muscles is None:
+                muscles = gl.channels['emgTMS']
+
+            if trigger is None:
+                trigger = 'Analog 1'
+
+            filepath = os.path.join(gl.baseDir, experiment, session, participant_id[0], fname)
 
             # read data from .csv file (Delsys output)
             with open(filepath, 'rt') as fid:
@@ -155,6 +161,38 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 df_mepAmp.to_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mepAmp.tsv'), sep='\t')
 
             return df_mepAmp
+        # endregion
+
+        # region NATURAL:peaks
+        case 'NATURAL:extract_patterns_from_peaks':
+
+            scaler = MinMaxScaler()
+            for p in participant_id:
+                natEMG = pd.read_csv(os.path.join(gl.baseDir, experiment, 'emgNatural', p, 'Natural_raw.tsv'),
+                                     sep='\t', index_col=None)
+                natEMG = natEMG.drop(natEMG.columns[0], axis=1)
+
+                natEMG.drop(gl.removeEMG[experiment][p], axis=1, inplace=True)
+
+                cols =  natEMG.columns
+
+                natEMG = natEMG.to_numpy()
+                # natEMG = scaler.fit_transform(natEMG)
+                natEMG = np.abs(natEMG).T
+
+                norm = np.linalg.norm(natEMG, axis=0)
+
+                print(f'{p}: lowpass filtering...')
+                norm_lp = lowpass_butter(norm, cutoff=10, fsample=gl.fsample['emg'], axis=-1)
+
+                peaks = find_peaks(norm_lp)[0]
+
+                emg_patterns = natEMG[:, peaks]
+
+                df = pd.DataFrame(emg_patterns.T, columns=cols)
+                df.to_csv(os.path.join(gl.baseDir, experiment, 'emgNatural', p, 'Natural_patterns.tsv'), sep='\t')
+
+            return df
         # endregion
 
         # region EMG:mep_amplitude
@@ -650,7 +688,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             force_dict = force.load_pkl()
             force_trial = force_dict['force'][ntrial] * np.array(
                 [1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
-            force_trial = lp_butter(force_trial.T, 30, gl.fsample).T
+            force_trial = lowpass_butter(force_trial.T, 30, gl.fsample).T
             chordID = int(force_dict['chordID'][ntrial])
             # session = force_dict['session'][ntrial]
             day = force_dict['day'][ntrial]
@@ -731,6 +769,48 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return fig, axs, pval
         # endregion
 
+        # region PLOT:xcorr_chord
+        case 'PLOT:xcorr_chord':
+
+            if fig is None or axs is None:
+                fig, axs = plt.subplots()
+
+            with open(os.path.join(gl.baseDir, experiment, f'tau.pkl'), "rb") as file:
+                tau_dict = pickle.load(file)
+
+            tau = list()
+            df_tau = pd.DataFrame(tau_dict)
+
+            chordID_str = str(chordID)
+            fingers = np.array([f != '9' for f in chordID_str])
+
+            for p in participant_id:
+                df_tau_tmp = df_tau[(df_tau['participant_id'] == p) &
+                                    (df_tau['day'] == day) &
+                                    (df_tau['chord'] == chord) &
+                                    (df_tau['chordID'] == chordID)]
+                df_tau_tmp.dropna(subset=['tau'], inplace=True)
+
+                if len(df_tau_tmp) > 0:
+                    tau.append(np.stack(df_tau_tmp['tau'].values).mean(axis=0))
+
+            tau = np.array(tau).mean(axis=0)
+            np.fill_diagonal(tau, np.nan)
+            tau[fingers == False, :] = np.nan
+            tau[:, fingers == False] = np.nan
+
+            cax = axs.imshow(tau, vmin=-.5, vmax=.5, cmap='PiYG')
+
+            axs.set_xticks(np.linspace(0, 4, 5))
+            axs.set_yticks(np.linspace(0, 4, 5))
+            axs.set_xticklabels(gl.channels['force'], rotation=45)
+            axs.set_yticklabels(gl.channels['force'], rotation=45)
+
+            # fig.suptitle(f'{chordID}, {chord}, day{day}')
+
+            return fig, axs, cax
+        # endregion
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -747,26 +827,23 @@ if __name__ == "__main__":
         'EMG:mep_amplitude',
         'RECONSTRUCT:force',
         'RECONSTRUCT:emg',
+        'NATURAL:extract_patterns_from_peaks',
         'XCORR:corr',
         'XCORR:variance_decomposition',
-        'PLOT:success',
-        'PLOT:metric_repetition'
         'PLOT:force_in_trial',  # ok
         'PLOT:xcorr_chord',  # ok
         'PLOT:recon_emg',
-        'PLOT:xcorr_corr',  # ok
-        'PLOT:xcorr_slope',
     ])
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
-    parser.add_argument('--session', default=None, help='', choices=['training', 'testing', 'emgTMS'])
+    parser.add_argument('--session', default=None, help='', choices=['training', 'testing', 'emgTMS', 'emgNatural'])
     parser.add_argument('--day', default=gl.days, help='')
     parser.add_argument('--ntrial', default=None, help='')
     parser.add_argument('--metric', default=None, choices=['MD', 'RT', 'ET'], help='')
     parser.add_argument('--chordID', default=None, help='')
     parser.add_argument('--chord', default=None, help='', choices=['trained', 'untrained'])
     parser.add_argument('--dataset', default=None, help='', choices=['natural', 'chords'])
-    parser.add_argument('--fname', default='preTraining_raw.tsv', help='', choices=['natural', 'chords'])
+    parser.add_argument('--fname', default='preTraining_raw.tsv', help='')
 
     args = parser.parse_args()
 

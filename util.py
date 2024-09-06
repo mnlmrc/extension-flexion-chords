@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import scipy
-from scipy.signal import butter, filtfilt
+from scipy.signal import butter, filtfilt, firwin
 
 
 def load_nat_emg(file_path):
@@ -58,7 +58,7 @@ def calc_avg(X, columns=None, by=None):
     return avg
 
 
-def lp_butter(signal, cutoff, fs, order=5):
+def lowpass_butter(signal=None, cutoff=None, fsample=None, order=5, axis=-1):
     """
     Apply a low-pass filter to a 5-by-t signal array.
 
@@ -72,14 +72,11 @@ def lp_butter(signal, cutoff, fs, order=5):
     np.ndarray: The filtered 5-by-t signal array.
     """
     # Design a Butterworth low-pass filter
-    nyquist = 0.5 * fs
+    nyquist = .5 * fsample
     normal_cutoff = cutoff / nyquist
     b, a = butter(order, normal_cutoff, btype='low', analog=False)
 
-    # Apply the filter to each row
-    filtered_signal = np.zeros_like(signal)
-    for i in range(signal.shape[0]):
-        filtered_signal[i, :] = filtfilt(b, a, signal[i, :])
+    filtered_signal = filtfilt(b, a, signal, axis=axis)
 
     return filtered_signal
 
@@ -100,3 +97,20 @@ def savefig(path, fig):
 def time_to_seconds(t):
     minutes, seconds = map(float, t.split(':'))
     return minutes * 60 + seconds
+
+
+def lowpass_fir(data, n_ord=None, cutoff=None, fsample=None, padlen=None, axis=-1):
+    """
+    Low-pass filter to remove high-frequency noise from the EMG signal.
+
+    :param data: Input signal to be filtered.
+    :param n_ord: Filter order.
+    :param cutoff: Cutoff frequency of the low-pass filter.
+    :param fsample: Sampling frequency of the input signal.
+    :return: Filtered signal.
+    """
+    numtaps = int(n_ord * fsample / cutoff)
+    b = firwin(numtaps + 1, cutoff, fs=fsample, pass_zero='lowpass')
+    filtered_data = filtfilt(b, 1, data, axis=axis, padlen=padlen)
+
+    return filtered_data

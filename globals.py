@@ -57,7 +57,7 @@ participants = {
         # 'subj105',
         'subj106',
         'subj107',
-        # 'subj108'
+        'subj108',
         'subj109',
         'subj110',
         'subj111',
@@ -91,6 +91,8 @@ channels = {
             'emg_hold_avg_f4',
             'emg_hold_avg_f5'],
     'emgTMS': [
+# 'ring_ext'  , 'pinkie_ext'  ,'thumb_flex'  ,'pinkie_flex' , 'index_flex' , 'middle_flex' ,  'thumb_ext' ,  'index_ext' , 'EMG 1' ,'EMG 2' , 'thumb_ext' , 'index_ext' , 'thumb_ext' ,  'index_ext',
+
         'ext_D3',
         'ext_D4',
         'ext_D5',
@@ -106,6 +108,12 @@ channels = {
         'lum2',
         'lum3',
     ]
+}
+
+removeEMG = {
+    'efc3': {
+        'subj100': ['flx_D5']
+    }
 }
 
 

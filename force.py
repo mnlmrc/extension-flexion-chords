@@ -53,7 +53,7 @@ def calc_pca(X):
     return explained, loadings, principal_components
 
 
-def calc_jerk(X, fsample=gl.fsample):
+def calc_jerk(X, fsample=gl.fsample['force']):
     # Ensure the positions and times are numpy arrays
     pos = np.array(X)
 
@@ -147,12 +147,12 @@ def get_segment(x, hold_time=gl.hold_time):
 
     if hold_time is None:
         x_s = x[start_samp_exec:]
-        starttime = start_samp_exec / gl.fsample
-        endtime = (len(x) / gl.fsample) - starttime
+        starttime = start_samp_exec / gl.fsample['force']
+        endtime = (len(x) / gl.fsample['force']) - starttime
     else:
-        x_s = x[start_samp_exec:-int(hold_time * gl.fsample)]
-        starttime = start_samp_exec / gl.fsample
-        endtime = ((len(x) - int(hold_time * gl.fsample)) / gl.fsample) - starttime
+        x_s = x[start_samp_exec:-int(hold_time * gl.fsample['force'])]
+        starttime = start_samp_exec / gl.fsample['force']
+        endtime = ((len(x) - int(hold_time * gl.fsample['force'])) / gl.fsample['force']) - starttime
 
     return x_s, starttime, endtime
 
