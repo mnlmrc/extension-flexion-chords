@@ -29,7 +29,7 @@ from variance_decomposition import reliability_var
 
 
 def main(what, experiment=None, participant_id=None, session=None, day=None, chordID=None, chord=None, ntrial=None,
-         metric=None, fname=None, muscles=None, trigger=None,
+         fname=None, muscles=None, trigger=None,
          fig=None, axs=None, width=None, linewidth=None, linecolor=None, showfliers=True, color=None, palette=None,
          err_kw=None):
     if participant_id is None:
@@ -94,11 +94,15 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         break
 
             df_raw = pd.DataFrame(A[8:])  # get rid of header
-            df_out = pd.DataFrame()  # init final dataframe
+            # df_out = pd.DataFrame()  # init final dataframe
+            #
+            # for muscle in muscle_columns:
+            #     df_out[muscle] = pd.to_numeric(df_raw[muscle_columns[muscle]],
+            #                                    errors='coerce').replace('', np.nan).dropna()  # add EMG to dataframe
 
-            for muscle in muscle_columns:
-                df_out[muscle] = pd.to_numeric(df_raw[muscle_columns[muscle]],
-                                               errors='coerce').replace('', np.nan).dropna()  # add EMG to dataframe
+            df_out = df_raw.iloc[:, 1::2].iloc[:, :14]
+            df_out = df_out.apply(pd.to_numeric, errors='coerce')
+            df_out = df_out.replace('', np.nan).dropna()
 
             # add trigger column
             trigger_column = None
@@ -112,12 +116,59 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             except IOError as e:
                 raise IOError("Trigger not found") from e
 
-            df_out[trigger] = trigger
+            # df_out[trigger] = trigger
+
+            df_out = pd.concat([df_out, pd.DataFrame(trigger)], axis=1)
 
             # add time column
             # df_out['time'] = df_raw.loc[:, 0]
 
             return df_out
+        # endregion
+
+        # region EMG:df2chord
+        case 'EMG:df2chord':
+
+            for p in participant_id:
+                for BN in range(6):
+                    sn = int(''.join([c for c in p if c.isdigit()]))
+
+                    if day == 'pretraining':
+                        dat = pd.read_csv(os.path.join(gl.baseDir, experiment, 'testing', 'day1', f'{experiment}_{sn}.dat'), sep='\t')
+                    elif day == 'posttraining':
+                        dat = pd.read_csv(os.path.join(gl.baseDir, experiment, 'testing', 'day5', f'{experiment}_{sn}.dat'), sep='\t')
+
+                    dat = dat[dat['BN'] == BN + 1]
+
+                    df = pd.read_csv(os.path.join(gl.baseDir, experiment, session, p, f'block{BN+1}_{day}.tsv'), sep='\t')
+                    df.drop(df.columns[0], axis=1, inplace=True)
+
+                    trigger = df['Trigger'].to_numpy()
+                    df = df.drop('Trigger', axis=1)
+                    trigOn = trigger > 4
+                    trigOn_diff = np.diff(trigOn.astype(int))
+                    trigOn_times = np.where(trigOn_diff == 1)[0][dat['trialPoint'] == 1]  # Trigger turning on (rising edge)
+                    ET = (dat[dat['trialPoint'] == 1]['RT'] - 600) / 1000
+                    trigOn_times = (trigOn_times + ET * gl.fsample['emg']).to_numpy().astype(int)
+
+                    nsamples = int(.6 * gl.fsample['emg'])
+                    pattern = []
+                    chordID = []
+                    chord = []
+                    for TN in range(len(trigOn_times)):
+                        pattern.append(np.abs(df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy()).mean(axis=0))
+                        chordID_tmp = dat.iloc[TN]['chordID'].astype(str)
+                        chord_tmp = 'trained' if (chordID_tmp in
+                                              pinfo[pinfo['participant_id'] == p].trained.iloc[0].split('.')) \
+                            else 'untrained'
+                        chordID.append(chordID_tmp)
+                        chord.append(chord_tmp)
+
+                    df_out = pd.DataFrame(np.stack(pattern, axis=0), columns=df.columns)
+                    df_out['chordID'] = chordID
+
+                    # np.save(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mep.npy'), mep)
+                    pass
         # endregion
 
         # region EMG:df2mep
@@ -158,9 +209,29 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                 mepAmp = np.ptp(mep, axis=-1)
                 df_mepAmp = pd.DataFrame(mepAmp, columns=gl.channels['emgTMS'])
+                df_mepAmp.drop(gl.removeEMG[experiment][p], axis=1, inplace=True)
                 df_mepAmp.to_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mepAmp.tsv'), sep='\t')
 
             return df_mepAmp
+        # endregion
+
+        # region EMG:nnmf
+        case 'EMG:nnmf':
+
+            W, H, r2 = [], [], []
+            for p in participant_id:
+                M = pd.read_csv(os.path.join(gl.baseDir, experiment, session, p, fname), sep='\t')
+                M.drop(M.columns[0], axis=1, inplace=True)
+                M = M.to_numpy()
+
+                W_tmp, H_tmp, r2_tmp = iterative_nnmf(M, thresh=0.1)
+
+                W.append(W_tmp)
+                H.append(H_tmp)
+                r2.append(r2_tmp)
+
+            return W, H, r2
+
         # endregion
 
         # region NATURAL:peaks
@@ -210,7 +281,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 pass
 
         # endregion
-
 
         # region XCORR:tau
         case 'XCORR:tau':
@@ -284,8 +354,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
         # endregion
 
-        # region EMG:nnmf
-        case 'EMG:nnmf':
+        # region EMG:nnmf_tmp
+        case 'EMG:nnmf_tmp':
 
             M = pd.read_csv(os.path.join(gl.baseDir, experiment, 'chords', 'M.tsv'), sep='\t')[
                 gl.channels['emg'] + ['sn', 'chordID']]
@@ -821,6 +891,7 @@ if __name__ == "__main__":
         'XCORR:tau',  # ok
         'NOISE_CEILING:tau',  # ok
         'EMG:nnmf',
+        'EMG:df2chord',
         'EMG:csv2df',
         'EMG:df2mep',
         'MEP:nnmf',
@@ -836,7 +907,7 @@ if __name__ == "__main__":
     ])
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
-    parser.add_argument('--session', default=None, help='', choices=['training', 'testing', 'emgTMS', 'emgNatural'])
+    parser.add_argument('--session', default=None, help='', choices=['training', 'testing', 'emgTMS', 'emgNatural', 'emgChords'])
     parser.add_argument('--day', default=gl.days, help='')
     parser.add_argument('--ntrial', default=None, help='')
     parser.add_argument('--metric', default=None, choices=['MD', 'RT', 'ET'], help='')
@@ -865,6 +936,6 @@ if __name__ == "__main__":
     pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
 
     main(what, experiment=experiment, participant_id=participant_id, session=session, day=day,
-         ntrial=ntrial, chordID=chordID, chord=chord, metric=metric, fname=fname)
+         ntrial=ntrial, chordID=chordID, chord=chord, fname=fname)
 
     plt.show()
