@@ -96,3 +96,7 @@ def savefig(path, fig):
     else:
         fig.savefig(path, dpi=600)
         print(f"File saved as {path}.")
+
+def time_to_seconds(t):
+    minutes, seconds = map(float, t.split(':'))
+    return minutes * 60 + seconds

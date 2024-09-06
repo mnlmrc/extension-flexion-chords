@@ -24,7 +24,7 @@ import seaborn as sns
 from force import Force
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2
 from stats import perm_test_1samp
-from util import load_nat_emg, calc_avg, calc_success, lp_butter
+from util import load_nat_emg, calc_avg, calc_success, lp_butter, time_to_seconds
 from variance_decomposition import reliability_var
 
 
@@ -122,11 +122,17 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 df = pd.read_csv(filepath, sep='\t', index_col=False)
                 df = df.drop(df.columns[0], axis=1)
 
+                # nn_log = pd.read_csv(os.path.join(gl.baseDir, 'efc3', 'Brainsight', 'efc3_100_pretraining.tsv'), sep='\t')
+                # time_in_seconds = [time_to_seconds(t) for t in nn_log['Time'].tolist()]
+                # time_diff_NN = np.diff(time_in_seconds)
+
                 trigger = df['Trigger'].to_numpy()
                 df = df.drop('Trigger', axis=1)
                 trigOn = trigger > 4
                 trigOn_diff = np.diff(trigOn.astype(int))
                 trigOn_times = np.where(trigOn_diff == 1)[0]  # Trigger turning on (rising edge)
+
+                # time_diff_EMG = np.diff(trigOn_times / gl.fsample['emg'])
 
                 nsamples = int(.05 * gl.fsample['emg'])
                 mep = np.zeros((len(trigOn_times),  df.shape[1], nsamples))
@@ -135,7 +141,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                 np.save(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mep.npy'), mep)
 
-            return mep
+            return mep, trigOn_times
         # endregion
 
         # region EMG:mep_amplitude
@@ -760,7 +766,7 @@ if __name__ == "__main__":
     parser.add_argument('--chordID', default=None, help='')
     parser.add_argument('--chord', default=None, help='', choices=['trained', 'untrained'])
     parser.add_argument('--dataset', default=None, help='', choices=['natural', 'chords'])
-    parser.add_argument('--fname', default='preTraining.tsv', help='', choices=['natural', 'chords'])
+    parser.add_argument('--fname', default='preTraining_raw.tsv', help='', choices=['natural', 'chords'])
 
     args = parser.parse_args()
 
