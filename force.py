@@ -134,7 +134,7 @@ def calc_xcorr(X):
                                      mode='full') / norm  # this is to map xcorr between -1 and 1
             xcorr[i, j] = xcorr_tmp
 
-            lags = np.arange(-len(a) + 1, len(a)) / gl.fsample
+            lags = np.arange(-len(a) + 1, len(a)) / gl.fsample['force']
             tau[i, j] = lags[np.argmax(np.abs(xcorr_tmp))]
 
     return xcorr, tau, lags

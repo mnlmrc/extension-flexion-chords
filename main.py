@@ -795,12 +795,12 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             force_dict = force.load_pkl()
             force_trial = force_dict['force'][ntrial] * np.array(
                 [1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
-            force_trial = lowpass_butter(force_trial.T, 30, gl.fsample).T
+            force_trial = lowpass_butter(force_trial.T, 30, gl.fsample['force']).T
             chordID = int(force_dict['chordID'][ntrial])
             # session = force_dict['session'][ntrial]
             day = force_dict['day'][ntrial]
 
-            tAx = np.linspace(0, force_trial.shape[0] / gl.fsample, force_trial.shape[0])
+            tAx = np.linspace(0, force_trial.shape[0] / gl.fsample['force'], force_trial.shape[0])
 
             axs.plot(tAx, force_trial, lw=linewidth)
 

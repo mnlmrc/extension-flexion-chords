@@ -5,6 +5,7 @@ import pandas as pd
 import scipy
 from scipy.signal import butter, filtfilt, firwin
 
+import globals as gl
 
 def load_nat_emg(file_path):
     # Load the .mat file
