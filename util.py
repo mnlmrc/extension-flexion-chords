@@ -114,3 +114,57 @@ def lowpass_fir(data, n_ord=None, cutoff=None, fsample=None, padlen=None, axis=-
     filtered_data = filtfilt(b, 1, data, axis=axis, padlen=padlen)
 
     return filtered_data
+
+
+def calc_distance_from_distr(pattern, distr, d_type='project_to_nSphere', lambda_val=None):
+    """
+    Calculates the distance of the pattern from every chord in nat_dist.
+
+    Parameters:
+        pattern: numpy array, K by 1 vector representing the EMG pattern.
+        distr: numpy array, matrix where rows are observations (chords) and columns are EMG channels.
+        d_type: string, type of distance to use ('Euclidean', 'project_to_nSphere', 'oval'). Default is 'Euclidean'.
+        lambda_val: float, parameter for the 'oval' distance type. Default is None.
+
+    Returns:
+        d: numpy array, sorted vector of distances between the pattern and each observation in nat_dist.
+    """
+    # Ensure pattern is a column vector
+    if not isinstance(pattern, np.ndarray) or len(pattern.shape) != 1:
+        raise ValueError('pattern must be a 1D numpy array')
+
+    pattern = pattern.reshape(-1, 1)  # Convert to column vector if necessary
+
+    # Default values for distance type
+    if d_type == 'Euclidean':
+        lambda_val = 0
+    elif d_type == 'oval':
+        if lambda_val is None:
+            print("Warning: When using oval distance option, lambda must be provided. Setting lambda to 1.")
+            lambda_val = 1
+    elif d_type == 'project_to_nSphere':
+        lambda_val = 20000
+    else:
+        raise ValueError(f'Distance type {d_type} does not exist.')
+
+    # Distance container
+    d = np.zeros(distr.shape[0])
+
+    # Covariance matrix of the chord pattern
+    cov_pattern = np.dot(pattern, pattern.T)
+
+    # Distance weights
+    sigma = np.eye(cov_pattern.shape[0]) + lambda_val * cov_pattern
+
+    # Looping through points and calculating distances
+    for i in range(distr.shape[0]):
+        # Sample in natural distribution
+        x = distr[i, :].reshape(-1, 1)
+
+        # Squared distance
+        diff = x - pattern
+        d[i] = np.dot(np.dot(diff.T, np.linalg.inv(sigma)), diff)
+
+    # Take the square root of the distances and sort them
+    d = np.sqrt(d.flatten())
+    return np.sort(d)

@@ -24,7 +24,8 @@ import seaborn as sns
 from force import Force
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2
 from stats import perm_test_1samp
-from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir
+from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
+    calc_distance_from_distr
 from variance_decomposition import reliability_var
 
 
@@ -129,6 +130,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region EMG:df2chord
         case 'EMG:df2chord':
 
+            df_out = pd.DataFrame()
+
             for p in participant_id:
                 for BN in range(6):
                     sn = int(''.join([c for c in p if c.isdigit()]))
@@ -142,6 +145,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                     df = pd.read_csv(os.path.join(gl.baseDir, experiment, session, p, f'block{BN+1}_{day}.tsv'), sep='\t')
                     df.drop(df.columns[0], axis=1, inplace=True)
+
+                    df.drop(gl.removeEMG[experiment][p], axis=1)
 
                     trigger = df['Trigger'].to_numpy()
                     df = df.drop('Trigger', axis=1)
@@ -157,18 +162,25 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     chord = []
                     for TN in range(len(trigOn_times)):
                         pattern.append(np.abs(df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy()).mean(axis=0))
-                        chordID_tmp = dat.iloc[TN]['chordID'].astype(str)
+                        chordID_tmp = dat.iloc[TN]['chordID'].astype(int).astype(str)
                         chord_tmp = 'trained' if (chordID_tmp in
                                               pinfo[pinfo['participant_id'] == p].trained.iloc[0].split('.')) \
                             else 'untrained'
                         chordID.append(chordID_tmp)
                         chord.append(chord_tmp)
 
-                    df_out = pd.DataFrame(np.stack(pattern, axis=0), columns=df.columns)
-                    df_out = pd.concat([df_out, pd.DataFrame(chordID, columns=['chordID'])], axis=1)
+                    df_out_tmp = pd.DataFrame(np.stack(pattern, axis=0), columns=df.columns)
+                    df_out_tmp = pd.concat([df_out_tmp,
+                                            pd.DataFrame(chordID, columns=['chordID']),
+                                            pd.DataFrame(chord, columns=['chord']),
+                                            ], axis=1)
+                    df_out_tmp['BN'] = BN+1
+                    df_out_tmp['participant_id'] = p
 
-                    # np.save(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mep.npy'), mep)
-                    pass
+                    df_out = pd.concat([df_out, df_out_tmp], axis=0)
+
+            df_out.to_csv(os.path.join(gl.baseDir, experiment, session, p, f'Chord_{day}.tsv'), sep='\t')
+
         # endregion
 
         # region EMG:df2mep
@@ -231,6 +243,31 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 r2.append(r2_tmp)
 
             return W, H, r2
+
+        # endregion
+
+        # region EMG:distance
+        case 'EMG:distance':
+
+            n_thresh = 10
+
+            for p in participant_id:
+                mep_pretraining = pd.read_csv(os.path.join(gl.baseDir, experiment,
+                                                           'emgTMS', p, 'mepAmp_pretraining.tsv'), sep='\t').iloc[:, 1:]
+                Chords_pretraining = pd.read_csv(os.path.join(gl.baseDir, experiment,
+                                                             'emgChords', p, 'Chords_pretraining.tsv'), sep='\t').iloc[:, 1:]
+                cols = Chords_pretraining.columns
+                muscles = [col for col in cols if col in gl.channels['emgTMS']]
+                Chords_pretraining = Chords_pretraining.groupby(['chordID']).mean().reset_index()
+                chordID = Chords_pretraining['chordID']
+                pattern = Chords_pretraining[muscles]
+
+                for index, row in pattern.iterrows():
+
+                    d = calc_distance_from_distr(row.to_numpy(), mep_pretraining.to_numpy())
+                    x = np.linspace(1, n_thresh, n_thresh)
+                    slope = np.dot(x, d) / np.dot(x, x)
+                    
 
         # endregion
 
@@ -894,6 +931,7 @@ if __name__ == "__main__":
         'EMG:df2chord',
         'EMG:csv2df',
         'EMG:df2mep',
+        'EMG:distance',
         'MEP:nnmf',
         'EMG:mep_amplitude',
         'RECONSTRUCT:force',
