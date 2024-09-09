@@ -194,11 +194,11 @@ class Force:
         self.path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
         self.dat = pd.read_csv(os.path.join(self.path, f"{experiment}_{self.sn}.dat"), sep="\t")
 
-        pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
+        self.pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
         self.trained = [int(x) for x in
-                        pinfo[pinfo['participant_id'] == self.participant_id]['trained'].iloc[0].split('.')]
+                        self.pinfo[self.pinfo['participant_id'] == self.participant_id]['trained'].iloc[0].split('.')]
         self.untrained = [int(x) for x in
-                          pinfo[pinfo['participant_id'] == self.participant_id]['untrained'].iloc[0].split('.')]
+                          self.pinfo[self.pinfo['participant_id'] == self.participant_id]['untrained'].iloc[0].split('.')]
 
     def load_pkl(self):
 
@@ -266,7 +266,10 @@ class Force:
             'success': [],
         }
 
-        for bl in range(gl.nblocks):
+        nblocks = len(self.pinfo[self.pinfo['participant_id']==participant_id]
+                      [f'blocks Chords day{day}'].iloc[0].split('.'))
+
+        for bl in range(nblocks):
             block = f'{bl + 1:02d}'
             print(f"experiment:{experiment}, "
                   f"participant_id:{participant_id}, "
