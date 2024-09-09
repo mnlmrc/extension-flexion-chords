@@ -72,7 +72,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             if trigger is None:
                 trigger = 'Analog 1'
 
-            filepath = os.path.join(gl.baseDir, experiment, session, participant_id[0], fname)
+            filepath = os.path.join(gl.baseDir, experiment, session, f'day{day}', participant_id[0], fname)
 
             # read data from .csv file (Delsys output)
             with open(filepath, 'rt') as fid:
@@ -95,15 +95,15 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         break
 
             df_raw = pd.DataFrame(A[8:])  # get rid of header
-            # df_out = pd.DataFrame()  # init final dataframe
-            #
-            # for muscle in muscle_columns:
-            #     df_out[muscle] = pd.to_numeric(df_raw[muscle_columns[muscle]],
-            #                                    errors='coerce').replace('', np.nan).dropna()  # add EMG to dataframe
+            df_out = pd.DataFrame()  # init final dataframe
 
-            df_out = df_raw.iloc[:, 1::2].iloc[:, :14]
-            df_out = df_out.apply(pd.to_numeric, errors='coerce')
-            df_out = df_out.replace('', np.nan).dropna()
+            for muscle in muscle_columns:
+                df_out[muscle] = pd.to_numeric(df_raw[muscle_columns[muscle]],
+                                               errors='coerce').replace('', np.nan).dropna()  # add EMG to dataframe
+
+            # df_out = df_raw.iloc[:, 1::2].iloc[:, :14]
+            # df_out = df_out.apply(pd.to_numeric, errors='coerce')
+            # df_out = df_out.replace('', np.nan).dropna()
 
             # add trigger column
             trigger_column = None
@@ -112,19 +112,42 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     trigger_column = c
 
             try:
-                trigger = df_raw[trigger_column].to_numpy().astype(float)
-                trigger = resample(trigger, len(df_out))
+                triggerCol = df_raw[trigger_column].replace('', np.nan).dropna().to_numpy().astype(float)
+                triggerCol = resample(triggerCol, len(df_out))
             except IOError as e:
                 raise IOError("Trigger not found") from e
 
             # df_out[trigger] = trigger
 
-            df_out = pd.concat([df_out, pd.DataFrame(trigger)], axis=1)
+            bl = int(''.join([c for c in fname if c.isdigit()]))
+
+            df_out = pd.concat([df_out, pd.DataFrame(triggerCol, columns=['Trigger'])], axis=1)
+
+            df_out.to_csv(os.path.join(gl.baseDir, experiment, session,
+                                       f'day{day}', participant_id[0], f'block{bl}.tsv'), sep='\t', index=False)
 
             # add time column
             # df_out['time'] = df_raw.loc[:, 0]
 
             return df_out
+        # endregion
+
+        # region EMG:merge_blocks
+        case 'EMG:merge_blocks':
+
+
+            blocks = pinfo[pinfo['participant_id'] == participant_id[0]][f'blocks {session[3:]} day{day}'][0].split('.')
+
+            df_out = pd.DataFrame()
+            for block in blocks:
+
+                df_tmp = pd.read_csv(os.path.join(gl.baseDir, experiment, session,
+                                                  f'day{day}', participant_id[0], f'block{block}.tsv'), sep='\t')
+                df_out = pd.concat([df_out, df_tmp], axis=0)
+
+            df_out.to_csv(os.path.join(gl.baseDir, experiment, session, f'day{day}', participant_id[0],
+                                       'emg_continuous.tsv'), sep='\t', index=False)
+
         # endregion
 
         # region EMG:df2chord
@@ -133,53 +156,52 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             df_out = pd.DataFrame()
 
             for p in participant_id:
-                for BN in range(6):
-                    sn = int(''.join([c for c in p if c.isdigit()]))
+                sn = int(''.join([c for c in p if c.isdigit()]))
 
-                    if day == 'pretraining':
-                        dat = pd.read_csv(os.path.join(gl.baseDir, experiment, 'testing', 'day1', f'{experiment}_{sn}.dat'), sep='\t')
-                    elif day == 'posttraining':
-                        dat = pd.read_csv(os.path.join(gl.baseDir, experiment, 'testing', 'day5', f'{experiment}_{sn}.dat'), sep='\t')
+                dat = pd.read_csv(os.path.join(gl.baseDir, experiment, 'testing',
+                                               f'day{day}', f'{experiment}_{sn}.dat'), sep='\t')
 
-                    dat = dat[dat['BN'] == BN + 1]
+                df = pd.read_csv(os.path.join(gl.baseDir, experiment, session, f'day{day}',
+                                              p, f'emg_continuous.tsv'), sep='\t')
 
-                    df = pd.read_csv(os.path.join(gl.baseDir, experiment, session, p, f'block{BN+1}_{day}.tsv'), sep='\t')
-                    df.drop(df.columns[0], axis=1, inplace=True)
+                df.drop(gl.removeEMG[experiment][p], axis=1)
 
-                    df.drop(gl.removeEMG[experiment][p], axis=1)
+                trigger = df['Trigger'].to_numpy()
+                df = df.drop('Trigger', axis=1)
+                trigOn = trigger > 4
+                trigOn_diff = np.diff(trigOn.astype(int))
+                trigOn_times = np.where(trigOn_diff == 1)[0][dat['trialPoint'] == 1]  # Trigger turning on (rising edge)
+                ET = (dat[dat['trialPoint'] == 1]['RT'] - 600) / 1000
+                trigOn_times = (trigOn_times + ET * gl.fsample['emg']).to_numpy().astype(int)
 
-                    trigger = df['Trigger'].to_numpy()
-                    df = df.drop('Trigger', axis=1)
-                    trigOn = trigger > 4
-                    trigOn_diff = np.diff(trigOn.astype(int))
-                    trigOn_times = np.where(trigOn_diff == 1)[0][dat['trialPoint'] == 1]  # Trigger turning on (rising edge)
-                    ET = (dat[dat['trialPoint'] == 1]['RT'] - 600) / 1000
-                    trigOn_times = (trigOn_times + ET * gl.fsample['emg']).to_numpy().astype(int)
+                print(f'{p}: {len(trigOn_times)} trials found...')
 
-                    nsamples = int(.6 * gl.fsample['emg'])
-                    pattern = []
-                    chordID = []
-                    chord = []
-                    for TN in range(len(trigOn_times)):
-                        pattern.append(np.abs(df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy()).mean(axis=0))
-                        chordID_tmp = dat.iloc[TN]['chordID'].astype(int).astype(str)
-                        chord_tmp = 'trained' if (chordID_tmp in
-                                              pinfo[pinfo['participant_id'] == p].trained.iloc[0].split('.')) \
-                            else 'untrained'
-                        chordID.append(chordID_tmp)
-                        chord.append(chord_tmp)
+                nsamples = int(.6 * gl.fsample['emg'])
+                pattern = []
+                chordID = []
+                chord = []
+                for TN in range(len(trigOn_times)):
+                    pattern.append(np.abs(df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy()).mean(axis=0))
+                    chordID_tmp = dat.iloc[TN]['chordID'].astype(int).astype(str)
+                    chord_tmp = 'trained' if (chordID_tmp in
+                                          pinfo[pinfo['participant_id'] == p].trained.iloc[0].split('.')) \
+                        else 'untrained'
+                    chordID.append(chordID_tmp)
+                    chord.append(chord_tmp)
 
-                    df_out_tmp = pd.DataFrame(np.stack(pattern, axis=0), columns=df.columns)
-                    df_out_tmp = pd.concat([df_out_tmp,
-                                            pd.DataFrame(chordID, columns=['chordID']),
-                                            pd.DataFrame(chord, columns=['chord']),
-                                            ], axis=1)
-                    df_out_tmp['BN'] = BN+1
-                    df_out_tmp['participant_id'] = p
+                df_out_tmp = pd.DataFrame(np.stack(pattern, axis=0), columns=df.columns)
+                df_out_tmp = pd.concat([df_out_tmp,
+                                        pd.DataFrame(chordID, columns=['chordID']),
+                                        pd.DataFrame(chord, columns=['chord']),
+                                        ], axis=1)
+                df_out_tmp['BN'] = dat['BN'][dat['trialPoint'] == 1]
+                df_out_tmp['participant_id'] = p
 
-                    df_out = pd.concat([df_out, df_out_tmp], axis=0)
+                df_out = pd.concat([df_out, df_out_tmp], axis=0)
+                df_out.drop(gl.removeEMG[experiment][p], axis=1, inplace=True)
 
-            df_out.to_csv(os.path.join(gl.baseDir, experiment, session, p, f'Chord_{day}.tsv'), sep='\t')
+                df_out.to_csv(os.path.join(gl.baseDir, experiment, session,
+                                           f'day{day}',p, f'Chords.tsv'), sep='\t', index=False)
 
         # endregion
 
@@ -187,9 +209,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         case 'EMG:df2mep':
 
             for p in participant_id:
-                filepath = os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, fname)
-                df = pd.read_csv(filepath, sep='\t', index_col=False)
-                df = df.drop(df.columns[0], axis=1)
+                filepath = os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'emg_continuous.tsv')
+                df = pd.read_csv(filepath, sep='\t')
 
                 # nn_log = pd.read_csv(os.path.join(gl.baseDir, 'efc3', 'Brainsight', 'efc3_100_pretraining.tsv'), sep='\t')
                 # time_in_seconds = [time_to_seconds(t) for t in nn_log['Time'].tolist()]
@@ -201,6 +222,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 trigOn_diff = np.diff(trigOn.astype(int))
                 trigOn_times = np.where(trigOn_diff == 1)[0]  # Trigger turning on (rising edge)
 
+                print(f'{p}: {len(trigOn_times)} MEPs found...')
+
                 # time_diff_EMG = np.diff(trigOn_times / gl.fsample['emg'])
 
                 nsamples = int(.05 * gl.fsample['emg'])
@@ -208,21 +231,20 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 for TN in range(len(trigOn_times)):
                     mep[TN] = df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy().T
 
-                np.save(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mep.npy'), mep)
+                np.save(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mep_segmented.npy'), mep)
 
             return mep, trigOn_times
         # endregion
 
-        # region EMG:mep_amplitude
-        case 'EMG:mep_amplitude':
+        # region EMG:mep2amp
+        case 'EMG:mep2amp':
 
             for p in participant_id:
-                mep = np.load(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mep.npy'))
-
+                mep = np.load(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mep_segmented.npy'))
                 mepAmp = np.ptp(mep, axis=-1)
                 df_mepAmp = pd.DataFrame(mepAmp, columns=gl.channels['emgTMS'])
                 df_mepAmp.drop(gl.removeEMG[experiment][p], axis=1, inplace=True)
-                df_mepAmp.to_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mepAmp.tsv'), sep='\t')
+                df_mepAmp.to_csv(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mepAmp.tsv'), sep='\t', index=False)
 
             return df_mepAmp
         # endregion
@@ -249,26 +271,48 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region EMG:distance
         case 'EMG:distance':
 
-            n_thresh = 10
+            n_thresh = 20
+
+            log_prob = {
+                'participant_id': [],
+                'day': [],
+                'chordID': [],
+                'chord': [],
+                'distance': [],
+                'slope': [],
+                'log_slope': []
+            }
 
             for p in participant_id:
-                mep_pretraining = pd.read_csv(os.path.join(gl.baseDir, experiment,
-                                                           'emgTMS', p, 'mepAmp_pretraining.tsv'), sep='\t').iloc[:, 1:]
-                Chords_pretraining = pd.read_csv(os.path.join(gl.baseDir, experiment,
-                                                             'emgChords', p, 'Chords_pretraining.tsv'), sep='\t').iloc[:, 1:]
-                cols = Chords_pretraining.columns
-                muscles = [col for col in cols if col in gl.channels['emgTMS']]
-                Chords_pretraining = Chords_pretraining.groupby(['chordID']).mean().reset_index()
-                chordID = Chords_pretraining['chordID']
-                pattern = Chords_pretraining[muscles]
+                for day in ['1', '5']:
+                    mepAmp = pd.read_csv(os.path.join(gl.baseDir, experiment,
+                                                               'emgTMS', f'day{day}', p, 'mepAmp.tsv'), sep='\t')
+                    Chords = pd.read_csv(os.path.join(gl.baseDir, experiment,
+                                                                 'emgChords', f'day{day}', p, 'Chords.tsv'), sep='\t')
+                    cols = Chords.columns
+                    muscles = [col for col in cols if col in gl.channels['emgTMS']]
+                    chords_avg = Chords.groupby(['chordID', 'chord']).mean(numeric_only=True).reset_index()
 
-                for index, row in pattern.iterrows():
+                    for index, row in chords_avg.iterrows():
+                        pattern = row[muscles].to_numpy().astype(float)
+                        distr = mepAmp.to_numpy()
+                        d = calc_distance_from_distr(pattern, distr)
+                        x = np.linspace(1, n_thresh, n_thresh)
+                        slope = np.dot(x, d[:n_thresh]) / np.dot(x, x)
+                        log_slope = np.log(1 / slope)
 
-                    d = calc_distance_from_distr(row.to_numpy(), mep_pretraining.to_numpy())
-                    x = np.linspace(1, n_thresh, n_thresh)
-                    slope = np.dot(x, d) / np.dot(x, x)
-                    
+                        log_prob['chordID'].append(row['chordID'])
+                        log_prob['chord'].append(row['chord'])
+                        log_prob['participant_id'].append(p)
+                        log_prob['day'].append(day)
+                        log_prob['distance'].append(d)
+                        log_prob['slope'].append(slope)
+                        log_prob['log_slope'].append(log_slope)
 
+            df_out = pd.DataFrame(log_prob)
+            df_out.to_csv(os.path.join(gl.baseDir, experiment, 'log_prob.tsv'), sep='\t', index=False)
+
+            return df_out
         # endregion
 
         # region NATURAL:peaks
@@ -929,11 +973,12 @@ if __name__ == "__main__":
         'NOISE_CEILING:tau',  # ok
         'EMG:nnmf',
         'EMG:df2chord',
+        'EMG:merge_blocks',
         'EMG:csv2df',
         'EMG:df2mep',
         'EMG:distance',
         'MEP:nnmf',
-        'EMG:mep_amplitude',
+        'EMG:mep2amp',
         'RECONSTRUCT:force',
         'RECONSTRUCT:emg',
         'NATURAL:extract_patterns_from_peaks',
