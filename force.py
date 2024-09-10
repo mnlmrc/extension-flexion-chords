@@ -140,6 +140,32 @@ def calc_xcorr(X):
     return xcorr, tau, lags
 
 
+def calc_exit_times(X):
+    X = X * np.array([1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
+    X = np.abs(X)
+    exit_time = np.zeros(X.shape[1])
+    for i in range(X.shape[1]):
+        a = X[:, i]
+
+        exit_time[i] = np.where(a > 1.2)[0][0]
+
+    return exit_time, np.argsort(exit_time)
+
+
+def calc_entry_times(X):
+    X = X * np.array([1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
+    X = np.abs(X)
+    entry_time = np.zeros(X.shape[1])
+    for i in range(X.shape[1]):
+        a = X[:, i]
+
+        inTarget = (a > 2).astype(int)
+        inTarget_diff = np.diff(inTarget)
+        entry_time[i] = np.where(inTarget_diff == 1)[0][-1]
+
+    return entry_time, np.argsort(entry_time)
+
+
 def get_segment(x, hold_time=gl.hold_time):
     c = np.any(np.abs(x) > gl.fthresh, axis=1)
 
@@ -266,6 +292,11 @@ class Force:
             'success': [],
         }
 
+        exit_times = []
+        exit_order = []
+        entry_times = []
+        entry_order = []
+
         nblocks = len(self.pinfo[self.pinfo['participant_id']==participant_id]
                       [f'blocks Chords day{day}'].iloc[0].split('.'))
 
@@ -299,6 +330,14 @@ class Force:
                     et = endtime - rt
 
                     metrics_tmp = calc_metrics(force)
+
+                    exit_times_tmp, exit_order_tmp = calc_exit_times(force)
+                    entry_times_tmp, entry_order_tmp = calc_entry_times(force)
+
+                    exit_times.append(exit_times_tmp)
+                    exit_order.extend(exit_order_tmp)
+                    entry_times.append(entry_times_tmp)
+                    entry_order.extend(entry_order_tmp)
 
                     metrics_dict['RT'].append(rt)
                     metrics_dict['ET'].append(et)
@@ -345,5 +384,19 @@ class Force:
         metrics['participant_id'] = participant_id
         metrics.loc[metrics['chordID'].isin(self.trained), 'chord'] = 'trained'
         metrics.loc[metrics['chordID'].isin(self.untrained), 'chord'] = 'untrained'
+
+        exit_times = np.array(exit_times)
+        exit_ifi = np.diff(exit_times, axis=1).mean()
+        exit_order = np.array(exit_order)
+        entry_times = np.array(entry_times)
+        entry_ifi = np.diff(entry_times, axis=1).mean()
+        entry_order = np.array(entry_order)
+
+        metrics = pd.concat([metrics, pd.DataFrame(exit_times, columns=gl.channels['force'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(exit_ifi, columns=['IFI_exit'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(exit_order, columns=gl.channels['force'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(entry_times, columns=gl.channels['force'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(entry_ifi, columns=['IFI_entry'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(entry_order, columns=gl.channels['force'])], axis=1)
 
         return metrics, force_dict

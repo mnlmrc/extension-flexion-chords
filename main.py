@@ -370,6 +370,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             tau_dict = {
                 'tau': [],
                 'tauAbs': [],
+                'tauRel': [],
+                'repetition': [],
                 'experiment': [],
                 'participant_id': [],
                 'session': [],
@@ -386,6 +388,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             for p in participant_id:
                 for day in gl.days:
 
+                    sn = int(''.join([c for c in p if c.isdigit()]))
+
                     print(f'xcorr - participant_id: {p}, day: {day}')
 
                     if day == '1' or day == '5':
@@ -393,19 +397,30 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     else:
                         session = 'training'
 
+                    dat = pd.read_csv(
+                            os.path.join(gl.baseDir, experiment, session, f'day{day}', f"{experiment}_{sn}.dat"),
+                            sep="\t")
+
                     force = Force(experiment, p, session, day)
                     force_dict = force.load_pkl()
                     pass
                     _, tau, _ = force.crosscorrelation()
-                    for T, t in enumerate(tau):
+                    for tr, t in enumerate(tau):
+
+                        if tr == 0 or dat.iloc[tr - 1].TN==50  or dat.iloc[tr].chordID != dat.iloc[tr - 1].chordID:
+                            rep = 1
+                        else:
+                            rep += 1
+                        tau_dict['repetition'].append(rep)
+
                         tau_dict['tau'].append(t)
                         tau_dict['experiment'].append(experiment)
                         tau_dict['participant_id'].append(p)
                         tau_dict['session'].append(session)
                         tau_dict['day'].append(day)
-                        chordID = force_dict['chordID'][T]
+                        chordID = force_dict['chordID'][tr]
                         tau_dict['chordID'].append(chordID)
-                        tau_dict['chord'].append('trained' if force_dict['chordID'][T] in force.trained
+                        tau_dict['chord'].append('trained' if force_dict['chordID'][tr] in force.trained
                                                  else 'untrained')
 
                         chordID_str = str(chordID.astype(int))
@@ -415,12 +430,16 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                             np.fill_diagonal(t, np.nan)
                             t[fingers == False, :] = np.nan
                             t[:, fingers == False] = np.nan
+                            off_diag = np.triu(t)
+                            off_diag[off_diag == 0] = np.nan
                             tau_dict['tauAbs'].append(np.nanmean(np.abs(t)))
+                            tau_dict['tauRel'].append(np.nanmean(off_diag))
                             for I, i in enumerate(gl.channels['force']):
                                 for J, j in enumerate(gl.channels['force']):
                                     tau_dict[f'{i}-{j}'].append(t[I, J])
                         else:
                             tau_dict['tauAbs'].append(None)
+                            tau_dict['tauRel'].append(None)
                             for I, i in enumerate(gl.channels['force']):
                                 for J, j in enumerate(gl.channels['force']):
                                     tau_dict[f'{i}-{j}'].append(None)
