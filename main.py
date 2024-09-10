@@ -9,7 +9,7 @@ from scipy.optimize import nnls
 from scipy.signal import resample, find_peaks
 from sklearn.linear_model import LinearRegression
 
-from scipy.stats import ttest_1samp
+from scipy.stats import ttest_1samp, spearmanr
 
 from sklearn.preprocessing import MinMaxScaler
 
@@ -135,12 +135,10 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region EMG:merge_blocks
         case 'EMG:merge_blocks':
 
-
             blocks = pinfo[pinfo['participant_id'] == participant_id[0]][f'blocks {session[3:]} day{day}'][0].split('.')
 
             df_out = pd.DataFrame()
             for block in blocks:
-
                 df_tmp = pd.read_csv(os.path.join(gl.baseDir, experiment, session,
                                                   f'day{day}', participant_id[0], f'block{block}.tsv'), sep='\t')
                 df_out = pd.concat([df_out, df_tmp], axis=0)
@@ -181,10 +179,11 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 chordID = []
                 chord = []
                 for TN in range(len(trigOn_times)):
-                    pattern.append(np.abs(df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy()).mean(axis=0))
+                    pattern.append(
+                        np.abs(df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy()).mean(axis=0))
                     chordID_tmp = dat.iloc[TN]['chordID'].astype(int).astype(str)
                     chord_tmp = 'trained' if (chordID_tmp in
-                                          pinfo[pinfo['participant_id'] == p].trained.iloc[0].split('.')) \
+                                              pinfo[pinfo['participant_id'] == p].trained.iloc[0].split('.')) \
                         else 'untrained'
                     chordID.append(chordID_tmp)
                     chord.append(chord_tmp)
@@ -201,7 +200,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 df_out.drop(gl.removeEMG[experiment][p], axis=1, inplace=True)
 
                 df_out.to_csv(os.path.join(gl.baseDir, experiment, session,
-                                           f'day{day}',p, f'Chords.tsv'), sep='\t', index=False)
+                                           f'day{day}', p, f'Chords.tsv'), sep='\t', index=False)
 
         # endregion
 
@@ -227,7 +226,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 # time_diff_EMG = np.diff(trigOn_times / gl.fsample['emg'])
 
                 nsamples = int(.05 * gl.fsample['emg'])
-                mep = np.zeros((len(trigOn_times),  df.shape[1], nsamples))
+                mep = np.zeros((len(trigOn_times), df.shape[1], nsamples))
                 for TN in range(len(trigOn_times)):
                     mep[TN] = df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy().T
 
@@ -244,7 +243,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 mepAmp = np.ptp(mep, axis=-1)
                 df_mepAmp = pd.DataFrame(mepAmp, columns=gl.channels['emgTMS'])
                 df_mepAmp.drop(gl.removeEMG[experiment][p], axis=1, inplace=True)
-                df_mepAmp.to_csv(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mepAmp.tsv'), sep='\t', index=False)
+                df_mepAmp.to_csv(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mepAmp.tsv'), sep='\t',
+                                 index=False)
 
             return df_mepAmp
         # endregion
@@ -286,9 +286,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             for p in participant_id:
                 for day in ['1', '5']:
                     mepAmp = pd.read_csv(os.path.join(gl.baseDir, experiment,
-                                                               'emgTMS', f'day{day}', p, 'mepAmp.tsv'), sep='\t')
+                                                      'emgTMS', f'day{day}', p, 'mepAmp.tsv'), sep='\t')
                     Chords = pd.read_csv(os.path.join(gl.baseDir, experiment,
-                                                                 'emgChords', f'day{day}', p, 'Chords.tsv'), sep='\t')
+                                                      'emgChords', f'day{day}', p, 'Chords.tsv'), sep='\t')
                     cols = Chords.columns
                     muscles = [col for col in cols if col in gl.channels['emgTMS']]
                     chords_avg = Chords.groupby(['chordID', 'chord']).mean(numeric_only=True).reset_index()
@@ -326,7 +326,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                 natEMG.drop(gl.removeEMG[experiment][p], axis=1, inplace=True)
 
-                cols =  natEMG.columns
+                cols = natEMG.columns
 
                 natEMG = natEMG.to_numpy()
                 # natEMG = scaler.fit_transform(natEMG)
@@ -353,7 +353,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             scaler = MinMaxScaler()
 
             for p in participant_id:
-                mepAmp = pd.read_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mepAmp.tsv'), sep='\t').to_numpy()[:, 1:]
+                mepAmp = pd.read_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mepAmp.tsv'), sep='\t').to_numpy()[
+                         :, 1:]
                 mepAmp = scaler.fit_transform(mepAmp)
                 W, H, r2 = iterative_nnmf(mepAmp, thresh=0.1)
 
@@ -398,8 +399,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         session = 'training'
 
                     dat = pd.read_csv(
-                            os.path.join(gl.baseDir, experiment, session, f'day{day}', f"{experiment}_{sn}.dat"),
-                            sep="\t")
+                        os.path.join(gl.baseDir, experiment, session, f'day{day}', f"{experiment}_{sn}.dat"),
+                        sep="\t")
 
                     force = Force(experiment, p, session, day)
                     force_dict = force.load_pkl()
@@ -407,7 +408,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     _, tau, _ = force.crosscorrelation()
                     for tr, t in enumerate(tau):
 
-                        if tr == 0 or dat.iloc[tr - 1].TN==50  or dat.iloc[tr].chordID != dat.iloc[tr - 1].chordID:
+                        if tr == 0 or dat.iloc[tr - 1].TN == 50 or dat.iloc[tr].chordID != dat.iloc[tr - 1].chordID:
                             rep = 1
                         else:
                             rep += 1
@@ -452,6 +453,85 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             return tau_dict, df_tau
 
+        # region ORDER:rank_corr
+        case 'ORDER:rank_corr':
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, f'metrics.tsv'), sep='\t')
+
+            rank_corr = {
+                'exit': [],
+                'entry': [],
+                'participant_id': [],
+                'day': [],
+                'chordID': [],
+                'chord': []
+            }
+
+            for p in participant_id:
+                for day in metrics['day'].unique():
+                    for chordID in metrics['chordID'].unique():
+
+                        print(f'order_corr - participant_id: {p}, day: {day}, chordID: {chordID}')
+
+                        metrics_tmp = metrics[(metrics['chordID'] == chordID) &
+                                              (metrics['day'] == day) &
+                                              (metrics['participant_id'] == p)].reset_index()
+
+                        for i, rowi in metrics_tmp.iterrows():
+                            rank_corr_exit_tmp = np.zeros(len(metrics_tmp))
+                            rank_corr_entry_tmp = np.zeros(len(metrics_tmp))
+                            for j, rowj in metrics_tmp.iterrows():
+
+                                # exit
+                                order1 = rowi[['thumb_exit_order',
+                                               'index_exit_order',
+                                               'middle_exit_order',
+                                               'ring_exit_order',
+                                               'pinkie_exit_order']].to_numpy().astype(float)
+                                order2 = rowj[['thumb_exit_order',
+                                               'index_exit_order',
+                                               'middle_exit_order',
+                                               'ring_exit_order',
+                                               'pinkie_exit_order']].to_numpy().astype(float)
+                                for k, char in enumerate(str(chordID)):
+                                    if char == '9':
+                                        order1[k] = np.nan
+                                        order2[k] = np.nan
+                                rank_corr_exit_tmp[j], _ = spearmanr(order1, order2, nan_policy='omit')
+
+                                # # entry
+                                # if (rowi['trialPoint'] == 1) & (rowj['trialPoint'] == 1):
+                                #     order1 = rowi[['thumb_entry_order',
+                                #                    'index_entry_order',
+                                #                    'middle_entry_order',
+                                #                    'ring_entry_order',
+                                #                    'pinkie_entry_order']].to_numpy().astype(float)
+                                #     order2 = rowj[['thumb_entry_order',
+                                #                    'index_entry_order',
+                                #                    'middle_entry_order',
+                                #                    'ring_entry_order',
+                                #                    'pinkie_entry_order']].to_numpy().astype(float)
+                                #     for k, char in enumerate(str(chordID)):
+                                #         if char == '9':
+                                #             order1[k] = np.nan
+                                #             order2[k] = np.nan
+                                #     rank_corr_entry_tmp[j], _ = spearmanr(order1, order2, nan_policy='omit')
+                                # else:
+                                #     rank_corr_entry_tmp[j] = np.nan
+
+                            rank_corr['exit'].append(rank_corr_exit_tmp.mean())
+                            # rank_corr['entry'].append(rank_corr_entry_tmp.mean())
+                            rank_corr['participant_id'].append(p)
+                            rank_corr['day'].append(day)
+                            rank_corr['chordID'].append(chordID)
+
+                            chord = 'trained' if (
+                                    chordID in pinfo[pinfo['participant_id'] == p]['trained'][0].split('.')) \
+                                else 'untrained'
+
+                            rank_corr['chord'].append(chord)
+            rank_corr = pd.DataFrame(rank_corr)
+            rank_corr.to_csv('rank_corr.tsv', sep='\t', index=False)
         # endregion
 
         # region EMG:nnmf_tmp
@@ -1003,13 +1083,15 @@ if __name__ == "__main__":
         'NATURAL:extract_patterns_from_peaks',
         'XCORR:corr',
         'XCORR:variance_decomposition',
+        'ORDER:rank_corr',
         'PLOT:force_in_trial',  # ok
         'PLOT:xcorr_chord',  # ok
         'PLOT:recon_emg',
     ])
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
-    parser.add_argument('--session', default=None, help='', choices=['training', 'testing', 'emgTMS', 'emgNatural', 'emgChords'])
+    parser.add_argument('--session', default=None, help='',
+                        choices=['training', 'testing', 'emgTMS', 'emgNatural', 'emgChords'])
     parser.add_argument('--day', default=gl.days, help='')
     parser.add_argument('--ntrial', default=None, help='')
     parser.add_argument('--metric', default=None, choices=['MD', 'RT', 'ET'], help='')

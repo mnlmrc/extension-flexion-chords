@@ -147,9 +147,16 @@ def calc_exit_times(X):
     for i in range(X.shape[1]):
         a = X[:, i]
 
-        exit_time[i] = np.where(a > 1.2)[0][0]
+        exit_time_tmp = np.where(a > 1.2)[0]
+        exit_time[i] = exit_time_tmp[0] if len(exit_time_tmp) > 0 else np.nan
 
-    return exit_time, np.argsort(exit_time)
+    order = np.argsort(exit_time[~np.isnan(exit_time)])
+    fingers = [f for f in gl.channels['force'] if not np.isnan(exit_time[gl.channels['force'].index(f)])]
+    finger_pos = np.full(len(gl.channels['force']), np.nan)
+    for i, idx in enumerate(order):
+        finger_pos[gl.channels['force'].index(fingers[idx])] = i
+
+    return exit_time, finger_pos
 
 
 def calc_entry_times(X):
@@ -161,9 +168,16 @@ def calc_entry_times(X):
 
         inTarget = (a > 2).astype(int)
         inTarget_diff = np.diff(inTarget)
-        entry_time[i] = np.where(inTarget_diff == 1)[0][-1]
+        entry_time_tmp = np.where(inTarget_diff == 1)[0]
+        entry_time[i] = entry_time_tmp[-1] if len(entry_time_tmp) > 0 else np.nan
 
-    return entry_time, np.argsort(entry_time)
+    order = np.argsort(entry_time[~np.isnan(entry_time)])
+    fingers = [f for f in gl.channels['force'] if not np.isnan(entry_time[gl.channels['force'].index(f)])]
+    finger_pos = np.full(len(gl.channels['force']), np.nan)
+    for i, idx in enumerate(order):
+        finger_pos[gl.channels['force'].index(fingers[idx])] = i
+
+    return entry_time, finger_pos
 
 
 def get_segment(x, hold_time=gl.hold_time):
@@ -335,9 +349,9 @@ class Force:
                     entry_times_tmp, entry_order_tmp = calc_entry_times(force)
 
                     exit_times.append(exit_times_tmp)
-                    exit_order.extend(exit_order_tmp)
+                    exit_order.append(exit_order_tmp)
                     entry_times.append(entry_times_tmp)
-                    entry_order.extend(entry_order_tmp)
+                    entry_order.append(entry_order_tmp)
 
                     metrics_dict['RT'].append(rt)
                     metrics_dict['ET'].append(et)
@@ -386,17 +400,30 @@ class Force:
         metrics.loc[metrics['chordID'].isin(self.untrained), 'chord'] = 'untrained'
 
         exit_times = np.array(exit_times)
-        exit_ifi = np.diff(exit_times, axis=1).mean()
         exit_order = np.array(exit_order)
         entry_times = np.array(entry_times)
-        entry_ifi = np.diff(entry_times, axis=1).mean()
         entry_order = np.array(entry_order)
 
-        metrics = pd.concat([metrics, pd.DataFrame(exit_times, columns=gl.channels['force'])], axis=1)
-        metrics = pd.concat([metrics, pd.DataFrame(exit_ifi, columns=['IFI_exit'])], axis=1)
-        metrics = pd.concat([metrics, pd.DataFrame(exit_order, columns=gl.channels['force'])], axis=1)
-        metrics = pd.concat([metrics, pd.DataFrame(entry_times, columns=gl.channels['force'])], axis=1)
-        metrics = pd.concat([metrics, pd.DataFrame(entry_ifi, columns=['IFI_entry'])], axis=1)
-        metrics = pd.concat([metrics, pd.DataFrame(entry_order, columns=gl.channels['force'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(exit_times,
+                                                   columns=['thumb_exit',
+                                                            'index_exit',
+                                                            'middle_exit',
+                                                            'ring_exit',
+                                                            'pinkie_exit'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(exit_order, columns=['thumb_exit_order',
+                                                            'index_exit_order',
+                                                            'middle_exit_order',
+                                                            'ring_exit_order',
+                                                            'pinkie_exit_order'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(entry_times, columns=['thumb_entry',
+                                                            'index_entry',
+                                                            'middle_entry',
+                                                            'ring_entry',
+                                                            'pinkie_entry'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(entry_order, columns=['thumb_entry_order',
+                                                            'index_entry_order',
+                                                            'middle_entry_order',
+                                                            'ring_entry_order',
+                                                            'pinkie_entry_order'])], axis=1)
 
         return metrics, force_dict
