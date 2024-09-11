@@ -462,6 +462,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 'exit': [],
                 'entry': [],
                 'participant_id': [],
+                'repetition': [],
                 'day': [],
                 'chordID': [],
                 'chord': []
@@ -501,37 +502,40 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                                 # # entry
                                 # if (rowi['trialPoint'] == 1) & (rowj['trialPoint'] == 1):
-                                #     order1 = rowi[['thumb_entry_order',
-                                #                    'index_entry_order',
-                                #                    'middle_entry_order',
-                                #                    'ring_entry_order',
-                                #                    'pinkie_entry_order']].to_numpy().astype(float)
-                                #     order2 = rowj[['thumb_entry_order',
-                                #                    'index_entry_order',
-                                #                    'middle_entry_order',
-                                #                    'ring_entry_order',
-                                #                    'pinkie_entry_order']].to_numpy().astype(float)
-                                #     for k, char in enumerate(str(chordID)):
-                                #         if char == '9':
-                                #             order1[k] = np.nan
-                                #             order2[k] = np.nan
-                                #     rank_corr_entry_tmp[j], _ = spearmanr(order1, order2, nan_policy='omit')
-                                # else:
-                                #     rank_corr_entry_tmp[j] = np.nan
+                                order1 = rowi[['thumb_entry_order',
+                                               'index_entry_order',
+                                               'middle_entry_order',
+                                               'ring_entry_order',
+                                               'pinkie_entry_order']].to_numpy().astype(float)
+                                order2 = rowj[['thumb_entry_order',
+                                               'index_entry_order',
+                                               'middle_entry_order',
+                                               'ring_entry_order',
+                                               'pinkie_entry_order']].to_numpy().astype(float)
+                                for k, char in enumerate(str(chordID)):
+                                    if char == '9':
+                                        order1[k] = np.nan
+                                        order2[k] = np.nan
+                                rank_corr_entry_tmp[j], _ = spearmanr(order1, order2, nan_policy='omit')
+                            else:
+                                rank_corr_entry_tmp[j] = np.nan
 
-                            rank_corr['exit'].append(rank_corr_exit_tmp.mean())
-                            # rank_corr['entry'].append(rank_corr_entry_tmp.mean())
+                            rank_corr['exit'].append(np.nanmean(rank_corr_exit_tmp))
+                            rank_corr['entry'].append(np.nanmean(rank_corr_entry_tmp))
                             rank_corr['participant_id'].append(p)
                             rank_corr['day'].append(day)
                             rank_corr['chordID'].append(chordID)
+                            rank_corr['repetition'].append(rowi['repetition'])
+
+                            pass
 
                             chord = 'trained' if (
-                                    chordID in pinfo[pinfo['participant_id'] == p]['trained'][0].split('.')) \
+                                    str(chordID) in pinfo[pinfo['participant_id'] == p]['trained'].to_numpy()[0].split('.')) \
                                 else 'untrained'
 
                             rank_corr['chord'].append(chord)
             rank_corr = pd.DataFrame(rank_corr)
-            rank_corr.to_csv('rank_corr.tsv', sep='\t', index=False)
+            rank_corr.to_csv(os.path.join(gl.baseDir, experiment, f'rank_corr.tsv'), sep='\t', index=False)
         # endregion
 
         # region EMG:nnmf_tmp

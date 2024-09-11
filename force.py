@@ -338,15 +338,15 @@ class Force:
 
                 if dat_tmp.iloc[tr].trialPoint == 1:
 
-                    force = mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3]  # take only states 3 (i.e., WAIT_EXEC)
-                    force, rt, endtime = get_segment(force)
+                    forceRaw = mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3]  # take only states 3 (i.e., WAIT_EXEC)
+                    force, rt, endtime = get_segment(forceRaw)
 
                     et = endtime - rt
 
                     metrics_tmp = calc_metrics(force)
 
-                    exit_times_tmp, exit_order_tmp = calc_exit_times(force)
-                    entry_times_tmp, entry_order_tmp = calc_entry_times(force)
+                    exit_times_tmp, exit_order_tmp = calc_exit_times(forceRaw)
+                    entry_times_tmp, entry_order_tmp = calc_entry_times(forceRaw)
 
                     exit_times.append(exit_times_tmp)
                     exit_order.append(exit_order_tmp)
@@ -379,6 +379,11 @@ class Force:
                     metrics_dict['angle'].append(None)
                     metrics_dict['sine'].append(None)
                     metrics_dict['jerk'].append(None)
+
+                    exit_times.append([None] * 5)
+                    exit_order.append([None] * 5)
+                    entry_times.append([None] * 5)
+                    entry_order.append([None] * 5)
 
                     force_dict['force'].append(None)
                     force_dict['experiment'].append(experiment)
