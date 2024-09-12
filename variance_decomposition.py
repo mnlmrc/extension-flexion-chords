@@ -62,19 +62,21 @@ def reliability_var(Y, subj_vec, part_vec, cond_vec=None, centered=False):
                               (cond_vec == conds[k]), :]
 
                 if centered:
-                    part_data = part_data - np.mean(part_data, axis=0)
+                    part_data = part_data - np.nanmean(part_data, axis=0)
 
                 A.append(part_data.flatten())
 
             A = np.column_stack(A)
+            # A = A[~np.isnan(A).any(axis=1)]
             subj_data[(i, k)] = A
 
-            B = A.T @ A
+            # B = A.T @ A
+            B = np.nansum(A.T[:, :, None] * A[None, :, :], axis=1)
             N = A.shape[1]
 
             tmp_v_gse = np.trace(B) / (N * len(subjects))
             mean_cov = B * (1 - np.eye(N))
-            mean_cov = np.sum(mean_cov) / (N * (N - 1))
+            mean_cov = np.nansum(mean_cov) / (N * (N - 1))
             tmp_v_gs = mean_cov / len(subjects)
 
             if len(conds) > 1:
@@ -93,7 +95,7 @@ def reliability_var(Y, subj_vec, part_vec, cond_vec=None, centered=False):
         for i in range(N - 1):
             for j in range(i + 1, N):
                 B = subj_data[(i, k)].T @ subj_data[(j, k)]
-                tmp_v_g = np.sum(B) / (B.shape[0] ** 2 * (N * (N - 1) / 2))
+                tmp_v_g = np.nansum(B) / (B.shape[0] ** 2 * (N * (N - 1) / 2))
 
                 if len(conds) > 1:
                     v_g[k] += tmp_v_g

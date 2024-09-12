@@ -452,6 +452,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             df_tau.to_csv(os.path.join(gl.baseDir, experiment, f'tau.tsv'), index=False, sep='\t')
 
             return tau_dict, df_tau
+        # endregion
 
         # region ORDER:rank_corr
         case 'ORDER:rank_corr':
@@ -530,12 +531,162 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                             pass
 
                             chord = 'trained' if (
-                                    str(chordID) in pinfo[pinfo['participant_id'] == p]['trained'].to_numpy()[0].split('.')) \
+                                    str(chordID) in pinfo[pinfo['participant_id'] == p]['trained'].to_numpy()[0].split(
+                                '.')) \
                                 else 'untrained'
 
                             rank_corr['chord'].append(chord)
             rank_corr = pd.DataFrame(rank_corr)
             rank_corr.to_csv(os.path.join(gl.baseDir, experiment, f'rank_corr.tsv'), sep='\t', index=False)
+        # endregion
+
+        # region ORDER:left2right
+        case 'ORDER:left2right':
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            x = np.arange(1, 5)
+
+            slope = {
+                'exit': [],
+                'entry': [],
+                'participant_id': [],
+                'repetition': [],
+                'day': [],
+                'chordID': [],
+                'chord': []
+            }
+
+            for i, rowi in metrics.iterrows():
+                if rowi['trialPoint'] is 1:
+                    y_exit = rowi[['thumb_exit_order',
+                                   'index_exit_order',
+                                   'middle_exit_order',
+                                   'ring_exit_order',
+                                   'pinkie_exit_order',]].astype(float)
+                    y_entry = rowi[['thumb_entry_order',
+                                   'index_entry_order',
+                                   'middle_entry_order',
+                                   'ring_entry_order',
+                                   'pinkie_entry_order',]].astype(float)
+
+                    chordID = rowi['chordID']
+
+                    for k, char in enumerate(str(chordID)):
+                        if char == '9':
+                            y_exit[k] = np.nan
+                            y_entry[k] = np.nan
+
+                    y_exit = y_exit[~np.isnan(y_exit)]
+                    y_entry = y_entry[~np.isnan(y_entry)]
+
+                    slope_exit_tmp, _ = np.polyfit(x, y_exit, 1)
+                    slope_entry_tmp, _ = np.polyfit(x, y_entry, 1)
+
+                    slope['exit'].append(slope_exit_tmp)
+                    slope['entry'].append(slope_entry_tmp)
+                    slope['participant_id'].append(rowi['participant_id'])
+                    slope['day'].append(rowi['day'])
+                    slope['chordID'].append(chordID)
+                    slope['chord'].append(rowi['chord'])
+                    slope['repetition'].append(rowi['repetition'])
+
+
+                else:
+
+                    slope['exit'].append(None)
+                    slope['entry'].append(None)
+                    slope['participant_id'].append(rowi['participant_id'])
+                    slope['day'].append(rowi['day'])
+                    slope['chordID'].append(chordID)
+                    slope['chord'].append(rowi['chord'])
+                    slope['repetition'].append(rowi['repetition'])
+
+            slope = pd.DataFrame(slope)
+            slope.to_csv(os.path.join(gl.baseDir, experiment, 'slope.tsv'), sep='\t')
+
+            return slope
+
+        # endregion
+
+        # region ORDER:frequency
+        case 'ORDER:variance_decomposition':
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            # Initialize the variance decomposition dictionary
+            var_dec = {
+                'v_g': [],
+                'v_gs': [],
+                'v_gse': [],
+                'v_s': [],
+                'v_e': [],
+                'chordID': [],
+                'chord': [],
+                'day': []
+            }
+
+            # Precompute minimum trials per chordID
+            trial_counts = metrics.groupby(['participant_id', 'chordID']).size().reset_index(name='trial_count')
+            min_trials_per_chordID = trial_counts.groupby('chordID')['trial_count'].min()
+
+            # Group by chord and day
+            grouped_metrics = metrics.groupby(['chord', 'day'])
+
+            # Iterate through each chord and day combination
+            for (chord, day), metricsD in grouped_metrics:
+                chordIDs = metricsD['chordID'].unique()
+
+                for chordID in chordIDs:
+                    metrics_tmp = metricsD[metricsD['chordID'] == chordID]
+                    min_trials = min_trials_per_chordID.loc[chordID]
+
+                    # Ensure that we do not sample more than the available number of trials
+                    tau_tmp_counts = metrics_tmp.groupby('participant_id').size()
+                    max_available_trials = tau_tmp_counts.min()
+
+                    if min_trials > max_available_trials:
+                        min_trials = max_available_trials
+
+                    # Sample the minimum number of trials for each participant
+                    sampled_metrics_tmp = metrics_tmp.groupby('participant_id', group_keys=False).sample(n=min_trials,
+                                                                                                        random_state=42)
+
+                    part_vec = (sampled_metrics_tmp.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
+                    subj_vec = sampled_metrics_tmp['participant_id'].to_numpy()
+
+                    # Keep only relevant columns (finger combinations)
+                    sampled_metrics_tmp = sampled_metrics_tmp[['thumb_exit_order',
+                                                               'index_exit_order',
+                                                               'middle_exit_order',
+                                                               'ring_exit_order',
+                                                               'pinkie_exit_order']]
+                    unique_combinations = sampled_metrics_tmp.columns.str.split('-').map(sorted).str.join('-').unique()
+
+                    Y = sampled_metrics_tmp[list(unique_combinations)].dropna(axis=1, how='all').to_numpy()
+
+                    for k, char in enumerate(str(chordID)):
+                        if char == '9':
+                            Y = np.delete(Y, k, axis=1)
+
+                    # Perform variance decomposition
+                    v_g, v_gs, v_gse, _ = reliability_var(Y, subj_vec, part_vec, centered=False)
+
+                    # Store the results
+                    var_dec['v_g'].append(v_g / v_gse)
+                    var_dec['v_gs'].append(v_gs)
+                    var_dec['v_gse'].append(v_gse)
+                    var_dec['v_s'].append((v_gs - v_g) / v_gse)
+                    var_dec['v_e'].append((v_gse - v_gs) / v_gse)
+                    var_dec['chordID'].append(chordID)
+                    var_dec['chord'].append(chord)
+                    var_dec['day'].append(day)
+
+            var_dec = pd.DataFrame(var_dec)
+            var_dec.to_csv(os.path.join(gl.baseDir, experiment, 'var_dec_order.tsv'), sep='\t', index=False)
+
+            return var_dec
+
         # endregion
 
         # region EMG:nnmf_tmp
@@ -1088,6 +1239,8 @@ if __name__ == "__main__":
         'XCORR:corr',
         'XCORR:variance_decomposition',
         'ORDER:rank_corr',
+        'ORDER:left2right',
+        'ORDER:variance_decomposition',
         'PLOT:force_in_trial',  # ok
         'PLOT:xcorr_chord',  # ok
         'PLOT:recon_emg',
