@@ -140,9 +140,12 @@ def calc_xcorr(X):
     return xcorr, tau, lags
 
 
-def calc_exit_times(X):
+def calc_exit_times(X, chordID):
     X = X * np.array([1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
     X = np.abs(X)
+    for k, char in enumerate(str(chordID)):
+        if char == '9':
+            X[:, k] = np.nan
     exit_time = np.zeros(X.shape[1])
     for i in range(X.shape[1]):
         a = X[:, i]
@@ -159,9 +162,12 @@ def calc_exit_times(X):
     return exit_time, finger_pos
 
 
-def calc_entry_times(X):
+def calc_entry_times(X, chordID):
     X = X * np.array([1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
     X = np.abs(X)
+    for k, char in enumerate(str(chordID)):
+        if char == '9':
+            X[:, k] = np.nan
     entry_time = np.zeros(X.shape[1])
     for i in range(X.shape[1]):
         a = X[:, i]
@@ -345,8 +351,8 @@ class Force:
 
                     metrics_tmp = calc_metrics(force)
 
-                    exit_times_tmp, exit_order_tmp = calc_exit_times(forceRaw)
-                    entry_times_tmp, entry_order_tmp = calc_entry_times(forceRaw)
+                    exit_times_tmp, exit_order_tmp = calc_exit_times(forceRaw, dat_tmp.iloc[tr].chordID)
+                    entry_times_tmp, entry_order_tmp = calc_entry_times(forceRaw, dat_tmp.iloc[tr].chordID)
 
                     exit_times.append(exit_times_tmp)
                     exit_order.append(exit_order_tmp)
@@ -361,7 +367,7 @@ class Force:
                     metrics_dict['sine'].append(metrics_tmp['sine'])
                     metrics_dict['jerk'].append(metrics_tmp['jerk'])
 
-                    force_dict['force'].append(force)
+                    force_dict['force'].append(forceRaw)
                     force_dict['experiment'].append(experiment)
                     force_dict['participant_id'].append(participant_id)
                     force_dict['session'].append(session)

@@ -36,6 +36,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
     if participant_id is None:
         participant_id = gl.participants[experiment]
 
+    pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
+
     match what:
         # region FORCE:preprocessing
         case 'FORCE:preprocessing':
@@ -62,6 +64,45 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             return metrics
         # endregion
+
+        case 'FORCE:average':
+
+            win = .8
+
+            force_avg = {key: np.zeros((len(day),len(participant_id), 5, int(win * gl.fsample['force']))) for key in gl.chordID}
+
+            for D, d in enumerate(day):
+                for P, p in enumerate(participant_id):
+
+                    if day == '1' or day == '5':
+                        session = 'testing'
+                        chords = gl.chordID
+                    else:
+                        session = 'training'
+                        chords = pinfo[pinfo['participant_id'] == p]['trained'][0].split('.')
+
+                    force = Force(experiment, p, session, d)
+                    force_dict = force.load_pkl()
+
+                    F = list()
+                    for f in force_dict['force']:
+                        if f is not None:
+                            F.append(f[:int(win * gl.fsample['force'])].swapaxes(0, 1))
+
+                    del force_dict['force']
+
+                    F = np.stack(F)
+
+                    df_force = pd.DataFrame(force_dict)
+                    df_force = df_force[df_force['success'] == 'successful']
+                    chordID = df_force['chordID'].astype(int)
+
+                    for ch in chords:
+                        force_avg[ch][D, P] = F[chordID == ch].mean(axis=0)
+
+
+            return force_avg
+
 
         # region EMG:csv2df
         case 'EMG:csv2df':
@@ -558,7 +599,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             }
 
             for i, rowi in metrics.iterrows():
-                if rowi['trialPoint'] is 1:
+                if rowi['trialPoint'] == 1:
                     y_exit = rowi[['thumb_exit_order',
                                    'index_exit_order',
                                    'middle_exit_order',
@@ -616,11 +657,16 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             # Initialize the variance decomposition dictionary
             var_dec = {
-                'v_g': [],
-                'v_gs': [],
-                'v_gse': [],
-                'v_s': [],
-                'v_e': [],
+                'v_g_exit': [],
+                'v_gs_exit': [],
+                'v_gse_exit': [],
+                'v_s_exit': [],
+                'v_e_exit': [],
+                'v_g_entry': [],
+                'v_gs_entry': [],
+                'v_gse_entry': [],
+                'v_s_entry': [],
+                'v_e_entry': [],
                 'chordID': [],
                 'chord': [],
                 'day': []
@@ -638,6 +684,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 chordIDs = metricsD['chordID'].unique()
 
                 for chordID in chordIDs:
+
+                    print(chordID, day)
+
                     metrics_tmp = metricsD[metricsD['chordID'] == chordID]
                     min_trials = min_trials_per_chordID.loc[chordID]
 
@@ -655,29 +704,45 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     part_vec = (sampled_metrics_tmp.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
                     subj_vec = sampled_metrics_tmp['participant_id'].to_numpy()
 
-                    # Keep only relevant columns (finger combinations)
-                    sampled_metrics_tmp = sampled_metrics_tmp[['thumb_exit_order',
+                    # Exit
+                    Y_exit = sampled_metrics_tmp[['thumb_exit_order',
                                                                'index_exit_order',
                                                                'middle_exit_order',
                                                                'ring_exit_order',
                                                                'pinkie_exit_order']]
-                    unique_combinations = sampled_metrics_tmp.columns.str.split('-').map(sorted).str.join('-').unique()
-
-                    Y = sampled_metrics_tmp[list(unique_combinations)].dropna(axis=1, how='all').to_numpy()
 
                     for k, char in enumerate(str(chordID)):
                         if char == '9':
-                            Y = np.delete(Y, k, axis=1)
+                            Y_exit = np.delete(Y_exit, k, axis=1)
 
                     # Perform variance decomposition
-                    v_g, v_gs, v_gse, _ = reliability_var(Y, subj_vec, part_vec, centered=False)
+                    v_g, v_gs, v_gse, _ = reliability_var(Y_exit, subj_vec, part_vec, centered=False)
 
-                    # Store the results
-                    var_dec['v_g'].append(v_g / v_gse)
-                    var_dec['v_gs'].append(v_gs)
-                    var_dec['v_gse'].append(v_gse)
-                    var_dec['v_s'].append((v_gs - v_g) / v_gse)
-                    var_dec['v_e'].append((v_gse - v_gs) / v_gse)
+                    var_dec['v_g_exit'].append(v_g / v_gse)
+                    var_dec['v_gs_exit'].append(v_gs)
+                    var_dec['v_gse_exit'].append(v_gse)
+                    var_dec['v_s_exit'].append((v_gs - v_g) / v_gse)
+                    var_dec['v_e_exit'].append((v_gse - v_gs) / v_gse)
+
+                    # Entry
+                    Y_entry = sampled_metrics_tmp[['thumb_entry_order',
+                                                                'index_entry_order',
+                                                                'middle_entry_order',
+                                                                'ring_entry_order',
+                                                                'pinkie_entry_order']].to_numpy()
+
+                    for k, char in enumerate(str(chordID)):
+                        if char == '9':
+                            Y_entry = np.delete(Y_entry, k, axis=1)
+
+                    # Perform variance decomposition
+                    v_g, v_gs, v_gse, _ = reliability_var(Y_entry, subj_vec, part_vec, centered=False)
+
+                    var_dec['v_g_entry'].append(v_g / v_gse)
+                    var_dec['v_gs_entry'].append(v_gs)
+                    var_dec['v_gse_entry'].append(v_gse)
+                    var_dec['v_s_entry'].append((v_gs - v_g) / v_gse)
+                    var_dec['v_e_entry'].append((v_gse - v_gs) / v_gse)
                     var_dec['chordID'].append(chordID)
                     var_dec['chord'].append(chord)
                     var_dec['day'].append(day)
@@ -1222,7 +1287,7 @@ if __name__ == "__main__":
 
     parser.add_argument('what', nargs='?', default=None, choices=[
         'FORCE:preprocessing',  # ok
-        # 'FORCE:variance_decomposition',
+        'FORCE:average',
         'XCORR:tau',  # ok
         'NOISE_CEILING:tau',  # ok
         'EMG:nnmf',
@@ -1273,8 +1338,6 @@ if __name__ == "__main__":
 
     if participant_id is None:
         participant_id = gl.participants[experiment]
-
-    pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
 
     main(what, experiment=experiment, participant_id=participant_id, session=session, day=day,
          ntrial=ntrial, chordID=chordID, chord=chord, fname=fname)
