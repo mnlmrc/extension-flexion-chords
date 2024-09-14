@@ -70,6 +70,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             # Calculate average force response on specified day
 
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
             if day is None:
                 day = '5'
 
@@ -78,6 +80,10 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             force_avg = {str(key): [] for key in gl.chordID}
 
             for P, p in enumerate(participant_id):
+
+                metrics_tmp = metrics[(metrics['participant_id'] == p) &
+                                      (metrics['day'] == int(day)) &
+                                      metrics['trialPoint'] == 1]
 
                 if day == '1' or day == '5':
                     session = 'testing'
@@ -96,20 +102,35 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 # color = ['#4169E1', '#DC143C', '#228B22', '#DAA520', '#9932CC']
 
                 F = list()
-                for fn, f in enumerate(force_dict['force']):
+                chordID = list()
+                cn = 0
+                for f in force_dict['force']:
                     if f is not None:
-                        # # for i in range(5):
-                        # if force_dict['chordID'][fn] == 29212.0:
-                        #     plt.plot(f[:, 1], color=color[1], lw=1, label=gl.channels['force'][1], ls='-')
-                        F.append(f[:int(win * gl.fsample['force'])].swapaxes(0, 1))
+                        RT = metrics_tmp['RT'].iloc[cn]
+                        exit_times = metrics_tmp[['thumb_exit',
+                                                  'index_exit',
+                                                  'middle_exit',
+                                                  'ring_exit',
+                                                  'pinkie_exit']].iloc[cn]
 
-                del force_dict['force']
+                        # print(f"{p}, {metrics_tmp['TN'].iloc[cn]}, {metrics_tmp['BN'].iloc[cn]}")
+                        # assert RT in exit_times.values
+                        # # # for i in range(5):
+                        # # if force_dict['chordID'][fn] == 29212.0:
+                        # #     plt.plot(f[:, 1], color=color[1], lw=1, label=gl.channels['force'][1], ls='-')
+                        # if RT > .1:
+                        F.append(f[:int(win * gl.fsample['force'])].swapaxes(0, 1))
+                        chordID.append(metrics_tmp['chordID'].iloc[cn].astype(str))
+                            # F.append(f[int((RT - .1) * gl.fsample['force']):
+                            #            int((RT + .6) * gl.fsample['force'])].swapaxes(0, 1))
+
+                        cn += 1
+                        # chordID.append(f)
+
+                # del force_dict['force']
 
                 F = np.stack(F)
-
-                df_force = pd.DataFrame(force_dict)
-                df_force = df_force[df_force['success'] == 'successful'].reset_index(drop=True)
-                chordID = df_force['chordID'].astype(int).astype(str)
+                chordID = pd.Series(chordID)
 
                 for ch in chords:
                     ind = chordID == ch
@@ -623,12 +644,12 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                    'index_exit_order',
                                    'middle_exit_order',
                                    'ring_exit_order',
-                                   'pinkie_exit_order',]].astype(float)
+                                   'pinkie_exit_order', ]].astype(float)
                     y_entry = rowi[['thumb_entry_order',
-                                   'index_entry_order',
-                                   'middle_entry_order',
-                                   'ring_entry_order',
-                                   'pinkie_entry_order',]].astype(float)
+                                    'index_entry_order',
+                                    'middle_entry_order',
+                                    'ring_entry_order',
+                                    'pinkie_entry_order', ]].astype(float)
 
                     chordID = rowi['chordID']
 
@@ -718,17 +739,17 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                     # Sample the minimum number of trials for each participant
                     sampled_metrics_tmp = metrics_tmp.groupby('participant_id', group_keys=False).sample(n=min_trials,
-                                                                                                        random_state=42)
+                                                                                                         random_state=42)
 
                     part_vec = (sampled_metrics_tmp.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
                     subj_vec = sampled_metrics_tmp['participant_id'].to_numpy()
 
                     # Exit
                     Y_exit = sampled_metrics_tmp[['thumb_exit_order',
-                                                               'index_exit_order',
-                                                               'middle_exit_order',
-                                                               'ring_exit_order',
-                                                               'pinkie_exit_order']]
+                                                  'index_exit_order',
+                                                  'middle_exit_order',
+                                                  'ring_exit_order',
+                                                  'pinkie_exit_order']]
 
                     for k, char in enumerate(str(chordID)):
                         if char == '9':
@@ -745,10 +766,10 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                     # Entry
                     Y_entry = sampled_metrics_tmp[['thumb_entry_order',
-                                                                'index_entry_order',
-                                                                'middle_entry_order',
-                                                                'ring_entry_order',
-                                                                'pinkie_entry_order']].to_numpy()
+                                                   'index_entry_order',
+                                                   'middle_entry_order',
+                                                   'ring_entry_order',
+                                                   'pinkie_entry_order']].to_numpy()
 
                     for k, char in enumerate(str(chordID)):
                         if char == '9':

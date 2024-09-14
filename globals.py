@@ -1,8 +1,10 @@
 import os
 from pathlib import Path
+import numpy as np
 
 fsample = 500
 fthresh = 1.2  # threshold to exit the baseline area
+fGain = np.array([1, 1, 1, 1.5, 1.5])
 hold_time = .6  # in seconds
 
 fsample = {

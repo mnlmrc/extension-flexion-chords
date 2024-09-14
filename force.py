@@ -141,17 +141,16 @@ def calc_xcorr(X):
 
 
 def calc_exit_times(X, chordID):
-    X = X * np.array([1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
     X = np.abs(X)
-    for k, char in enumerate(str(chordID)):
-        if char == '9':
-            X[:, k] = np.nan
     exit_time = np.zeros(X.shape[1])
     for i in range(X.shape[1]):
         a = X[:, i]
 
-        exit_time_tmp = np.where(a > 1.2)[0]
-        exit_time[i] = exit_time_tmp[0] if len(exit_time_tmp) > 0 else np.nan
+        exit_time[i] = np.argmax(a > gl.fthresh) / gl.fsample['force']
+
+    for i, char in enumerate(str(chordID)):
+        if char == '9':
+            exit_time[i] = np.nan
 
     order = np.argsort(exit_time[~np.isnan(exit_time)])
     fingers = [f for f in gl.channels['force'] if not np.isnan(exit_time[gl.channels['force'].index(f)])]
@@ -163,7 +162,6 @@ def calc_exit_times(X, chordID):
 
 
 def calc_entry_times(X, chordID):
-    X = X * np.array([1, 1, 1, 1.5, 1.5])  # specify force gain for visualization
     X = np.abs(X)
     for k, char in enumerate(str(chordID)):
         if char == '9':
@@ -175,7 +173,7 @@ def calc_entry_times(X, chordID):
         inTarget = (a > 2).astype(int)
         inTarget_diff = np.diff(inTarget)
         entry_time_tmp = np.where(inTarget_diff == 1)[0]
-        entry_time[i] = entry_time_tmp[-1] if len(entry_time_tmp) > 0 else np.nan
+        entry_time[i] = entry_time_tmp[-1] / gl.fsample['force'] if len(entry_time_tmp) > 0 else np.nan
 
     order = np.argsort(entry_time[~np.isnan(entry_time)])
     fingers = [f for f in gl.channels['force'] if not np.isnan(entry_time[gl.channels['force'].index(f)])]
@@ -344,7 +342,7 @@ class Force:
 
                 if dat_tmp.iloc[tr].trialPoint == 1:
 
-                    forceRaw = mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3]  # take only states 3 (i.e., WAIT_EXEC)
+                    forceRaw = mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3] * gl.fGain  # take only states 3 (i.e., WAIT_EXEC)
                     force, rt, endtime = get_segment(forceRaw)
 
                     et = endtime - rt
