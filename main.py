@@ -65,44 +65,63 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return metrics
         # endregion
 
+        # region FORCE:average
         case 'FORCE:average':
+
+            # Calculate average force response on specified day
+
+            if day is None:
+                day = '5'
 
             win = .8
 
-            force_avg = {key: np.zeros((len(day),len(participant_id), 5, int(win * gl.fsample['force']))) for key in gl.chordID}
+            force_avg = {str(key): [] for key in gl.chordID}
 
-            for D, d in enumerate(day):
-                for P, p in enumerate(participant_id):
+            for P, p in enumerate(participant_id):
 
-                    if day == '1' or day == '5':
-                        session = 'testing'
-                        chords = gl.chordID
-                    else:
-                        session = 'training'
-                        chords = pinfo[pinfo['participant_id'] == p]['trained'][0].split('.')
+                if day == '1' or day == '5':
+                    session = 'testing'
+                    # chords = gl.chordID
+                else:
+                    session = 'training'
 
-                    force = Force(experiment, p, session, d)
-                    force_dict = force.load_pkl()
+                if chord is None:
+                    chords = [str(ch) for ch in gl.chordID]
+                else:
+                    chords = pinfo[pinfo['participant_id'] == p][chord].iloc[0].split('.')
 
-                    F = list()
-                    for f in force_dict['force']:
-                        if f is not None:
-                            F.append(f[:int(win * gl.fsample['force'])].swapaxes(0, 1))
+                force = Force(experiment, p, session, day)
+                force_dict = force.load_pkl()
 
-                    del force_dict['force']
+                # color = ['#4169E1', '#DC143C', '#228B22', '#DAA520', '#9932CC']
 
-                    F = np.stack(F)
+                F = list()
+                for fn, f in enumerate(force_dict['force']):
+                    if f is not None:
+                        # # for i in range(5):
+                        # if force_dict['chordID'][fn] == 29212.0:
+                        #     plt.plot(f[:, 1], color=color[1], lw=1, label=gl.channels['force'][1], ls='-')
+                        F.append(f[:int(win * gl.fsample['force'])].swapaxes(0, 1))
 
-                    df_force = pd.DataFrame(force_dict)
-                    df_force = df_force[df_force['success'] == 'successful']
-                    chordID = df_force['chordID'].astype(int)
+                del force_dict['force']
 
-                    for ch in chords:
-                        force_avg[ch][D, P] = F[chordID == ch].mean(axis=0)
+                F = np.stack(F)
 
+                df_force = pd.DataFrame(force_dict)
+                df_force = df_force[df_force['success'] == 'successful'].reset_index(drop=True)
+                chordID = df_force['chordID'].astype(int).astype(str)
+
+                for ch in chords:
+                    ind = chordID == ch
+                    F_tmp = F[ind]
+                    force_avg[ch].append(F_tmp.mean(axis=0))
+
+                    # if ch=='29212':
+                    #     plt.figure()
+                    #     plt.plot(F_tmp.mean(axis=0).T)
 
             return force_avg
-
+        # endregion
 
         # region EMG:csv2df
         case 'EMG:csv2df':
