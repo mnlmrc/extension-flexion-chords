@@ -194,7 +194,7 @@ def calc_sigmoid_sse(params, t, F, N):
 
     # r2 = calc_r2(F, F_hat)
 
-    return np.sum((F - F_hat) ** 2)
+    return (F - F_hat).ravel()
 
 # def fit_sigmoids(F, t, N, init_params):
 #     result = least_squares(
