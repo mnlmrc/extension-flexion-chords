@@ -5,7 +5,7 @@ import pandas as pd
 import scipy
 from scipy.optimize import minimize, least_squares
 from scipy.signal import butter, filtfilt, firwin
-
+from joblib import Parallel, delayed
 import globals as gl
 from nnmf import calc_r2
 
@@ -180,7 +180,7 @@ def sigmoid(t, k, t0):
     return 1 / (1 + np.exp(-k * (t - t0)))
 
 
-def calc_sigmoid_residuals(params, t, F, N):
+def calc_sigmoid_sse(params, t, F, N):
     # Extract sigmoid parameters from params
     k_values = params[:N]  # Slopes of the N sigmoids
     t0_values = params[N:2 * N]  # Onsets of the N sigmoids
@@ -192,18 +192,30 @@ def calc_sigmoid_residuals(params, t, F, N):
     # Reconstruct F using S and W (N x 4)
     F_hat = S @ weights
 
-    return (F - F_hat).ravel()
+    # r2 = calc_r2(F, F_hat)
 
+    return np.sum((F - F_hat) ** 2)
+
+# def fit_sigmoids(F, t, N, init_params):
+#     result = least_squares(
+#         calc_sigmoid_sse, init_params, args=(t, F, N), method='lm',
+#     )
+#     return result
 
 def fit_sigmoids(F, t, N):
-    init_k = np.ones(N)  # Initial slopes (1 for all)
-    init_t0 = np.zeros(N) + 100  # Evenly spaced initial onsets
+    # init_k = np.ones(N)  # Initial slopes (1 for all)
+    # init_t0 = np.zeros(N) + 200  # Evenly spaced initial onsets
+    init_k = np.random.uniform(low=0.5, high=2.0, size=N)  # Random slopes between 0.5 and 2.0
+    init_t0 = np.random.uniform(low=np.min(t), high=np.max(t), size=N)
     init_weights = np.random.rand(N, 4)  # Random weights
 
     init_params = np.hstack([init_k, init_t0, init_weights.flatten()])
 
     # Perform optimization
-    result = least_squares(calc_sigmoid_residuals, init_params, args=(t, F, N), method='lm')
+    result = least_squares(calc_sigmoid_sse, init_params, args=(t, F, N), method='lm')
+    # result = minimize(calc_sigmoid_r2, init_params, args=(t, F, N), method='L-BFGS-B')
+    # result = Parallel(n_jobs=-1)(
+    #     delayed(fit_sigmoids)(F, t, N, init_params) for F_trial in F_trials)
 
     return result
 

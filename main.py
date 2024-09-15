@@ -157,7 +157,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                     cn = 0
                     for F in force_dict['force']:
-                        if (F is not None): # and (F.shape[0] < 1. * gl.fsample['force']):
+                        if F is not None:  # and (F.shape[0] < 1. * gl.fsample['force']):
                             chordID = metrics_tmp['chordID'].iloc[cn].astype(str)
                             chord = metrics_tmp['chord'].iloc[cn]
                             repetition = metrics_tmp['repetition'].iloc[cn]
@@ -182,7 +182,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                     t0 = result.x[n:2 * n]  # Fitted onsets (n values)
                                     weights = result.x[2 * n:].reshape(n, 4)  # Reshape weights to n x 4 matrix
 
-                                    S_hat = np.array([sigmoid(t, k_f, t0_f) for k_f, t0_f in zip(k, t0)])
+                                    # S_hat = np.array([sigmoid(t, k_f, t0_f) for k_f, t0_f in zip(k, t0)])
+                                    S_hat = 1 / (1 + np.exp(-k[:, None] * (t[None, :] - t0[:, None])))
 
                                     F_hat = S_hat.T @ weights  # S_hat should be transposed for matrix multiplication
 
