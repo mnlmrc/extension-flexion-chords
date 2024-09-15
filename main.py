@@ -691,6 +691,66 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # endregion
 
         # region ORDER:frequency
+        case 'ORDER:frequency':
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            force_avg = {str(key): [] for key in gl.chordID}
+
+            fingers = gl.channels['force']
+
+            order = {
+                'day': [],
+                'participant_id': [],
+                'chordID': [],
+                'chord': [],
+                'order': []
+            }
+
+            for day in metrics['day'].unique():
+                for p in participant_id:
+
+                    if chord is None:
+                        chords = [str(ch) for ch in gl.chordID]
+                    else:
+                        chords = pinfo[pinfo['participant_id'] == p][chord].iloc[0].split('.')
+
+                    for ch in chords:
+
+                        metrics_tmp = metrics[(metrics['participant_id'] == p) &
+                                              (metrics['day'] == int(day)) &
+                                              (metrics['chordID'] == int(ch)) &
+                                              metrics['trialPoint'] > 0].reset_index()
+
+                        rank = metrics_tmp[
+                            ['thumb_exit_order',
+                             'index_exit_order',
+                             'middle_exit_order',
+                             'ring_exit_order',
+                             'pinkie_exit_order']
+                        ]
+
+                        for i, rowi in rank.iterrows():
+
+                            fingers_tmp = [fingers[k] for k, char in enumerate(ch) if char != '9']
+                            order_tmp = [fingers_tmp[int(pos)] for pos in rowi if ~np.isnan(pos)]
+                            order_tmp = '.'.join(order_tmp)
+
+                            order['order'].append(order_tmp)
+                            order['participant_id'].append(p)
+                            order['chordID'].append(ch)
+                            order['day'].append(day)
+                            order['chord'].append('trained' if ch in
+                                                               pinfo[pinfo['participant_id'] == p]['trained'].iloc[0].split('.')
+                                                  else 'untrained')
+
+            order = pd.DataFrame(order)
+            order.to_csv(os.path.join(gl.baseDir, experiment, 'order.tsv'), sep='\t')
+
+            return order
+        # endregion
+
+        # region ORDER:variance_decomposition
         case 'ORDER:variance_decomposition':
 
             metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
@@ -1345,6 +1405,7 @@ if __name__ == "__main__":
         'XCORR:variance_decomposition',
         'ORDER:rank_corr',
         'ORDER:left2right',
+        'ORDER:frequency',
         'ORDER:variance_decomposition',
         'PLOT:force_in_trial',  # ok
         'PLOT:xcorr_chord',  # ok

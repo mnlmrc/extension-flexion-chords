@@ -38,6 +38,20 @@ else:
     print("No valid base directory found.")
 
 participants = {
+    'efc0': ['subj01',
+             'subj02',
+             'subj03',
+             'subj04',
+             'subj05',
+             'subj06',
+             'subj07',
+             'subj08',
+             'subj09',
+             'subj10',
+             'subj11',
+             'subj10',
+             'subj10',
+             'subj10'],
     'efc1': [
         'subj01',
         'subj02',
@@ -93,7 +107,7 @@ channels = {
             'emg_hold_avg_f4',
             'emg_hold_avg_f5'],
     'emgTMS': [
-# 'ring_ext'  , 'pinkie_ext'  ,'thumb_flex'  ,'pinkie_flex' , 'index_flex' , 'middle_flex' ,  'thumb_ext' ,  'index_ext' , 'EMG 1' ,'EMG 2' , 'thumb_ext' , 'index_ext' , 'thumb_ext' ,  'index_ext',
+        # 'ring_ext'  , 'pinkie_ext'  ,'thumb_flex'  ,'pinkie_flex' , 'index_flex' , 'middle_flex' ,  'thumb_ext' ,  'index_ext' , 'EMG 1' ,'EMG 2' , 'thumb_ext' , 'index_ext' , 'thumb_ext' ,  'index_ext',
 
         'ext_D3',
         'ext_D4',
@@ -117,5 +131,3 @@ removeEMG = {
         'subj100': ['flx_D5']
     }
 }
-
-
