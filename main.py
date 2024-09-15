@@ -1,10 +1,7 @@
 import argparse
-import json
 import os
 
-import scipy
 from matplotlib import pyplot as plt
-from matplotlib.lines import Line2D
 from scipy.optimize import nnls
 from scipy.signal import resample, find_peaks
 from sklearn.linear_model import LinearRegression
@@ -15,7 +12,6 @@ from sklearn.preprocessing import MinMaxScaler
 
 import pandas as pd
 import pickle
-import json
 import globals as gl
 import numpy as np
 
@@ -25,7 +21,7 @@ from force import Force
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
-    calc_distance_from_distr
+    calc_distance_from_distr, fit_sigmoids, sigmoid
 from variance_decomposition import reliability_var
 
 
@@ -106,28 +102,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 cn = 0
                 for f in force_dict['force']:
                     if f is not None:
-                        RT = metrics_tmp['RT'].iloc[cn]
-                        exit_times = metrics_tmp[['thumb_exit',
-                                                  'index_exit',
-                                                  'middle_exit',
-                                                  'ring_exit',
-                                                  'pinkie_exit']].iloc[cn]
-
-                        # print(f"{p}, {metrics_tmp['TN'].iloc[cn]}, {metrics_tmp['BN'].iloc[cn]}")
-                        # assert RT in exit_times.values
-                        # # # for i in range(5):
-                        # # if force_dict['chordID'][fn] == 29212.0:
-                        # #     plt.plot(f[:, 1], color=color[1], lw=1, label=gl.channels['force'][1], ls='-')
-                        # if RT > .1:
                         F.append(f[:int(win * gl.fsample['force'])].swapaxes(0, 1))
                         chordID.append(metrics_tmp['chordID'].iloc[cn].astype(str))
-                            # F.append(f[int((RT - .1) * gl.fsample['force']):
-                            #            int((RT + .6) * gl.fsample['force'])].swapaxes(0, 1))
-
                         cn += 1
-                        # chordID.append(f)
-
-                # del force_dict['force']
 
                 F = np.stack(F)
                 chordID = pd.Series(chordID)
@@ -137,12 +114,109 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     F_tmp = F[ind]
                     force_avg[ch].append(F_tmp.mean(axis=0))
 
-                    # if ch=='29212':
-                    #     plt.figure()
-                    #     plt.plot(F_tmp.mean(axis=0).T)
-
             return force_avg
         # endregion
+
+        # region FORCE:fit_sinusoid
+        case 'FORCE:fit_sinusoid':
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            N = 4
+
+            scaler = MinMaxScaler()
+
+            r2 = {
+                'r2_1': [],
+                'r2_2': [],
+                'r2_3': [],
+                'r2_4': [],
+                'N_comp': [],
+                'participant_id': [],
+                'repetition': [],
+                'day': [],
+                'chordID': [],
+                'chord': []
+            }
+
+            for day in range(1, 6):
+                for p in participant_id:
+
+                    metrics_tmp = metrics[(metrics['participant_id'] == p) &
+                                          (metrics['day'] == int(day)) &
+                                          metrics['trialPoint'] == 1]
+
+                    if day == 1 or day == 5:
+                        session = 'testing'
+                        # chords = gl.chordID
+                    else:
+                        session = 'training'
+
+                    force = Force(experiment, p, session, day)
+                    force_dict = force.load_pkl()
+
+                    cn = 0
+                    for F in force_dict['force']:
+                        if (F is not None): # and (F.shape[0] < 1. * gl.fsample['force']):
+                            chordID = metrics_tmp['chordID'].iloc[cn].astype(str)
+                            chord = metrics_tmp['chord'].iloc[cn]
+                            repetition = metrics_tmp['repetition'].iloc[cn]
+
+                            keep = np.array([False if char == '9' else True for char in chordID])
+
+                            t = np.linspace(0, F.shape[0] - 1, F.shape[0])
+
+                            F = F[:, keep]
+                            F = scaler.fit_transform(F)
+
+                            F = F.astype(np.float32)
+                            t = t.astype(np.float32)
+
+                            r2_tmp = 0
+                            n = 1
+                            while n <= 4:  # Iterate over the number of sigmoids from 1 to N
+                                if r2_tmp < .9:
+                                    result = fit_sigmoids(F, t, n)  # Use `n` as the number of sigmoids
+
+                                    k = result.x[:n]  # Fitted slopes (n values)
+                                    t0 = result.x[n:2 * n]  # Fitted onsets (n values)
+                                    weights = result.x[2 * n:].reshape(n, 4)  # Reshape weights to n x 4 matrix
+
+                                    S_hat = np.array([sigmoid(t, k_f, t0_f) for k_f, t0_f in zip(k, t0)])
+
+                                    F_hat = S_hat.T @ weights  # S_hat should be transposed for matrix multiplication
+
+                                    r2_tmp = calc_r2(F, F_hat)
+
+                                    print(f"participant: {p}, day: {day}, R² for n={n} sigmoids: {r2_tmp}")
+
+                                    r2[f'r2_{n}'].append(r2_tmp)
+
+                                    n += 1
+                                    N_comp = n
+
+                                else:
+                                    r2[f'r2_{n}'].append(None)
+
+                                    print(f"participant: {p}, day: {day}, R² for n={n} sigmoids: > 0.9")
+
+                                    n += 1
+
+                            r2['participant_id'].append(p)
+                            r2['day'].append(day)
+                            r2['repetition'].append(repetition)
+                            r2['chord'].append(chord)
+                            r2['chordID'].append(chordID)
+                            r2['N_comp'].append(N_comp)
+
+                            cn += 1
+
+            r2 = pd.DataFrame(r2)
+            r2.to_csv(os.path.join(gl.baseDir, experiment, 'r2.tsv'), sep='\t')
+
+            return r2
+
+
 
         # region EMG:csv2df
         case 'EMG:csv2df':
@@ -1388,6 +1462,7 @@ if __name__ == "__main__":
     parser.add_argument('what', nargs='?', default=None, choices=[
         'FORCE:preprocessing',  # ok
         'FORCE:average',
+        'FORCE:fit_sinusoid',
         'XCORR:tau',  # ok
         'NOISE_CEILING:tau',  # ok
         'EMG:nnmf',

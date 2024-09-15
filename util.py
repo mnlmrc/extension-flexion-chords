@@ -3,9 +3,12 @@ import os
 import numpy as np
 import pandas as pd
 import scipy
+from scipy.optimize import minimize, least_squares
 from scipy.signal import butter, filtfilt, firwin
 
 import globals as gl
+from nnmf import calc_r2
+
 
 def load_nat_emg(file_path):
     # Load the .mat file
@@ -21,14 +24,15 @@ def load_nat_emg(file_path):
 
     return emg_nat_list
 
-def calc_success(X):
 
+def calc_success(X):
     success = X.groupby(['subNum', 'chordID', 'day', 'chord'])['trialPoint'].mean().reset_index()
     success.rename(columns={'trialPoint': 'success'}, inplace=True)
 
     success.sort_values(by='chord', inplace=True)
 
     return success
+
 
 def calc_avg(X, columns=None, by=None):
     """
@@ -94,6 +98,7 @@ def savefig(path, fig):
     else:
         fig.savefig(path, dpi=600)
         print(f"File saved as {path}.")
+
 
 def time_to_seconds(t):
     minutes, seconds = map(float, t.split(':'))
@@ -169,3 +174,38 @@ def calc_distance_from_distr(pattern, distr, d_type='project_to_nSphere', lambda
     # Take the square root of the distances and sort them
     d = np.sqrt(d.flatten())
     return np.sort(d)
+
+
+def sigmoid(t, k, t0):
+    return 1 / (1 + np.exp(-k * (t - t0)))
+
+
+def calc_sigmoid_residuals(params, t, F, N):
+    # Extract sigmoid parameters from params
+    k_values = params[:N]  # Slopes of the N sigmoids
+    t0_values = params[N:2 * N]  # Onsets of the N sigmoids
+    weights = params[2 * N:].reshape(N, 4)  # Weights (N x 4 matrix)
+
+    # Generate the sigmoid matrix S (t x N)
+    S = np.array([[sigmoid(t_i, k, t0) for k, t0 in zip(k_values, t0_values)] for t_i in t])
+
+    # Reconstruct F using S and W (N x 4)
+    F_hat = S @ weights
+
+    return (F - F_hat).ravel()
+
+
+def fit_sigmoids(F, t, N):
+    init_k = np.ones(N)  # Initial slopes (1 for all)
+    init_t0 = np.zeros(N) + 100  # Evenly spaced initial onsets
+    init_weights = np.random.rand(N, 4)  # Random weights
+
+    init_params = np.hstack([init_k, init_t0, init_weights.flatten()])
+
+    # Perform optimization
+    result = least_squares(calc_sigmoid_residuals, init_params, args=(t, F, N), method='lm')
+
+    return result
+
+def fit_sigmoids_parallel(F, t, n):
+    return fit_sigmoids(F, t, n)
