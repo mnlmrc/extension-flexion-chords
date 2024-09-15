@@ -194,7 +194,7 @@ def calc_sigmoid_sse(params, t, F, N):
 
     # r2 = calc_r2(F, F_hat)
 
-    return (F - F_hat).ravel()
+    return np.sum((F - F_hat) ** 2)
 
 # def fit_sigmoids(F, t, N, init_params):
 #     result = least_squares(
@@ -212,7 +212,7 @@ def fit_sigmoids(F, t, N):
     init_params = np.hstack([init_k, init_t0, init_weights.flatten()])
 
     # Perform optimization
-    result = least_squares(calc_sigmoid_sse, init_params, args=(t, F, N), method='lm')
+    result = least_squares(calc_sigmoid_sse, init_params, args=(t, F, N), method='trf')
     # result = minimize(calc_sigmoid_r2, init_params, args=(t, F, N), method='L-BFGS-B')
     # result = Parallel(n_jobs=-1)(
     #     delayed(fit_sigmoids)(F, t, N, init_params) for F_trial in F_trials)
