@@ -15,6 +15,8 @@ import pickle
 import globals as gl
 import numpy as np
 
+from joblib import Parallel, delayed
+
 import seaborn as sns
 
 from force import Force
@@ -26,7 +28,7 @@ from variance_decomposition import reliability_var
 
 
 def main(what, experiment=None, participant_id=None, session=None, day=None, chordID=None, chord=None, ntrial=None,
-         fname=None, muscles=None, trigger=None,
+         fname=None, muscles=None, trigger=None, n_jobs=None,
          fig=None, axs=None, width=None, linewidth=None, linecolor=None, showfliers=True, color=None, palette=None,
          err_kw=None):
     if participant_id is None:
@@ -120,10 +122,59 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region FORCE:fit_sinusoid
         case 'FORCE:fit_sinusoid':
 
+            def process_force(F, i):
+                chordID = metrics_tmp['chordID'].iloc[i].astype(str)
+                chord = metrics_tmp['chord'].iloc[i]
+                repetition = metrics_tmp['repetition'].iloc[i]
+
+                keep = np.array([False if char == '9' else True for char in chordID])
+
+                t = np.linspace(0, F.shape[0] - 1, F.shape[0])
+
+                F = F[:, keep]
+                F = scaler.fit_transform(F)
+
+                F = F.astype(np.float32)
+                t = t.astype(np.float32)
+
+                r2_tmp = 0
+                n = 1
+                N_comp = None
+                r2_data = {'r2_1': None, 'r2_2': None, 'r2_3': None, 'r2_4': None}
+
+                while n <= 4:  # Iterate over the number of sigmoids from 1 to N
+                    if r2_tmp < .9:
+                        result = fit_sigmoids(F, t, n)  # Use `n` as the number of sigmoids
+
+                        k = result.x[:n]  # Fitted slopes (n values)
+                        t0 = result.x[n:2 * n]  # Fitted onsets (n values)
+                        weights = result.x[2 * n:].reshape(n, 4)  # Reshape weights to n x 4 matrix
+
+                        S_hat = 1 / (1 + np.exp(-k[:, None] * (t[None, :] - t0[:, None])))
+
+                        F_hat = S_hat.T @ weights  # S_hat should be transposed for matrix multiplication
+
+                        r2_tmp = calc_r2(F, F_hat)
+
+                        r2_data[f'r2_{n}'] = r2_tmp
+                        n += 1
+                        N_comp = n
+                    else:
+                        r2_data[f'r2_{n}'] = None
+                        n += 1
+
+                r2_data.update({
+                    'participant_id': p,
+                    'day': day,
+                    'repetition': repetition,
+                    'chord': chord,
+                    'chordID': chordID,
+                    'N_comp': N_comp
+                })
+
+                return r2_data
+
             metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
-
-            N = 4
-
             scaler = MinMaxScaler()
 
             r2 = {
@@ -139,85 +190,43 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 'chord': []
             }
 
-            for day in range(1, 6):
+            for d in day:
                 for p in participant_id:
-
                     metrics_tmp = metrics[(metrics['participant_id'] == p) &
-                                          (metrics['day'] == int(day)) &
-                                          metrics['trialPoint'] == 1]
+                                          (metrics['day'] == int(d))].reset_index()
 
-                    if day == 1 or day == 5:
-                        session = 'testing'
-                        # chords = gl.chordID
-                    else:
-                        session = 'training'
-
-                    force = Force(experiment, p, session, day)
+                    session = 'testing' if d == '1' or d == '5' else 'training'
+                    force = Force(experiment, p, session, d)
                     force_dict = force.load_pkl()
 
-                    cn = 0
-                    for F in force_dict['force']:
-                        if F is not None:  # and (F.shape[0] < 1. * gl.fsample['force']):
-                            chordID = metrics_tmp['chordID'].iloc[cn].astype(str)
-                            chord = metrics_tmp['chord'].iloc[cn]
-                            repetition = metrics_tmp['repetition'].iloc[cn]
+                    # Use joblib to parallelize the inner loop
+                    results = Parallel(n_jobs=n_jobs)(
+                        delayed(process_force)(F, i) for i, F in enumerate(force_dict['force'])
+                        if (F is not None) and (F.shape[0] < 1.5 * gl.fsample['force'])
+                    )
 
-                            keep = np.array([False if char == '9' else True for char in chordID])
+                    # Collect the results
+                    for res in results:
+                        r2['r2_1'].append(res['r2_1'])
+                        r2['r2_2'].append(res['r2_2'])
+                        r2['r2_3'].append(res['r2_3'])
+                        r2['r2_4'].append(res['r2_4'])
+                        r2['N_comp'].append(res['N_comp'])
+                        r2['participant_id'].append(res['participant_id'])
+                        r2['day'].append(res['day'])
+                        r2['repetition'].append(res['repetition'])
+                        r2['chord'].append(res['chord'])
+                        r2['chordID'].append(res['chordID'])
 
-                            t = np.linspace(0, F.shape[0] - 1, F.shape[0])
+                    # cn += len(force_dict['force'])
 
-                            F = F[:, keep]
-                            F = scaler.fit_transform(F)
-
-                            F = F.astype(np.float32)
-                            t = t.astype(np.float32)
-
-                            r2_tmp = 0
-                            n = 1
-                            while n <= 4:  # Iterate over the number of sigmoids from 1 to N
-                                if r2_tmp < .9:
-                                    result = fit_sigmoids(F, t, n)  # Use `n` as the number of sigmoids
-
-                                    k = result.x[:n]  # Fitted slopes (n values)
-                                    t0 = result.x[n:2 * n]  # Fitted onsets (n values)
-                                    weights = result.x[2 * n:].reshape(n, 4)  # Reshape weights to n x 4 matrix
-
-                                    # S_hat = np.array([sigmoid(t, k_f, t0_f) for k_f, t0_f in zip(k, t0)])
-                                    S_hat = 1 / (1 + np.exp(-k[:, None] * (t[None, :] - t0[:, None])))
-
-                                    F_hat = S_hat.T @ weights  # S_hat should be transposed for matrix multiplication
-
-                                    r2_tmp = calc_r2(F, F_hat)
-
-                                    print(f"participant: {p}, day: {day}, R² for n={n} sigmoids: {r2_tmp}")
-
-                                    r2[f'r2_{n}'].append(r2_tmp)
-
-                                    n += 1
-                                    N_comp = n
-
-                                else:
-                                    r2[f'r2_{n}'].append(None)
-
-                                    print(f"participant: {p}, day: {day}, R² for n={n} sigmoids: > 0.9")
-
-                                    n += 1
-
-                            r2['participant_id'].append(p)
-                            r2['day'].append(day)
-                            r2['repetition'].append(repetition)
-                            r2['chord'].append(chord)
-                            r2['chordID'].append(chordID)
-                            r2['N_comp'].append(N_comp)
-
-                            cn += 1
-
+            # Convert the r2 dictionary to a DataFrame and save it as a CSV file
             r2 = pd.DataFrame(r2)
             r2.to_csv(os.path.join(gl.baseDir, experiment, 'r2.tsv'), sep='\t')
 
             return r2
 
-
+        # endregion
 
         # region EMG:csv2df
         case 'EMG:csv2df':
@@ -1497,7 +1506,8 @@ if __name__ == "__main__":
     parser.add_argument('--chordID', default=None, help='')
     parser.add_argument('--chord', default=None, help='', choices=['trained', 'untrained'])
     parser.add_argument('--dataset', default=None, help='', choices=['natural', 'chords'])
-    parser.add_argument('--fname', default='preTraining_raw.tsv', help='')
+    parser.add_argument('--fname', default=None, help='')
+    parser.add_argument('--n_jobs', default=None, help='')
 
     args = parser.parse_args()
 
@@ -1512,11 +1522,12 @@ if __name__ == "__main__":
     chord = args.chord
     dataset = args.dataset
     fname = args.fname
+    n_jobs = args.n_jobs
 
     if participant_id is None:
         participant_id = gl.participants[experiment]
 
     main(what, experiment=experiment, participant_id=participant_id, session=session, day=day,
-         ntrial=ntrial, chordID=chordID, chord=chord, fname=fname)
+         ntrial=ntrial, chordID=chordID, chord=chord, fname=fname, n_jobs=n_jobs)
 
     plt.show()
