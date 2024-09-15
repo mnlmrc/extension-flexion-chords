@@ -5,6 +5,7 @@ import pandas as pd
 import scipy
 from scipy.optimize import minimize, least_squares
 from scipy.signal import butter, filtfilt, firwin
+from scipy.special import expit
 from joblib import Parallel, delayed
 import globals as gl
 from nnmf import calc_r2
@@ -177,7 +178,7 @@ def calc_distance_from_distr(pattern, distr, d_type='project_to_nSphere', lambda
 
 
 def sigmoid(t, k, t0):
-    return 1 / (1 + np.exp(-k * (t - t0)))
+    return expit(k * (t - t0))
 
 
 def calc_sigmoid_sse(params, t, F, N):
