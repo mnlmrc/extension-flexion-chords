@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.signal import correlate
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 import globals as gl
 
@@ -13,6 +13,8 @@ import os
 import pandas as pd
 
 import warnings
+
+from util import lowpass_butter
 
 
 def calc_md(X):
@@ -140,13 +142,16 @@ def calc_xcorr(X):
     return xcorr, tau, lags
 
 
-def calc_exit_times(X, chordID):
+def calc_exit_times(X, chordID, fthresh=None):
+    if fthresh is None:
+        fthresh = gl.fthresh
+
     X = np.abs(X)
     exit_time = np.zeros(X.shape[1])
     for i in range(X.shape[1]):
         a = X[:, i]
 
-        exit_time[i] = np.argmax(a > gl.fthresh) / gl.fsample['force']
+        exit_time[i] = np.argmax(a > fthresh) / gl.fsample['force']
 
     for i, char in enumerate(str(chordID)):
         if char == '9':
@@ -242,7 +247,8 @@ class Force:
         self.trained = [int(x) for x in
                         self.pinfo[self.pinfo['participant_id'] == self.participant_id]['trained'].iloc[0].split('.')]
         self.untrained = [int(x) for x in
-                          self.pinfo[self.pinfo['participant_id'] == self.participant_id]['untrained'].iloc[0].split('.')]
+                          self.pinfo[self.pinfo['participant_id'] == self.participant_id]['untrained'].iloc[0].split(
+                              '.')]
 
     def load_pkl(self):
 
@@ -285,6 +291,8 @@ class Force:
         path = self.path
         sn = self.sn
 
+        scaler = MinMaxScaler()
+
         # init dict metrics
         metrics_dict = {
             'MD': [],
@@ -301,6 +309,8 @@ class Force:
         # init dict force
         force_dict = {
             'force': [],
+            'force_filt10Hz': [],
+            'force_filt20Hz': [],
             'experiment': [],
             'participant_id': [],
             'session': [],
@@ -310,12 +320,14 @@ class Force:
             'success': [],
         }
 
+        dforce_times = []
+        dforce_order = []
         exit_times = []
         exit_order = []
         entry_times = []
         entry_order = []
 
-        nblocks = len(self.pinfo[self.pinfo['participant_id']==participant_id]
+        nblocks = len(self.pinfo[self.pinfo['participant_id'] == participant_id]
                       [f'blocks Chords day{day}'].iloc[0].split('.'))
 
         for bl in range(nblocks):
@@ -342,16 +354,39 @@ class Force:
 
                 if dat_tmp.iloc[tr].trialPoint == 1:
 
-                    forceRaw = mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3] * gl.fGain  # take only states 3 (i.e., WAIT_EXEC)
-                    force, rt, endtime = get_segment(forceRaw)
+                    forceRaw = mov[tr][:, gl.diffCols][
+                                   mov[tr][:, 0] == 3] * gl.fGain  # take only states 3 (i.e., WAIT_EXEC)
+                    force, rt, et = get_segment(forceRaw)
 
-                    et = endtime - rt
+                    assert rt > 0, "negative reaction time"
+                    assert et > 0, "negative execution time"
+
+                    forceRaw_filt10Hz = lowpass_butter(forceRaw.T, 10, gl.fsample['force']).T
+                    forceRaw_filt20Hz = lowpass_butter(forceRaw.T, 20, gl.fsample['force']).T
+
+                    dforceRaw = np.gradient(forceRaw_filt10Hz, 1 / gl.fsample['force'], axis=0)[50:]
+                    dforceRaw = scaler.fit_transform(dforceRaw)
 
                     metrics_tmp = calc_metrics(force)
 
+                    dforce_times_tmp = np.argmax(dforceRaw, axis=0) / gl.fsample['force']
+                    for i, char in enumerate(str(dat_tmp.iloc[tr].chordID)):
+                        if char == '9':
+                            dforce_times_tmp[i] = np.nan
+
+                    order_tmp = np.argsort(dforce_times_tmp[~np.isnan(dforce_times_tmp)])
+                    fingers = [f for f in gl.channels['force'] if
+                               not np.isnan(dforce_times_tmp[gl.channels['force'].index(f)])]
+                    dforce_order_tmp = np.full(len(gl.channels['force']), np.nan)
+                    for i, idx in enumerate(order_tmp):
+                        dforce_order_tmp[gl.channels['force'].index(fingers[idx])] = i
+                    # dforce_times_tmp, dforce_order_tmp = calc_exit_times(dforceRaw, dat_tmp.iloc[tr].chordID,
+                    #                                                      fthresh=.2)
                     exit_times_tmp, exit_order_tmp = calc_exit_times(forceRaw, dat_tmp.iloc[tr].chordID)
                     entry_times_tmp, entry_order_tmp = calc_entry_times(forceRaw, dat_tmp.iloc[tr].chordID)
 
+                    dforce_times.append(dforce_times_tmp)
+                    dforce_order.append(dforce_order_tmp)
                     exit_times.append(exit_times_tmp)
                     exit_order.append(exit_order_tmp)
                     entry_times.append(entry_times_tmp)
@@ -366,6 +401,8 @@ class Force:
                     metrics_dict['jerk'].append(metrics_tmp['jerk'])
 
                     force_dict['force'].append(forceRaw)
+                    force_dict['force_filt10Hz'].append(forceRaw_filt10Hz)
+                    force_dict['force_filt20Hz'].append(forceRaw_filt20Hz)
                     force_dict['experiment'].append(experiment)
                     force_dict['participant_id'].append(participant_id)
                     force_dict['session'].append(session)
@@ -384,12 +421,16 @@ class Force:
                     metrics_dict['sine'].append(None)
                     metrics_dict['jerk'].append(None)
 
+                    dforce_order.append([None] * 5)
+                    dforce_times.append([None] * 5)
                     exit_times.append([None] * 5)
                     exit_order.append([None] * 5)
                     entry_times.append([None] * 5)
                     entry_order.append([None] * 5)
 
                     force_dict['force'].append(None)
+                    force_dict['force_filt10Hz'].append(None)
+                    force_dict['force_filt20Hz'].append(None)
                     force_dict['experiment'].append(experiment)
                     force_dict['participant_id'].append(participant_id)
                     force_dict['session'].append(session)
@@ -408,11 +449,24 @@ class Force:
         metrics.loc[metrics['chordID'].isin(self.trained), 'chord'] = 'trained'
         metrics.loc[metrics['chordID'].isin(self.untrained), 'chord'] = 'untrained'
 
+        dforce_times = np.array(dforce_times)
+        dforce_order = np.array(dforce_order)
         exit_times = np.array(exit_times)
         exit_order = np.array(exit_order)
         entry_times = np.array(entry_times)
         entry_order = np.array(entry_order)
 
+        metrics = pd.concat([metrics, pd.DataFrame(dforce_times,
+                                                   columns=['thumb_dforce',
+                                                            'index_dforce',
+                                                            'middle_dforce',
+                                                            'ring_dforce',
+                                                            'pinkie_dforce'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(dforce_order, columns=['thumb_dforce_order',
+                                                                          'index_dforce_order',
+                                                                          'middle_dforce_order',
+                                                                          'ring_dforce_order',
+                                                                          'pinkie_dforce_order'])], axis=1)
         metrics = pd.concat([metrics, pd.DataFrame(exit_times,
                                                    columns=['thumb_exit',
                                                             'index_exit',
@@ -420,19 +474,19 @@ class Force:
                                                             'ring_exit',
                                                             'pinkie_exit'])], axis=1)
         metrics = pd.concat([metrics, pd.DataFrame(exit_order, columns=['thumb_exit_order',
-                                                            'index_exit_order',
-                                                            'middle_exit_order',
-                                                            'ring_exit_order',
-                                                            'pinkie_exit_order'])], axis=1)
+                                                                        'index_exit_order',
+                                                                        'middle_exit_order',
+                                                                        'ring_exit_order',
+                                                                        'pinkie_exit_order'])], axis=1)
         metrics = pd.concat([metrics, pd.DataFrame(entry_times, columns=['thumb_entry',
-                                                            'index_entry',
-                                                            'middle_entry',
-                                                            'ring_entry',
-                                                            'pinkie_entry'])], axis=1)
+                                                                         'index_entry',
+                                                                         'middle_entry',
+                                                                         'ring_entry',
+                                                                         'pinkie_entry'])], axis=1)
         metrics = pd.concat([metrics, pd.DataFrame(entry_order, columns=['thumb_entry_order',
-                                                            'index_entry_order',
-                                                            'middle_entry_order',
-                                                            'ring_entry_order',
-                                                            'pinkie_entry_order'])], axis=1)
+                                                                         'index_entry_order',
+                                                                         'middle_entry_order',
+                                                                         'ring_entry_order',
+                                                                         'pinkie_entry_order'])], axis=1)
 
         return metrics, force_dict

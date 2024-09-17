@@ -3,12 +3,9 @@ import os
 import numpy as np
 import pandas as pd
 import scipy
-from scipy.optimize import minimize, least_squares
+from scipy.optimize import least_squares
 from scipy.signal import butter, filtfilt, firwin
 from scipy.special import expit
-from joblib import Parallel, delayed
-import globals as gl
-from nnmf import calc_r2
 
 
 def load_nat_emg(file_path):

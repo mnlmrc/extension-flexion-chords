@@ -102,7 +102,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 F = list()
                 chordID = list()
                 cn = 0
-                for f in force_dict['force']:
+                for f in force_dict['force_filt10Hz']:
                     if f is not None:
                         F.append(f[:int(win * gl.fsample['force'])].swapaxes(0, 1))
                         chordID.append(metrics_tmp['chordID'].iloc[cn].astype(str))
@@ -119,112 +119,69 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return force_avg
         # endregion
 
-        # region FORCE:fit_sinusoid
-        case 'FORCE:fit_sinusoid':
-
-            def process_force(F, i):
-                chordID = metrics_tmp['chordID'].iloc[i].astype(str)
-                chord = metrics_tmp['chord'].iloc[i]
-                repetition = metrics_tmp['repetition'].iloc[i]
-
-                keep = np.array([False if char == '9' else True for char in chordID])
-
-                t = np.linspace(0, F.shape[0] - 1, F.shape[0])
-
-                F = F[:, keep]
-                F = scaler.fit_transform(F)
-
-                F = F.astype(np.float32)
-                t = t.astype(np.float32)
-
-                r2_tmp = 0
-                n = 1
-                N_comp = None
-                r2_data = {'r2_1': None, 'r2_2': None, 'r2_3': None, 'r2_4': None}
-
-                while n <= 4:  # Iterate over the number of sigmoids from 1 to N
-                    if r2_tmp < .9:
-                        result = fit_sigmoids(F, t, n)  # Use `n` as the number of sigmoids
-
-                        k = result.x[:n]  # Fitted slopes (n values)
-                        t0 = result.x[n:2 * n]  # Fitted onsets (n values)
-                        weights = result.x[2 * n:].reshape(n, 4)  # Reshape weights to n x 4 matrix
-
-                        S_hat = 1 / (1 + np.exp(-k[:, None] * (t[None, :] - t0[:, None])))
-
-                        F_hat = S_hat.T @ weights  # S_hat should be transposed for matrix multiplication
-
-                        r2_tmp = calc_r2(F, F_hat)
-
-                        r2_data[f'r2_{n}'] = r2_tmp
-                        n += 1
-                        N_comp = n
-                    else:
-                        r2_data[f'r2_{n}'] = None
-                        n += 1
-
-                r2_data.update({
-                    'participant_id': p,
-                    'day': day,
-                    'repetition': repetition,
-                    'chord': chord,
-                    'chordID': chordID,
-                    'N_comp': N_comp
-                })
-
-                return r2_data
+        # region FORCE:derivative
+        case 'FORCE:derivative':
 
             metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            if day is None:
+                day = '5'
+
+            win = .8
+
             scaler = MinMaxScaler()
 
-            r2 = {
-                'r2_1': [],
-                'r2_2': [],
-                'r2_3': [],
-                'r2_4': [],
-                'N_comp': [],
-                'participant_id': [],
-                'repetition': [],
-                'day': [],
-                'chordID': [],
-                'chord': []
-            }
+            dforce_avg = {str(key): [] for key in gl.chordID}
+            dforce_avg_norm = {str(key): [] for key in gl.chordID}
 
-            for d in day:
-                for p in participant_id:
-                    metrics_tmp = metrics[(metrics['participant_id'] == p) &
-                                          (metrics['day'] == int(d))].reset_index()
+            for P, p in enumerate(participant_id):
 
-                    session = 'testing' if d == '1' or d == '5' else 'training'
-                    force = Force(experiment, p, session, d)
-                    force_dict = force.load_pkl()
+                metrics_tmp = metrics[(metrics['participant_id'] == p) &
+                                      (metrics['day'] == int(day)) &
+                                      metrics['trialPoint'] == 1]
 
-                    # Use joblib to parallelize the inner loop
-                    results = Parallel(n_jobs=n_jobs)(
-                        delayed(process_force)(F, i) for i, F in enumerate(force_dict['force'])
-                        if (F is not None) and (F.shape[0] < 1.5 * gl.fsample['force'])
-                    )
+                if day == '1' or day == '5':
+                    session = 'testing'
+                    # chords = gl.chordID
+                else:
+                    session = 'training'
 
-                    # Collect the results
-                    for res in results:
-                        r2['r2_1'].append(res['r2_1'])
-                        r2['r2_2'].append(res['r2_2'])
-                        r2['r2_3'].append(res['r2_3'])
-                        r2['r2_4'].append(res['r2_4'])
-                        r2['N_comp'].append(res['N_comp'])
-                        r2['participant_id'].append(res['participant_id'])
-                        r2['day'].append(res['day'])
-                        r2['repetition'].append(res['repetition'])
-                        r2['chord'].append(res['chord'])
-                        r2['chordID'].append(res['chordID'])
+                if chord is None:
+                    chords = [str(ch) for ch in gl.chordID]
+                else:
+                    chords = pinfo[pinfo['participant_id'] == p][chord].iloc[0].split('.')
 
-                    # cn += len(force_dict['force'])
+                force = Force(experiment, p, session, day)
+                force_dict = force.load_pkl()
 
-            # Convert the r2 dictionary to a DataFrame and save it as a CSV file
-            r2 = pd.DataFrame(r2)
-            r2.to_csv(os.path.join(gl.baseDir, experiment, 'r2.tsv'), sep='\t')
+                # color = ['#4169E1', '#DC143C', '#228B22', '#DAA520', '#9932CC']
 
-            return r2
+                dF = list()
+                dF_norm = list()
+                chordID = list()
+                cn = 0
+                for f in force_dict['force_filt10Hz']:
+                    if f is not None:
+                        df_tmp = np.gradient(f, 1 / gl.fsample['force'], axis=0)
+                        df_tmp_norm = scaler.fit_transform(np.abs(df_tmp[int(.1 * gl.fsample['force']):]))
+                        dF.append(df_tmp[int(.1 * gl.fsample['force']):int(win * gl.fsample['force'])].swapaxes(0, 1))
+                        dF_norm.append(
+                            df_tmp_norm[:int(win * gl.fsample['force']) - int(.1 * gl.fsample['force'])].swapaxes(0, 1))
+                        chordID.append(metrics_tmp['chordID'].iloc[cn].astype(str))
+                        cn += 1
+
+                dF = np.stack(dF)
+                dF_norm = np.stack(dF_norm)
+                chordID = pd.Series(chordID)
+
+                for ch in chords:
+                    ind = chordID == ch
+                    dF_tmp = dF[ind]
+                    dF_tmp_norm = dF_norm[ind]
+                    dforce_avg[ch].append(dF_tmp.mean(axis=0))
+                    dforce_avg_norm[ch].append(dF_tmp_norm.mean(axis=0))
+
+            return dforce_avg, dforce_avg_norm
 
         # endregion
 
@@ -626,6 +583,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             rank_corr = {
                 'exit': [],
+                'dforce': [],
                 'entry': [],
                 'participant_id': [],
                 'repetition': [],
@@ -645,9 +603,27 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                               (metrics['participant_id'] == p)].reset_index()
 
                         for i, rowi in metrics_tmp.iterrows():
+                            rank_corr_dforce_tmp = np.zeros(len(metrics_tmp))
                             rank_corr_exit_tmp = np.zeros(len(metrics_tmp))
                             rank_corr_entry_tmp = np.zeros(len(metrics_tmp))
                             for j, rowj in metrics_tmp.iterrows():
+
+                                # dforce
+                                order1 = rowi[['thumb_dforce_order',
+                                               'index_dforce_order',
+                                               'middle_dforce_order',
+                                               'ring_dforce_order',
+                                               'pinkie_dforce_order']].to_numpy().astype(float)
+                                order2 = rowj[['thumb_dforce_order',
+                                               'index_dforce_order',
+                                               'middle_dforce_order',
+                                               'ring_dforce_order',
+                                               'pinkie_dforce_order']].to_numpy().astype(float)
+                                for k, char in enumerate(str(chordID)):
+                                    if char == '9':
+                                        order1[k] = np.nan
+                                        order2[k] = np.nan
+                                rank_corr_dforce_tmp[j], _ = spearmanr(order1, order2, nan_policy='omit')
 
                                 # exit
                                 order1 = rowi[['thumb_exit_order',
@@ -686,6 +662,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                             else:
                                 rank_corr_entry_tmp[j] = np.nan
 
+                            rank_corr['dforce'].append(np.nanmean(rank_corr_dforce_tmp))
                             rank_corr['exit'].append(np.nanmean(rank_corr_exit_tmp))
                             rank_corr['entry'].append(np.nanmean(rank_corr_entry_tmp))
                             rank_corr['participant_id'].append(p)
@@ -815,7 +792,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         ]
 
                         for i, rowi in rank.iterrows():
-
                             fingers_tmp = [fingers[k] for k, char in enumerate(ch) if char != '9']
                             order_tmp = [fingers_tmp[int(pos)] for pos in rowi if ~np.isnan(pos)]
                             order_tmp = '.'.join(order_tmp)
@@ -825,13 +801,89 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                             order['chordID'].append(ch)
                             order['day'].append(day)
                             order['chord'].append('trained' if ch in
-                                                               pinfo[pinfo['participant_id'] == p]['trained'].iloc[0].split('.')
+                                                               pinfo[pinfo['participant_id'] == p]['trained'].iloc[
+                                                                   0].split('.')
                                                   else 'untrained')
 
             order = pd.DataFrame(order)
             order.to_csv(os.path.join(gl.baseDir, experiment, 'order.tsv'), sep='\t')
 
             return order
+        # endregion
+
+        # ORDER:sliding_window
+        case 'ORDER:sliding_window':
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            if day is None:
+                day = '5'
+
+            win = .8
+
+            rank_corr = {
+                'rho': [],
+                'chordID': [],
+                'chord': [],
+                'day': [],
+                'participant_id': [],
+            }
+
+            for P, p in enumerate(participant_id):
+
+                metrics_tmp = metrics[(metrics['participant_id'] == p) &
+                                      (metrics['day'] == int(day)) &
+                                      metrics['trialPoint'] == 1]
+
+                if day == '1' or day == '5':
+                    session = 'testing'
+                    # chords = gl.chordID
+                else:
+                    session = 'training'
+
+                force = Force(experiment, p, session, day)
+                force_dict = force.load_pkl()
+
+                F = list()
+                chordID = list()
+                cn = 0
+                for f in force_dict['force_filt10Hz']:
+                    if f is not None:
+                        F.append(f[:int(win * gl.fsample['force'])].swapaxes(0, 1))
+                        chordID.append(metrics_tmp['chordID'].iloc[cn].astype(str))
+                        cn += 1
+
+                F = np.stack(F)
+                chordID = pd.Series(chordID)
+
+                for ch in chordID.unique():
+
+                    chord = 'trained' if ch in pinfo[pinfo['participant_id'] == p]['trained'].iloc[0].split('.') else 'untrained'
+
+                    print(f'participant_id: {p}, chord: {ch}')
+
+                    rho = np.zeros(F.shape[-1])
+                    for t in range(F.shape[-1]):
+
+                        F_tmp = F[chordID == ch, :, t]
+                        order_tmp = np.argsort(F_tmp, axis=1)
+
+                        rho_tmp, _ = spearmanr(order_tmp, axis=1)
+
+                        rho[t] = rho_tmp.mean()
+
+                    rank_corr['rho'].append(rho)
+                    rank_corr['chord'].append(chord)
+                    rank_corr['participant_id'].append(p)
+                    rank_corr['day'].append(day)
+                    rank_corr['chordID'].append(ch)
+
+            with open(os.path.join(gl.baseDir, experiment, 'rank_corr_timepoints.pkl'), 'wb') as f:
+                pickle.dump(rank_corr, f)
+
+            return rank_corr
+
+
         # endregion
 
         # region ORDER:variance_decomposition
@@ -1472,6 +1524,7 @@ if __name__ == "__main__":
     parser.add_argument('what', nargs='?', default=None, choices=[
         'FORCE:preprocessing',  # ok
         'FORCE:average',
+        'FORCE:derivative',
         'FORCE:fit_sinusoid',
         'XCORR:tau',  # ok
         'NOISE_CEILING:tau',  # ok
@@ -1490,6 +1543,7 @@ if __name__ == "__main__":
         'XCORR:variance_decomposition',
         'ORDER:rank_corr',
         'ORDER:left2right',
+        'ORDER:sliding_window',
         'ORDER:frequency',
         'ORDER:variance_decomposition',
         'PLOT:force_in_trial',  # ok
