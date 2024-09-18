@@ -604,6 +604,23 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                             rank_corr_entry_tmp = np.zeros(len(metrics_tmp))
                             for j, rowj in metrics_tmp.iterrows():
 
+                                # onset
+                                order1 = rowi[['thumb_onset_order',
+                                               'index_onset_order',
+                                               'middle_onset_order',
+                                               'ring_onset_order',
+                                               'pinkie_onset_order']].to_numpy().astype(float)
+                                order2 = rowj[['thumb_onset_order',
+                                               'index_onset_order',
+                                               'middle_onset_order',
+                                               'ring_onset_order',
+                                               'pinkie_onset_order']].to_numpy().astype(float)
+                                for k, char in enumerate(str(chordID)):
+                                    if char == '9':
+                                        order1[k] = np.nan
+                                        order2[k] = np.nan
+                                rank_corr_dforce_tmp[j], _ = spearmanr(order1, order2, nan_policy='omit')
+
                                 # dforce
                                 order1 = rowi[['thumb_dforce_order',
                                                'index_dforce_order',
