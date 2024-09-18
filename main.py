@@ -606,7 +606,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                   (metrics['participant_id'] == p) &
                                                   (metrics['repetition'] == repetition) &
                                                   (metrics['trialPoint'] == 1)].reset_index()
-                            if len(metrics_tmp) > 0:
+                            if len(metrics_tmp) > 1:
+
                                 rank_corr_onset_tmp, _ = spearmanr(metrics_tmp[['thumb_onset_order',
                                                        'index_onset_order',
                                                        'middle_onset_order',
