@@ -619,21 +619,21 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                    'middle_dforce_order',
                                                    'ring_dforce_order',
                                                    'pinkie_dforce_order']].to_numpy(),
-                                                               nan_policy='omit', axis=1).mean()
+                                                               nan_policy='omit', axis=1)
 
                             rank_corr_exit_tmp, _ = spearmanr(metrics_tmp[['thumb_exit_order',
                                                    'index_exit_order',
                                                    'middle_exit_order',
                                                    'ring_exit_order',
                                                    'pinkie_exit_order']].to_numpy(),
-                                                               nan_policy='omit', axis=1).mean()
+                                                               nan_policy='omit', axis=1)
 
                             rank_corr_entry_tmp, _ = spearmanr(metrics_tmp[['thumb_entry_order',
                                                    'index_entry_order',
                                                    'middle_entry_order',
                                                    'ring_entry_order',
                                                    'pinkie_entry_order']].to_numpy(),
-                                                               nan_policy='omit', axis=1).mean()
+                                                               nan_policy='omit', axis=1)
 
                             rank_corr['onset'].append(np.mean(rank_corr_onset_tmp))
                             rank_corr['dforce'].append(np.mean(rank_corr_dforce_tmp))
