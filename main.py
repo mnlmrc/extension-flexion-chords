@@ -793,6 +793,58 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return order
         # endregion
 
+        # region ORDER:correlation_between_days
+        case 'ORDER:correlation_between_days':
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+            metrics = metrics[metrics['trialPoint'] == 1]
+
+            corr = np.zeros((len(metrics['participant_id'].unique()),
+                             len(metrics['chordID'].unique()),
+                             len(metrics['day'].unique()),
+                             len(metrics['day'].unique())))
+
+            for I, i in enumerate(metrics['day'].unique()):
+                for J, j in enumerate(metrics['day'].unique()):
+                    for ch, chordID in enumerate(metrics['chordID'].unique()):
+
+                        keep = np.ones(5).astype(bool)
+                        for k, char in enumerate(str(chordID)):
+                            if char == '9':
+                                keep[i] = False
+
+                        for P, p in enumerate(metrics['participant_id'].unique()):
+
+                            print(f'{p}, {chordID}')
+
+                            dayi = metrics[(metrics['participant_id'] == p) &
+                                           (metrics['chord'] == 'trained') &
+                                           (metrics['chordID'] == chordID) &
+                                           (metrics['day'] == i)][['thumb_onset_order',
+                                                                   'index_onset_order',
+                                                                   'middle_onset_order',
+                                                                   'ring_onset_order',
+                                                                   'pinkie_onset_order']].to_numpy()
+                            dayj = metrics[(metrics['participant_id'] == p) &
+                                           (metrics['chord'] == 'trained') &
+                                           (metrics['chordID'] == chordID) &
+                                           (metrics['day'] == j)][['thumb_onset_order',
+                                                                   'index_onset_order',
+                                                                   'middle_onset_order',
+                                                                   'ring_onset_order',
+                                                                   'pinkie_onset_order']].to_numpy()
+                            corr_tmp = np.array(
+                                [spearmanr(dayi[row], dayj[col], nan_policy='omit').correlation for row in range(dayi.shape[0])
+                                 for col in range(dayj.shape[0])]).reshape(dayi.shape[0], dayj.shape[0])
+
+                            corr[P, ch, I, J] = np.triu(corr_tmp).mean()
+
+            np.save(os.path.join(gl.baseDir, experiment, 'order_day_corr.npy'), corr)
+
+            return corr
+
+        # endregion
+
         # region ORDER:sliding_window
         case 'ORDER:sliding_window':
 
