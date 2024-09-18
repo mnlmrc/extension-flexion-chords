@@ -364,8 +364,8 @@ class Force:
                     forceRaw_filt10Hz = lowpass_butter(forceRaw.T, 10, gl.fsample['force']).T
                     forceRaw_filt20Hz = lowpass_butter(forceRaw.T, 20, gl.fsample['force']).T
 
-                    dforceRaw = np.gradient(forceRaw_filt10Hz, 1 / gl.fsample['force'], axis=0)[50:]
-                    dforceRaw = scaler.fit_transform(dforceRaw)
+                    dforceRaw = np.gradient(forceRaw_filt10Hz, 1 / gl.fsample['force'], axis=0)
+                    dforceRaw = scaler.fit_transform(np.abs(dforceRaw))
 
                     metrics_tmp = calc_metrics(force)
 
@@ -380,8 +380,7 @@ class Force:
                     dforce_order_tmp = np.full(len(gl.channels['force']), np.nan)
                     for i, idx in enumerate(order_tmp):
                         dforce_order_tmp[gl.channels['force'].index(fingers[idx])] = i
-                    # dforce_times_tmp, dforce_order_tmp = calc_exit_times(dforceRaw, dat_tmp.iloc[tr].chordID,
-                    #                                                      fthresh=.2)
+
                     exit_times_tmp, exit_order_tmp = calc_exit_times(forceRaw, dat_tmp.iloc[tr].chordID)
                     entry_times_tmp, entry_order_tmp = calc_entry_times(forceRaw, dat_tmp.iloc[tr].chordID)
 
