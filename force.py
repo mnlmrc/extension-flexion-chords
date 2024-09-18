@@ -150,8 +150,9 @@ def calc_exit_times(X, chordID, fthresh=None):
     exit_time = np.zeros(X.shape[1])
     for i in range(X.shape[1]):
         a = X[:, i]
+        da = np.gradient(a, 1 / gl.fsample['force'])
 
-        exit_time[i] = np.argmax(a > fthresh) / gl.fsample['force']
+        exit_time[i] = np.argmax((a > fthresh) & (da > 0)) / gl.fsample['force']
 
     for i, char in enumerate(str(chordID)):
         if char == '9':
