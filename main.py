@@ -578,6 +578,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, f'metrics.tsv'), sep='\t')
 
             rank_corr = {
+                'onset': [],
                 'exit': [],
                 'dforce': [],
                 'entry': [],
