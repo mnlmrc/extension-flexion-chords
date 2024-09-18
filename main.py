@@ -1618,6 +1618,7 @@ if __name__ == "__main__":
         'ORDER:rank_corr',
         'ORDER:left2right',
         'ORDER:sliding_window',
+        'ORDER:correlation_between_days',
         'ORDER:frequency',
         'ORDER:variance_decomposition',
         'PLOT:force_in_trial',  # ok
