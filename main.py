@@ -612,7 +612,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                    'middle_onset_order',
                                                    'ring_onset_order',
                                                    'pinkie_onset_order']].to_numpy(),
-                                                               nan_policy='omit', axis=1).mean()
+                                                               nan_policy='omit', axis=1)
 
                             rank_corr_dforce_tmp, _ = spearmanr(metrics_tmp[['thumb_dforce_order',
                                                    'index_dforce_order',
@@ -635,10 +635,10 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                    'pinkie_entry_order']].to_numpy(),
                                                                nan_policy='omit', axis=1).mean()
 
-                            rank_corr['onset'].append(rank_corr_onset_tmp)
-                            rank_corr['dforce'].append(rank_corr_dforce_tmp)
-                            rank_corr['exit'].append(rank_corr_exit_tmp)
-                            rank_corr['entry'].append(rank_corr_entry_tmp)
+                            rank_corr['onset'].append(np.mean(rank_corr_onset_tmp))
+                            rank_corr['dforce'].append(np.mean(rank_corr_dforce_tmp))
+                            rank_corr['exit'].append(np.mean(rank_corr_exit_tmp))
+                            rank_corr['entry'].append(np.mean(rank_corr_entry_tmp))
                             rank_corr['participant_id'].append(p)
                             rank_corr['day'].append(day)
                             rank_corr['chordID'].append(chordID)
