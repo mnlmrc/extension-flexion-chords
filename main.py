@@ -599,6 +599,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                               (metrics['participant_id'] == p)].reset_index()
 
                         for i, rowi in metrics_tmp.iterrows():
+                            rank_corr_onset_tmp = np.zeros(len(metrics_tmp))
                             rank_corr_dforce_tmp = np.zeros(len(metrics_tmp))
                             rank_corr_exit_tmp = np.zeros(len(metrics_tmp))
                             rank_corr_entry_tmp = np.zeros(len(metrics_tmp))
@@ -619,7 +620,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                     if char == '9':
                                         order1[k] = np.nan
                                         order2[k] = np.nan
-                                rank_corr_dforce_tmp[j], _ = spearmanr(order1, order2, nan_policy='omit')
+                                rank_corr_onset_tmp[j], _ = spearmanr(order1, order2, nan_policy='omit')
 
                                 # dforce
                                 order1 = rowi[['thumb_dforce_order',
@@ -672,9 +673,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                         order1[k] = np.nan
                                         order2[k] = np.nan
                                 rank_corr_entry_tmp[j], _ = spearmanr(order1, order2, nan_policy='omit')
-                            else:
-                                rank_corr_entry_tmp[j] = np.nan
 
+                            rank_corr['onset'].append(np.nanmean(rank_corr_onset_tmp))
                             rank_corr['dforce'].append(np.nanmean(rank_corr_dforce_tmp))
                             rank_corr['exit'].append(np.nanmean(rank_corr_exit_tmp))
                             rank_corr['entry'].append(np.nanmean(rank_corr_entry_tmp))
