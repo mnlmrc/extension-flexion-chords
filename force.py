@@ -322,6 +322,8 @@ class Force:
 
         dforce_times = []
         dforce_order = []
+        onset_times = []
+        onset_order = []
         exit_times = []
         exit_order = []
         entry_times = []
@@ -374,6 +376,7 @@ class Force:
                         if char == '9':
                             dforce_times_tmp[i] = np.nan
 
+                    # order at derivative peak
                     order_tmp = np.argsort(dforce_times_tmp[~np.isnan(dforce_times_tmp)])
                     fingers = [f for f in gl.channels['force'] if
                                not np.isnan(dforce_times_tmp[gl.channels['force'].index(f)])]
@@ -381,11 +384,16 @@ class Force:
                     for i, idx in enumerate(order_tmp):
                         dforce_order_tmp[gl.channels['force'].index(fingers[idx])] = i
 
+                    # order at force onset
+                    onset_times_tmp, onset_order_tmp = calc_exit_times(dforceRaw, dat_tmp.iloc[tr].chordID, fthresh=.2)
+
                     exit_times_tmp, exit_order_tmp = calc_exit_times(forceRaw, dat_tmp.iloc[tr].chordID)
                     entry_times_tmp, entry_order_tmp = calc_entry_times(forceRaw, dat_tmp.iloc[tr].chordID)
 
                     dforce_times.append(dforce_times_tmp)
                     dforce_order.append(dforce_order_tmp)
+                    onset_times.append(onset_times_tmp)
+                    onset_order.append(onset_order_tmp)
                     exit_times.append(exit_times_tmp)
                     exit_order.append(exit_order_tmp)
                     entry_times.append(entry_times_tmp)
@@ -422,6 +430,8 @@ class Force:
 
                     dforce_order.append([None] * 5)
                     dforce_times.append([None] * 5)
+                    onset_times.append([None] * 5)
+                    onset_order.append([None] * 5)
                     exit_times.append([None] * 5)
                     exit_order.append([None] * 5)
                     entry_times.append([None] * 5)
@@ -450,11 +460,24 @@ class Force:
 
         dforce_times = np.array(dforce_times)
         dforce_order = np.array(dforce_order)
+        onset_times_tmp = np.array(onset_times)
+        onset_order_tmp = np.array(onset_order)
         exit_times = np.array(exit_times)
         exit_order = np.array(exit_order)
         entry_times = np.array(entry_times)
         entry_order = np.array(entry_order)
 
+        metrics = pd.concat([metrics, pd.DataFrame(onset_times_tmp,
+                                                   columns=['thumb_onset',
+                                                            'index_onset',
+                                                            'middle_onset',
+                                                            'ring_onset',
+                                                            'pinkie_onset'])], axis=1)
+        metrics = pd.concat([metrics, pd.DataFrame(onset_order_tmp, columns=['thumb_onset_order',
+                                                                             'index_onset_order',
+                                                                             'middle_onset_order',
+                                                                             'ring_onset_order',
+                                                                             'pinkie_onset_order'])], axis=1)
         metrics = pd.concat([metrics, pd.DataFrame(dforce_times,
                                                    columns=['thumb_dforce',
                                                             'index_dforce',
