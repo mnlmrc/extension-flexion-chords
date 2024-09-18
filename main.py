@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 
 from matplotlib import pyplot as plt
 from scipy.optimize import nnls
@@ -1551,6 +1552,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
 
 if __name__ == "__main__":
+
+    start_time = time.time()
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument('what', nargs='?', default=None, choices=[
@@ -1615,5 +1619,9 @@ if __name__ == "__main__":
 
     main(what, experiment=experiment, participant_id=participant_id, session=session, day=day,
          ntrial=ntrial, chordID=chordID, chord=chord, fname=fname, n_jobs=n_jobs)
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {elapsed_time:.2f} seconds")
 
     plt.show()
