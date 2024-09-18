@@ -811,11 +811,11 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         keep = np.ones(5).astype(bool)
                         for k, char in enumerate(str(chordID)):
                             if char == '9':
-                                keep[i] = False
+                                keep[k] = False
 
                         for P, p in enumerate(metrics['participant_id'].unique()):
 
-                            print(f'{p}, {chordID}')
+                            print(f'{i}, {j}, {p}, {chordID}')
 
                             dayi = metrics[(metrics['participant_id'] == p) &
                                            (metrics['chord'] == 'trained') &
@@ -824,7 +824,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                                    'index_onset_order',
                                                                    'middle_onset_order',
                                                                    'ring_onset_order',
-                                                                   'pinkie_onset_order']].to_numpy()
+                                                                   'pinkie_onset_order']].to_numpy()[:, keep]
                             dayj = metrics[(metrics['participant_id'] == p) &
                                            (metrics['chord'] == 'trained') &
                                            (metrics['chordID'] == chordID) &
@@ -832,12 +832,15 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                                    'index_onset_order',
                                                                    'middle_onset_order',
                                                                    'ring_onset_order',
-                                                                   'pinkie_onset_order']].to_numpy()
+                                                                   'pinkie_onset_order']].to_numpy()[:, keep]
                             corr_tmp = np.array(
                                 [spearmanr(dayi[row], dayj[col], nan_policy='omit').correlation for row in range(dayi.shape[0])
                                  for col in range(dayj.shape[0])]).reshape(dayi.shape[0], dayj.shape[0])
 
-                            corr[P, ch, I, J] = np.triu(corr_tmp).mean()
+                            if I == J:
+                                corr[P, ch, I, J] = np.triu(corr_tmp).mean()
+                            else:
+                                corr[P, ch, I, J] = corr_tmp.mean()
 
             np.save(os.path.join(gl.baseDir, experiment, 'order_day_corr.npy'), corr)
 
