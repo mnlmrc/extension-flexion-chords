@@ -793,6 +793,72 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return order
         # endregion
 
+        # region ORDER:correlation_between_chords
+        case 'ORDER:correlation_between_chords':
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+            metrics = metrics[metrics['trialPoint'] == 1]
+
+            corr = np.zeros((len(metrics['participant_id'].unique()),
+                             len(metrics['day'].unique()),
+                             len(metrics['chordID'].unique()),
+                             len(metrics['chordID'].unique())))
+
+            for I, chordIDi in enumerate(metrics['chordID'].unique()):
+
+                keepi = np.ones(5).astype(bool)
+                for k, char in enumerate(str(chordIDi)):
+                    if char == '9':
+                        keepi[k] = False
+
+                for J, chordIDj in enumerate(metrics['chordID'].unique()):
+
+                    keepj = np.ones(5).astype(bool)
+                    for k, char in enumerate(str(chordIDj)):
+                        if char == '9':
+                            keepj[k] = False
+
+                    for d, day in enumerate(metrics['day'].unique()):
+
+                        for P, p in enumerate(metrics['participant_id'].unique()):
+
+                            print(f'{chordIDi}, {chordIDj}, {p}, {day}')
+
+                            ch_i = metrics[(metrics['participant_id'] == p) &
+                                           (metrics['chord'] == 'trained') &
+                                           (metrics['chordID'] == chordIDi) &
+                                           (metrics['day'] == day)][['thumb_onset_order',
+                                                                   'index_onset_order',
+                                                                   'middle_onset_order',
+                                                                   'ring_onset_order',
+                                                                   'pinkie_onset_order']].to_numpy()[:, keepi]
+                            ch_j = metrics[(metrics['participant_id'] == p) &
+                                           (metrics['chord'] == 'trained') &
+                                           (metrics['chordID'] == chordIDj) &
+                                           (metrics['day'] == day)][['thumb_onset_order',
+                                                                   'index_onset_order',
+                                                                   'middle_onset_order',
+                                                                   'ring_onset_order',
+                                                                   'pinkie_onset_order']].to_numpy()[:, keepj]
+                            corr_tmp = np.array(
+                                [spearmanr(ch_i[row], ch_j[col], nan_policy='omit').correlation for row in range(ch_i.shape[0])
+                                 for col in range(ch_j.shape[0])]).reshape(ch_i.shape[0], ch_j.shape[0])
+
+                            if I == J:
+                                corr[P, d, I, J] = np.triu(corr_tmp).mean()
+                            else:
+                                corr[P, d, I, J] = corr_tmp.mean()
+
+            np.savez(
+                os.path.join(gl.baseDir, experiment, 'order_chord_corr.npz'),
+                corr=corr,  # Your array
+                metadata={'chordID': metrics['chordID'].unique()}
+            )
+
+            return corr
+
+        # endregion
+
         # region ORDER:correlation_between_days
         case 'ORDER:correlation_between_days':
 
@@ -834,7 +900,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                                    'ring_onset_order',
                                                                    'pinkie_onset_order']].to_numpy()[:, keep]
                             corr_tmp = np.array(
-                                [spearmanr(dayi[row], dayj[col], nan_policy='omit').correlation for row in range(dayi.shape[0])
+                                [spearmanr(dayi[row], dayj[col], nan_policy='omit').correlation for row in
+                                 range(dayi.shape[0])
                                  for col in range(dayj.shape[0])]).reshape(dayi.shape[0], dayj.shape[0])
 
                             if I == J:
@@ -972,11 +1039,11 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 'v_gse_exit': [],
                 'v_s_exit': [],
                 'v_e_exit': [],
-                'v_g_entry': [],
-                'v_gs_entry': [],
-                'v_gse_entry': [],
-                'v_s_entry': [],
-                'v_e_entry': [],
+                'v_g_onset': [],
+                'v_gs_onset': [],
+                'v_gse_onset': [],
+                'v_s_onset': [],
+                'v_e_onset': [],
                 'chordID': [],
                 'chord': [],
                 'day': []
@@ -1019,11 +1086,11 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                   'index_exit_order',
                                                   'middle_exit_order',
                                                   'ring_exit_order',
-                                                  'pinkie_exit_order']]
+                                                  'pinkie_exit_order']].to_numpy()
 
                     for k, char in enumerate(str(chordID)):
                         if char == '9':
-                            Y_exit = np.delete(Y_exit, k, axis=1)
+                            Y_exit  = np.delete(Y_exit, k, axis=1)
 
                     # Perform variance decomposition
                     v_g, v_gs, v_gse, _ = reliability_var(Y_exit, subj_vec, part_vec, centered=False)
@@ -1034,25 +1101,25 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     var_dec['v_s_exit'].append((v_gs - v_g) / v_gse)
                     var_dec['v_e_exit'].append((v_gse - v_gs) / v_gse)
 
-                    # Entry
-                    Y_entry = sampled_metrics_tmp[['thumb_entry_order',
-                                                   'index_entry_order',
-                                                   'middle_entry_order',
-                                                   'ring_entry_order',
-                                                   'pinkie_entry_order']].to_numpy()
+                    # Onset
+                    Y_onset = sampled_metrics_tmp[['thumb_onset_order',
+                                                   'index_onset_order',
+                                                   'middle_onset_order',
+                                                   'ring_onset_order',
+                                                   'pinkie_onset_order']].to_numpy()
 
                     for k, char in enumerate(str(chordID)):
                         if char == '9':
-                            Y_entry = np.delete(Y_entry, k, axis=1)
+                            Y_onset = np.delete(Y_onset, k, axis=1)
 
                     # Perform variance decomposition
-                    v_g, v_gs, v_gse, _ = reliability_var(Y_entry, subj_vec, part_vec, centered=False)
+                    v_g, v_gs, v_gse, _ = reliability_var(Y_onset, subj_vec, part_vec, centered=False)
 
-                    var_dec['v_g_entry'].append(v_g / v_gse)
-                    var_dec['v_gs_entry'].append(v_gs)
-                    var_dec['v_gse_entry'].append(v_gse)
-                    var_dec['v_s_entry'].append((v_gs - v_g) / v_gse)
-                    var_dec['v_e_entry'].append((v_gse - v_gs) / v_gse)
+                    var_dec['v_g_onset'].append(v_g / v_gse)
+                    var_dec['v_gs_onset'].append(v_gs)
+                    var_dec['v_gse_onset'].append(v_gse)
+                    var_dec['v_s_onset'].append((v_gs - v_g) / v_gse)
+                    var_dec['v_e_onset'].append((v_gse - v_gs) / v_gse)
                     var_dec['chordID'].append(chordID)
                     var_dec['chord'].append(chord)
                     var_dec['day'].append(day)
@@ -1622,6 +1689,7 @@ if __name__ == "__main__":
         'ORDER:left2right',
         'ORDER:sliding_window',
         'ORDER:correlation_between_days',
+        'ORDER:correlation_between_chords',
         'ORDER:frequency',
         'ORDER:variance_decomposition',
         'PLOT:force_in_trial',  # ok

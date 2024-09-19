@@ -1,3 +1,11 @@
+import argparse
+import os
+import time
+
+import pandas as pd
+
+from main import main
+import globals as gl
 import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
@@ -6,6 +14,20 @@ from matplotlib.lines import Line2D
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_rel, ttest_ind, ttest_1samp
+
+
+def savefig(path, fig, format='svg'):
+    # Check if file exists
+    if os.path.exists(path):
+        response = input(f"The file {path} already exists. Do you want to overwrite it? (y/n): ")
+        if response.lower() == 'y':
+            fig.savefig(path, dpi=600)
+            print(f"File {path} has been overwritten.")
+        else:
+            print("File not saved. Please choose a different name or path.")
+    else:
+        fig.savefig(path, dpi=600, format=format)
+        print(f"File saved as {path}.")
 
 
 def decor(axs=None, fontsize=None, xlim=(None, None), ylim=(None, None), xbounds=(None, None), ybounds=(None, None),
@@ -21,7 +43,6 @@ def decor(axs=None, fontsize=None, xlim=(None, None), ylim=(None, None), xbounds
 
     axs.set_yticklabels(axs.get_yticklabels(), fontsize=fontsize)
     axs.set_xticklabels(axs.get_xticklabels(), fontsize=fontsize)
-
 
 
 def add_significance_brackets(ax, data, x=None, y=None, pairs=None, test_type='t-test_ind', text_format='star',
@@ -160,7 +181,227 @@ def add_significance_asterisks(ax, data, x=None, y=None, hue=None, x_point=None,
     # Optionally, adjust the y-axis to make sure the asterisks are visible
     # ax.set_ylim([ax.get_ylim()[0], ax.get_ylim()[1] * 1.1])
 
-# Example usage:
-# Assuming 'ax' is your plot axis object, and you have data in a DataFrame 'df' with columns 'day', 'tau', 'chord'
-# Example pairs: [(1, 2), (3, 4)]
-# add_significance_brackets(ax, df, x='day', y='tau', hue='chord', pairs=[(1, 2), (3, 4)])
+
+def plot(what, fontsize=12):
+    match what:
+
+        # region FORCE:average
+        case 'FORCE:average':
+
+            experiment = 'efc2'
+
+            chord = 'trained'
+
+            force = main('FORCE:average', experiment, day='5', chord=chord)
+
+            fig, axs = plt.subplots(1, len(force), sharex=True, sharey='row', figsize=(15, 5))
+
+            color = [
+                (0.031, 0.188, 0.419),  # Dark Blue
+                (0.129, 0.443, 0.710),  # Medium Blue
+                (0.258, 0.573, 0.816),  # Sky Blue
+                (0.454, 0.678, 0.819),  # Light Sky Blue
+                (0.671, 0.851, 0.914)  # Pale Blue
+            ]  # Pale Violet]
+
+            for k, (key, f) in enumerate(force.items()):
+
+                f = np.stack(f)
+                f = np.abs(f)
+
+                tAx = np.linspace(0, .8, f.shape[-1])
+
+                f_avg = f.mean(axis=0).squeeze().T
+                f_err = f.std(axis=0).squeeze().T / np.sqrt(f.shape[1])
+
+                for i, char in enumerate(str(key)):
+                    if char == '9':
+                        axs[k,].plot(tAx, f_avg[:, i], color=color[i], lw=1, label=gl.channels['force'][i], ls='-')
+                    elif char == '1':
+                        axs[k,].plot(tAx, f_avg[:, i], color=color[i], lw=3, label=gl.channels['force'][i], ls='-')
+                    else:
+                        axs[k,].plot(tAx, f_avg[:, i], color=color[i], lw=3, label=gl.channels['force'][i], ls='-')
+                    axs[k,].fill_between(tAx, f_avg[:, i] + f_err[:, i], f_avg[:, i] - f_err[:, i], lw=0,
+                                         color=color[i],
+                                         alpha=0.2)
+
+                axs[k].set_title(f'chord:{key}', fontsize=fontsize)
+
+                axs[k].axhspan(0, 1.2, color='grey', alpha=0.3, lw=0)
+
+                axs[k].axhline(2, color='k', lw=2, ls='--')
+
+                # axs[1].spines['bottom'].set_bounds(1, 5)
+                axs[k,].set_xlim([0, .8])
+                axs[k,].spines[['right', 'top', 'left']].set_visible(False)
+                axs[k,].spines[['bottom']].set_linewidth(2)
+                axs[k,].tick_params(axis='x', width=2)
+                axs[k,].tick_params(axis='y', width=0)
+                axs[k,].set_xticks([axs[0].get_xlim()[0], axs[0].get_xlim()[1] / 2, axs[0,].get_xlim()[1]])
+                # axs[k].set_xticklabels(axs[1].get_xticklabels(), fontsize=fontsize)
+                axs[k].set_xlabel('')
+
+            custom_handles = [Line2D([0], [0], color=color, label=gl.channels['force'][c], lw=3) for c, color in
+                              enumerate(color)]
+            axs[0].legend(handles=custom_handles, frameon=False, loc='upper left')
+            axs[0].spines[['left']].set_visible(True)
+            axs[0].spines[['left']].set_linewidth(2)
+            axs[0].spines[['left']].set_bounds(0, 3.5)
+            axs[0].tick_params(axis='y', width=2)
+
+            axs[0].text(0, 1.2, 'baseline', color='grey', ha='left', va='bottom')
+            axs[0].text(0, 2, 'target', color='k', ha='left', va='bottom')
+
+            fig.supxlabel('time (s)', fontsize=fontsize)
+            fig.supylabel('force (N)', fontsize=fontsize)
+            fig.suptitle('Force response in trained chords on day 5')
+            fig.tight_layout()
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.force_avg2.svg'), fig)
+
+        # endregion
+
+        # FORCE:finger_times
+        case 'FORCE:finger_times':
+
+            experiment = 'efc2'
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+            metrics = metrics[metrics['trialPoint'] == 1]
+            metrics_exit = pd.melt(metrics,
+                                   id_vars=['day', 'chord', 'chordID', 'participant_id'],
+                                   value_vars=['thumb_exit', 'index_exit', 'middle_exit', 'ring_exit', 'pinkie_exit'],
+                                   var_name='finger',
+                                   value_name='time')
+
+            # Second group of value_vars (e.g., another measurement like 'offset' for each finger)
+            metrics_onset = pd.melt(metrics,
+                                    id_vars=['day', 'chord', 'chordID', 'participant_id'],
+                                    value_vars=['thumb_onset', 'index_onset', 'middle_onset', 'ring_onset', 'pinkie_onset'],
+                                    var_name='finger',
+                                    value_name='time')
+            metrics_onset['timepoint'] = 'onset'
+            metrics_exit['timepoint'] = 'exit'
+
+            metrics = pd.concat([metrics_onset, metrics_exit], axis=0)
+            metrics['finger'] = metrics['finger'].str.replace('_exit', '', regex=False)
+            metrics['finger'] = metrics['finger'].str.replace('_onset', '', regex=False)
+
+            metrics = metrics.groupby(['chord', 'participant_id', 'day', 'finger', 'timepoint']).mean(
+                numeric_only='True').reset_index()
+
+            custom_order_exit = ['thumb', 'index', 'middle', 'ring', 'pinkie']
+            metrics['finger'] = pd.Categorical(metrics['finger'], categories=custom_order_exit, ordered=True).codes
+            metrics['chordID'] = metrics['chordID'].astype(str)
+            jitter = 0.5 * (np.random.rand(len(metrics)) - 0.5)
+            metrics['finger_jittered'] = metrics['finger'] + jitter
+
+            offset = 5
+            metrics['offset'] = metrics['finger'] + metrics['day'] * offset
+
+            fig, axs = plt.subplots()
+
+            sns.lineplot(data=metrics[(metrics['chord'] == 'trained') & (metrics['timepoint'] == 'exit')], ax=axs, x='offset',
+                         y='time', hue='day', palette=['red'] * 5, err_kws={'linewidth': 0}, lw=3, legend=False)
+            sns.lineplot(data=metrics[(metrics['chord'] == 'untrained') & (metrics['timepoint'] == 'exit')], ax=axs, x='offset',
+                         y='time', hue='day', palette=['blue'] * 5, err_kws={'linewidth': 0}, lw=3, legend=False)
+            sns.lineplot(data=metrics[(metrics['chord'] == 'trained') & (metrics['timepoint'] == 'onset')], ax=axs, x='offset',
+                         y='time', hue='day', palette=[(1, .5, .5)] * 5, err_kws={'linewidth': 0}, lw=3, legend=False)
+            sns.lineplot(data=metrics[(metrics['chord'] == 'untrained') & (metrics['timepoint'] == 'onset')], ax=axs,
+                         x='offset', y='time', hue='day', palette=[(.5, .5, 1)] * 5, err_kws={'linewidth': 0}, lw=3,
+                         legend=False)
+
+            axs.set_xticks(np.linspace(7, 27, 5))
+            axs.set_xticklabels(np.linspace(1, 5, 5, dtype=int), fontsize=fontsize)
+
+            custom_handles = [
+                Line2D([0], [0], color='blue', label='untrained, exit baseline', lw=3),
+                Line2D([0], [0], color='red', label='trained, exit baseline', lw=3),
+                Line2D([0], [0], color=(.5, .5, 1), label='untrained, onset', lw=3),
+                Line2D([0], [0], color=(1, .5, .5), label='trained, onset', lw=3),
+            ]
+
+            axs.legend(handles=custom_handles, frameon=False, fontsize=fontsize, loc='upper right')
+
+            axs.set_ylabel('time (s)', fontsize=fontsize)
+
+            axs.set_xlabel('day', fontsize=fontsize)
+
+            # axs.set_xticks([0, 1, 2, 3, 4])
+            # axs.set_xticklabels(gl.channels['force'], rotation=45, ha='right', fontsize=fontsize)
+
+            axs.set_title(f'Time of force onset and exit from baseline area', fontsize=fontsize)
+
+            decor(axs=axs, fontsize=fontsize, ybounds=(.3, 1), xbounds=(7, 27), spines_width=2)
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.force_times2.svg'), fig)
+
+        # endregion
+
+        # region ORDER:rank_corr
+        case 'ORDER:rank_corr':
+
+            experiment = 'efc2'
+
+            rank_corr = pd.read_csv(os.path.join(gl.baseDir, experiment, 'rank_corr.tsv'), sep='\t')
+
+            rank_corr = rank_corr.groupby(['chord', 'participant_id', 'day', 'repetition']).mean(
+                numeric_only=True).reset_index()
+
+            fig, axs = plt.subplots(figsize=(5, 5))
+
+            offset = 5
+            rank_corr['offset'] = rank_corr['repetition'] + rank_corr['day'] * offset
+
+            sns.lineplot(data=rank_corr[rank_corr['chord'] == 'trained'], ax=axs, x='offset', y='exit', hue='day',
+                         errorbar='se', lw=3,
+                         palette=['red'] * 5, marker='o', markeredgewidth=0, err_kws={'linewidth': 0}, legend=False)
+            sns.lineplot(data=rank_corr[rank_corr['chord'] == 'untrained'], ax=axs, x='offset', y='exit', hue='day',
+                         errorbar='se', lw=3, legend=False,
+                         palette=['blue'] * 2, marker='o', markeredgewidth=0, err_kws={'linewidth': 0})
+            sns.lineplot(data=rank_corr[rank_corr['chord'] == 'trained'], ax=axs, x='offset', y='onset', hue='day',
+                         errorbar='se', lw=3, palette=[(1, .5, .5)] * 5, marker='o', markeredgewidth=0,
+                         err_kws={'linewidth': 0}, legend=False)
+            sns.lineplot(data=rank_corr[rank_corr['chord'] == 'untrained'], ax=axs, x='offset', y='onset', hue='day',
+                         errorbar='se', lw=3, palette=[(.5, .5, 1)] * 2, marker='o', markeredgewidth=0,
+                         err_kws={'linewidth': 0}, legend=False)
+            axs.set_xticks(np.linspace(8, 28, 5))
+            axs.set_xticklabels(np.linspace(1, 5, 5, dtype=int))
+
+            custom_handles = [
+                Line2D([0], [0], marker='o', color='blue', markerfacecolor='blue', label='untrained, exit baseline', lw=3),
+                Line2D([0], [0], marker='o', color='red', markerfacecolor='red', label='trained, exit baseline', lw=3),
+                Line2D([0], [0], marker='o', color=(.5, .5, 1), markerfacecolor=(.5, .5, 1), label='untrained, onset', lw=3),
+                Line2D([0], [0], marker='o', color=(1, .5, .5), markerfacecolor=(1, .5, .5), label='trained, onset', lw=3)
+            ]
+
+            fig.legend(handles=custom_handles, ncol=1, frameon=False, fontsize=12, loc='upper left')
+
+            axs.set_title("Consistency of finger order at force onset and baseline exit", fontsize=fontsize)
+            axs.set_ylabel(r"correlation (Spearman's $\rho$)", fontsize=fontsize)
+            axs.set_xlabel('day', fontsize=fontsize)
+
+            decor(axs=axs, fontsize=fontsize, ybounds=(.2, .55), xbounds=(8, 28), spines_width=2)
+
+            fig.tight_layout()
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.rank_corr.svg'), fig)
+
+        # endregion
+
+if __name__ == "__main__":
+
+    start_time = time.time()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('what', nargs='?', default=None)
+    args = parser.parse_args()
+    what = args.what
+
+    plot(what)
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {elapsed_time:.2f} seconds")
+
+    plt.show()
