@@ -46,7 +46,7 @@ def decor(axs=None, fontsize=None, xlim=(None, None), ylim=(None, None), xbounds
 
 
 def add_significance_brackets(ax, data, x=None, y=None, pairs=None, test_type='t-test_ind', text_format='star',
-                              y_pos=None):
+                              significance_level=0.05, y_pos=None, x1_pos=None, x2_pos=None):
     """
     Adds significance brackets with asterisks to an existing plot.
 
@@ -69,9 +69,16 @@ def add_significance_brackets(ax, data, x=None, y=None, pairs=None, test_type='t
             y_data = line.get_ydata()
             all_y_data.extend(y_data)  # Collect all y-values from the plotted lines
 
-        # Find the maximum y-value from the collected data
-        y_pos = max(all_y_data) + 0.1 * max(all_y_data)
+            # Find the maximum y-value from the collected data
+            y_pos = max(all_y_data) + 0.1 * max(all_y_data)
+
     brack_height = 0.01 * y_pos
+
+    if x1_pos is None:
+        x1_pos = 0
+
+    if x2_pos is None:
+        x2_pos = 1
 
     for pair in pairs:
         x1, x2 = pair
@@ -89,13 +96,13 @@ def add_significance_brackets(ax, data, x=None, y=None, pairs=None, test_type='t
 
         # Determine significance level
         if text_format == 'star':
-            if p_value < 0.0001:
+            if p_value < significance_level / 500:
                 significance = '****'
-            elif p_value < 0.001:
+            elif p_value < significance_level / 50:
                 significance = '***'
-            elif p_value < 0.01:
+            elif p_value < significance_level / 5:
                 significance = '**'
-            elif p_value < 0.05:
+            elif p_value < significance_level:
                 significance = '*'
             else:
                 significance = 'n.s.'
@@ -103,10 +110,10 @@ def add_significance_brackets(ax, data, x=None, y=None, pairs=None, test_type='t
             significance = f"p = {p_value:.3e}"
 
         # Plot significance bracket
-        ax.plot([x1, x1, x2, x2], [y_pos, y_pos + brack_height, y_pos + brack_height, y_pos], lw=1.5, color='k')
-        ax.text((x1 + x2) * 0.5, y_pos + brack_height, significance, ha='center', va='bottom', color='k', fontsize=12)
+        ax.plot([x1_pos, x1_pos, x2_pos, x2_pos], [y_pos, y_pos + brack_height, y_pos + brack_height, y_pos], lw=1.5, color='k')
+        ax.text((x1_pos + x2_pos) * 0.5, y_pos + brack_height, significance, ha='center', va='baseline', color='k', fontsize=12)
 
-        return y_pos + brack_height
+        return y_pos + 4 * brack_height
     # # Adjust the y-axis to accommodate the significance brackets
     # ax.set_ylim([ax.get_ylim()[0], y_max + 3 * line_height])
 
@@ -162,13 +169,13 @@ def add_significance_asterisks(ax, data, x=None, y=None, hue=None, x_point=None,
     # Determine if the result is significant
     if p_value < significance_level:
         if text_format == 'star':
-            if p_value < 0.0001:
+            if p_value < significance_level / 500:
                 significance = '****'
-            elif p_value < 0.001:
+            elif p_value < significance_level / 50:
                 significance = '***'
-            elif p_value < 0.01:
+            elif p_value < significance_level / 5:
                 significance = '**'
-            elif p_value < 0.05:
+            elif p_value < significance_level:
                 significance = '*'
         else:
             significance = f"p = {p_value:.3e}"
