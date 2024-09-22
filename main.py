@@ -800,59 +800,62 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             metrics = metrics[metrics['trialPoint'] == 1]
 
             corr = np.zeros((len(metrics['participant_id'].unique()),
+                             len(metrics['chord'].unique()),
                              len(metrics['day'].unique()),
                              len(metrics['chordID'].unique()),
                              len(metrics['chordID'].unique())))
 
-            for I, chordIDi in enumerate(metrics['chordID'].unique()):
+            for ch, chord in enumerate(metrics['chord'].unique()):
+                for I, chordIDi in enumerate(metrics['chordID'].unique()):
 
-                keepi = np.ones(5).astype(bool)
-                for k, char in enumerate(str(chordIDi)):
-                    if char == '9':
-                        keepi[k] = False
-
-                for J, chordIDj in enumerate(metrics['chordID'].unique()):
-
-                    keepj = np.ones(5).astype(bool)
-                    for k, char in enumerate(str(chordIDj)):
+                    keepi = np.ones(5).astype(bool)
+                    for k, char in enumerate(str(chordIDi)):
                         if char == '9':
-                            keepj[k] = False
+                            keepi[k] = False
 
-                    for d, day in enumerate(metrics['day'].unique()):
+                    for J, chordIDj in enumerate(metrics['chordID'].unique()):
 
-                        for P, p in enumerate(metrics['participant_id'].unique()):
+                        keepj = np.ones(5).astype(bool)
+                        for k, char in enumerate(str(chordIDj)):
+                            if char == '9':
+                                keepj[k] = False
 
-                            print(f'{chordIDi}, {chordIDj}, {p}, {day}')
+                        for d, day in enumerate(metrics['day'].unique()):
 
-                            ch_i = metrics[(metrics['participant_id'] == p) &
-                                           (metrics['chord'] == 'trained') &
-                                           (metrics['chordID'] == chordIDi) &
-                                           (metrics['day'] == day)][['thumb_onset_order',
-                                                                   'index_onset_order',
-                                                                   'middle_onset_order',
-                                                                   'ring_onset_order',
-                                                                   'pinkie_onset_order']].to_numpy()[:, keepi]
-                            ch_j = metrics[(metrics['participant_id'] == p) &
-                                           (metrics['chord'] == 'trained') &
-                                           (metrics['chordID'] == chordIDj) &
-                                           (metrics['day'] == day)][['thumb_onset_order',
-                                                                   'index_onset_order',
-                                                                   'middle_onset_order',
-                                                                   'ring_onset_order',
-                                                                   'pinkie_onset_order']].to_numpy()[:, keepj]
-                            corr_tmp = np.array(
-                                [spearmanr(ch_i[row], ch_j[col], nan_policy='omit').correlation for row in range(ch_i.shape[0])
-                                 for col in range(ch_j.shape[0])]).reshape(ch_i.shape[0], ch_j.shape[0])
+                            for P, p in enumerate(metrics['participant_id'].unique()):
 
-                            if I == J:
-                                corr[P, d, I, J] = np.triu(corr_tmp).mean()
-                            else:
-                                corr[P, d, I, J] = corr_tmp.mean()
+                                print(f'{chordIDi}, {chordIDj}, {p}, {day}, {chord}')
+
+                                ch_i = metrics[(metrics['participant_id'] == p) &
+                                               (metrics['chord'] == 'trained') &
+                                               (metrics['chordID'] == chordIDi) &
+                                               (metrics['day'] == day)][['thumb_onset_order',
+                                                                       'index_onset_order',
+                                                                       'middle_onset_order',
+                                                                       'ring_onset_order',
+                                                                       'pinkie_onset_order']].to_numpy()[:, keepi]
+                                ch_j = metrics[(metrics['participant_id'] == p) &
+                                               (metrics['chord'] == 'trained') &
+                                               (metrics['chordID'] == chordIDj) &
+                                               (metrics['day'] == day)][['thumb_onset_order',
+                                                                       'index_onset_order',
+                                                                       'middle_onset_order',
+                                                                       'ring_onset_order',
+                                                                       'pinkie_onset_order']].to_numpy()[:, keepj]
+                                corr_tmp = np.array(
+                                    [spearmanr(ch_i[row], ch_j[col], nan_policy='omit').correlation for row in range(ch_i.shape[0])
+                                     for col in range(ch_j.shape[0])]).reshape(ch_i.shape[0], ch_j.shape[0])
+
+                                if I == J:
+                                    corr[P, ch, d, I, J] = np.triu(corr_tmp).mean()
+                                else:
+                                    corr[P, ch, d, I, J] = corr_tmp.mean()
 
             np.savez(
                 os.path.join(gl.baseDir, experiment, 'order_chord_corr.npz'),
                 corr=corr,  # Your array
-                metadata={'chordID': metrics['chordID'].unique()}
+                metadata={'chordID': metrics['chordID'].unique(),
+                          'chord': metrics['chord'].unique()}
             )
 
             return corr

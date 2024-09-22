@@ -268,7 +268,7 @@ def plot(what, fontsize=12):
 
         # endregion
 
-        # FORCE:finger_times
+        # region FORCE:finger_times
         case 'FORCE:finger_times':
 
             experiment = 'efc2'
@@ -395,6 +395,214 @@ def plot(what, fontsize=12):
             savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.rank_corr.svg'), fig)
 
         # endregion
+
+        # region MEAN_DEVIATION:day
+        case 'MEAN_DEVIATION:day':
+
+            experiment = 'efc2'
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            metrics = metrics.groupby(['chord', 'participant_id', 'day']).mean(numeric_only='True').reset_index()
+
+            fig, axs = plt.subplots(figsize=(3, 5))
+
+            dodge = 0.1
+
+            metrics['dday'] = metrics['day'] + metrics['chord'].map({'trained': -dodge, 'untrained': dodge})
+
+            sns.lineplot(data=metrics, ax=axs, y='MD', x='dday', hue='chord', palette=['red', 'blue'], marker='o',
+                         markeredgecolor='none',
+                         lw=3, err_kws={'linewidth': 0}, errorbar='se')
+
+            y_pos = add_significance_brackets(axs, metrics[metrics['chord'] == 'trained'], x='day', y='MD', pairs=[(1, 5)],
+                                              test_type='t-test_rel', x1_pos=.9, x2_pos=4.9, significance_level=.05 / 3)
+            add_significance_brackets(axs, metrics[metrics['chord'] == 'untrained'], x='day', y='MD', pairs=[(1, 5)],
+                                      test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos, significance_level=.05 / 3)
+            add_significance_asterisks(axs, metrics, x='day', y='MD', hue='chord', x_point=5, test_type='t-test_rel',
+                                       significance_level=.05 / 3, text_format='star', color='k', y_pos=1.55)
+
+            decor(axs=axs, fontsize=fontsize, ybounds=(.8, 1.8), xbounds=(1, 5), spines_width=2)
+
+            axs.set_title('Mean deviation', fontsize=fontsize)
+            axs.set_ylabel('MD (a.u.)', fontsize=fontsize)
+
+            axs.legend(ncol=1, frameon=False, fontsize=fontsize, loc='lower left')
+
+            fig.tight_layout()
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.mean_deviation_day.svg'), fig)
+
+        # endregion
+
+        # region EXECUTION_TIME:day
+        case 'EXECUTION_TIME:day':
+
+            experiment = 'efc2'
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            metrics = metrics.groupby(['chord', 'participant_id', 'day']).mean(numeric_only='True').reset_index()
+
+            fig, axs = plt.subplots(figsize=(3, 5))
+
+            dodge = 0.1
+
+            metrics['dday'] = metrics['day'] + metrics['chord'].map({'trained': -dodge, 'untrained': dodge})
+
+            sns.lineplot(data=metrics, ax=axs, y='ET', x='dday', hue='chord', palette=['red', 'blue'], marker='o',
+                         markeredgecolor='none',
+                         lw=3, err_kws={'linewidth': 0}, errorbar='se')
+
+            y_pos = add_significance_brackets(axs, metrics[metrics['chord'] == 'trained'], x='day', y='ET',
+                                              pairs=[(1, 5)], test_type='t-test_rel', x1_pos=.9, x2_pos=4.9,
+                                              significance_level=.05 / 3)
+            add_significance_brackets(axs, metrics[metrics['chord'] == 'untrained'], x='day', y='ET', pairs=[(1, 5)],
+                                      test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos,
+                                      significance_level=.05 / 3)
+            add_significance_asterisks(axs, metrics, x='day', y='ET', hue='chord', x_point=5, test_type='t-test_rel',
+                                       significance_level=.05 / 3, text_format='star', color='k', y_pos=2)
+
+            decor(axs=axs, fontsize=fontsize, ybounds=(.5, 2.5), xbounds=(1, 5), spines_width=2)
+
+            axs.set_title('Execution time', fontsize=fontsize)
+            axs.set_ylabel('ET (s)', fontsize=fontsize)
+
+            axs.legend(ncol=1, frameon=False, fontsize=fontsize, loc='lower left')
+
+            fig.tight_layout()
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.execution_time_day.svg'), fig)
+
+        # endregion
+
+        # region CONSISTENCY:day
+        case 'CONSISTENCY:day':
+
+            experiment = 'efc2'
+
+            rank_corr = pd.read_csv(os.path.join(gl.baseDir, experiment, 'rank_corr.tsv'), sep='\t')
+
+            rank_corr = rank_corr.groupby(['chord', 'participant_id', 'day']).mean(numeric_only='True').reset_index()
+
+            fig, axs = plt.subplots(figsize=(3.5, 5))
+
+            dodge = 0.1
+
+            rank_corr['dday'] = rank_corr['day'] + rank_corr['chord'].map({'trained': -dodge, 'untrained': dodge})
+
+            sns.lineplot(data=rank_corr, ax=axs, y='onset', x='dday', hue='chord', palette=['red', 'blue'], marker='o',
+                         markeredgecolor='none',
+                         lw=3, err_kws={'linewidth': 0}, errorbar='se')
+
+            y_pos = add_significance_brackets(axs, rank_corr[rank_corr['chord'] == 'trained'], x='day', y='onset',
+                                              pairs=[(1, 5)], test_type='t-test_rel', x1_pos=.9, x2_pos=4.9,
+                                              significance_level=.05 / 3)
+            # add_significance_brackets(axs, rank_corr[rank_corr['chord'] == 'untrained'], x='day', y='onset', pairs=[(1, 5)], test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos, significance_level=.05 / 3)
+            add_significance_asterisks(axs, rank_corr, x='day', y='onset', hue='chord', x_point=5,
+                                       test_type='t-test_rel',
+                                       significance_level=.05 / 3, text_format='star', color='k', y_pos=.45)
+
+            decor(axs=axs, fontsize=fontsize, ybounds=(.25, .45), xbounds=(1, 5), spines_width=2)
+
+            axs.set_title('Finger order consistency', fontsize=fontsize)
+            axs.set_ylabel(r"correlation (Spearman's $\rho$)", fontsize=fontsize)
+            axs.set_xlabel("day", fontsize=fontsize)
+
+            axs.legend(ncol=1, frameon=False, fontsize=fontsize, loc='best')
+
+            fig.tight_layout()
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.consistency_day.svg'), fig)
+
+        # endregion
+
+        # region VAR_DEC:day
+        case 'VAR_DEC:day':
+
+            experiment = 'efc2'
+
+            # Load and process the data
+            var_dec_order = pd.read_csv(os.path.join(gl.baseDir, experiment, 'var_dec_order.tsv'), sep='\t')
+            var_dec_order = var_dec_order.groupby(['chord', 'day', 'chordID']).mean(numeric_only=True).reset_index()
+
+            # Apply a small offset to 'day' directly using np.where
+            var_dec_order['dday'] = np.where(var_dec_order['chord'] == 'trained', var_dec_order['day'] - 0.1,
+                                                   var_dec_order['day'] + 0.1)
+
+            # Create subplots
+            fig, axs = plt.subplots(1, 3, figsize=(6, 5), sharey=True)
+
+            # Common plot settings
+            lineplot_kwargs = {'palette': ['red', 'blue'], 'marker': 'o', 'markeredgecolor': 'none', 'lw': 3,
+                               'err_kws': {'linewidth': 0}}
+
+            # Plot each onset type with dodged x values
+            sns.lineplot(data=var_dec_order, ax=axs[0], y='v_g_onset', x='dday', hue='chord', **lineplot_kwargs,
+                         legend=False)
+            sns.lineplot(data=var_dec_order, ax=axs[1], y='v_s_onset', x='dday', hue='chord', **lineplot_kwargs,
+                         legend=False)
+            sns.lineplot(data=var_dec_order, ax=axs[2], y='v_e_onset', x='dday', hue='chord', **lineplot_kwargs)
+
+            # Custom handles for the legend
+            custom_handles = [
+                Line2D([0], [0], marker='o', color='red', markerfacecolor='red', label='trained', lw=3),
+                Line2D([0], [0], marker='o', color='blue', markerfacecolor='blue', label='untrained', lw=3),
+            ]
+
+            # Apply decor and customizations to each subplot
+            for ax, title in zip(axs, ['Chord', 'Subject', 'Error']):
+                ax.spines[['right', 'top', 'left']].set_visible(False)
+                ax.spines['bottom'].set_linewidth(2)
+                ax.spines['bottom'].set_bounds([1, 5])
+                ax.set_xticks([1, 2, 3, 4, 5])
+                ax.set_xticklabels([1, 2, 3, 4, 5], fontsize=fontsize)
+                ax.tick_params(axis='x', width=2)
+                ax.set_title(title, fontsize=fontsize)
+                ax.set_xlabel('')
+                if title != 'Chord':
+                    ax.tick_params(axis='y', width=0)
+
+            # Additional customizations for the first subplot
+            axs[0].set_ylabel('fraction of variance', fontsize=fontsize)
+            axs[0].spines[['left']].set_visible(True)
+
+            y_pos = add_significance_brackets(axs[0], var_dec_order[var_dec_order['chord'] == 'trained'], x='dday',
+                                      y='v_g_onset', pairs=[(.9, 4.9)], significance_level=.05 / 3,x1_pos=.9, x2_pos=4.9)
+            add_significance_brackets(axs[0], var_dec_order[var_dec_order['chord'] == 'untrained'], x='dday',
+                                      y='v_g_onset', pairs=[(1.1, 5.1)], significance_level=.05 / 3,x1_pos=1.1, x2_pos=5.1, y_pos=y_pos)
+            add_significance_asterisks(axs[0], var_dec_order, x='day', y='v_g_onset', hue='chord', x_point=5,
+                                       test_type='t-test_rel',
+                                       significance_level=.05 / 3, text_format='star', color='k', y_pos=.45)
+
+            y_pos = add_significance_brackets(axs[1], var_dec_order[var_dec_order['chord'] == 'trained'], x='dday',
+                                              y='v_s_onset', pairs=[(.9, 4.9)], significance_level=.05 / 3,x1_pos=.9, x2_pos=4.9)
+            add_significance_brackets(axs[1], var_dec_order[var_dec_order['chord'] == 'untrained'], x='dday',
+                                      y='v_s_onset', pairs=[(1.1, 5.1)], significance_level=.05 / 3,x1_pos=1.1, x2_pos=5.1, y_pos=y_pos)
+            add_significance_asterisks(axs[1], var_dec_order, x='day', y='v_s_onset', hue='chord', x_point=5,
+                                       test_type='t-test_rel',
+                                       significance_level=.05 / 3, text_format='star', color='k', y_pos=.45)
+
+            y_pos = add_significance_brackets(axs[2], var_dec_order[var_dec_order['chord'] == 'trained'], x='dday',
+                                              y='v_e_onset', pairs=[(.9, 4.9)],significance_level=.05 / 3, x1_pos=.9, x2_pos=4.9)
+            # add_significance_brackets(axs[2], var_dec_order[var_dec_order['chord'] == 'untrained'], x='dday',
+            #                           y='v_e_onset', pairs=[(1.1, 5.1)],significance_level=.05 / 3, x1_pos=1.1, x2_pos=5.1, y_pos=y_pos)
+            add_significance_asterisks(axs[2], var_dec_order, x='day', y='v_e_onset', hue='chord', x_point=5,
+                                       test_type='t-test_rel',
+                                       significance_level=.05 / 3, text_format='star', color='k', y_pos=.45)
+
+
+            decor(axs=axs[0], fontsize=fontsize, ybounds=(.1, .8), xbounds=(1, 5), spines_width=2)
+
+            # Add the legend and labels
+            axs[2].legend(handles=custom_handles, frameon=False, fontsize=fontsize)
+            fig.supxlabel('day', fontsize=fontsize)
+            fig.suptitle('Variance decomposition of finger order', fontsize=fontsize)
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.var_dec_day.svg'), fig)
+
+        # endregion
+
 
 if __name__ == "__main__":
 
