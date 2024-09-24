@@ -2,6 +2,8 @@ import argparse
 import os
 import time
 
+import mat73
+import scipy
 from matplotlib import pyplot as plt
 from scipy.optimize import nnls
 from scipy.signal import resample, find_peaks
@@ -20,7 +22,7 @@ from joblib import Parallel, delayed
 
 import seaborn as sns
 
-from force import Force
+from force import Force, calc_sim_chord
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
@@ -63,6 +65,58 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             return metrics
         # endregion
+
+        # region FORCE:simulation
+        case 'FORCE:single_finger':
+
+            force = list()
+
+            chords = [19999, 91999, 99199, 99919, 99991, 29999, 92999, 99299, 99929, 99992]
+
+            meta = {'chordID': [],
+                    'participant_id': [],
+                    }
+
+            for p in participant_id:
+
+                try:
+                    mat = mat73.loadmat(os.path.join(gl.baseDir, experiment, 'behavioural', f'efc1_{p}_mov.mat'))[
+                        'MOV_struct']
+                    mat = [m[0] for m in mat]
+
+                except:
+                    mat = scipy.io.loadmat(os.path.join(gl.baseDir, experiment, 'behavioural', f'efc1_{p}_mov.mat'))[
+                        'MOV_struct']
+                    mat = [mat[i][0] for i in range(mat.size)]
+
+                dat = pd.read_csv(os.path.join(gl.baseDir, experiment, 'behavioural', f'efc1_{p}_raw.tsv'), sep='\t')
+
+                for tr, trial in enumerate(mat):
+
+                    chordID = dat['chordID'].iloc[tr]
+
+                    print(f'{p} - trial: {tr+1} - {chordID}')
+
+                    if (chordID in chords) and (dat['trialPoint'].iloc[tr] == 1):
+
+                        meta['chordID'].append(chordID)
+                        meta['participant_id'].append(p)
+
+                        start_idx = np.argmax(mat[tr][:, 0] == 3) - 200  # First index where the condition is true
+                        end_idx = start_idx + int(
+                            1.2 * gl.fsample['force'])  # Offset by the sample rate (converted to int)
+
+                        # Append the sliced force data
+                        force.append(mat[tr][start_idx:end_idx, gl.diffCols])
+
+            force = np.stack(force).swapaxes(1, 2)
+
+            np.savez(os.path.join(gl.baseDir, experiment, 'single_finger.npz'), force=force,
+                     metadata=meta)
+
+            return force
+
+    # endregion
 
         # region FORCE:average
         case 'FORCE:average':
@@ -1668,37 +1722,39 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('what', nargs='?', default=None, choices=[
-        'FORCE:preprocessing',  # ok
-        'FORCE:average',
-        'FORCE:derivative',
-        'FORCE:fit_sinusoid',
-        'XCORR:tau',  # ok
-        'NOISE_CEILING:tau',  # ok
-        'EMG:nnmf',
-        'EMG:df2chord',
-        'EMG:merge_blocks',
-        'EMG:csv2df',
-        'EMG:df2mep',
-        'EMG:distance',
-        'MEP:nnmf',
-        'EMG:mep2amp',
-        'RECONSTRUCT:force',
-        'RECONSTRUCT:emg',
-        'NATURAL:extract_patterns_from_peaks',
-        'XCORR:corr',
-        'XCORR:variance_decomposition',
-        'ORDER:rank_corr',
-        'ORDER:left2right',
-        'ORDER:sliding_window',
-        'ORDER:correlation_between_days',
-        'ORDER:correlation_between_chords',
-        'ORDER:frequency',
-        'ORDER:variance_decomposition',
-        'PLOT:force_in_trial',  # ok
-        'PLOT:xcorr_chord',  # ok
-        'PLOT:recon_emg',
-    ])
+    parser.add_argument('what', nargs='?', default=None,
+    #                     choices=[
+    #     'FORCE:preprocessing',  # ok
+    #     'FORCE:average',
+    #     'FORCE:derivative',
+    #     'FORCE:fit_sinusoid',
+    #     'XCORR:tau',  # ok
+    #     'NOISE_CEILING:tau',  # ok
+    #     'EMG:nnmf',
+    #     'EMG:df2chord',
+    #     'EMG:merge_blocks',
+    #     'EMG:csv2df',
+    #     'EMG:df2mep',
+    #     'EMG:distance',
+    #     'MEP:nnmf',
+    #     'EMG:mep2amp',
+    #     'RECONSTRUCT:force',
+    #     'RECONSTRUCT:emg',
+    #     'NATURAL:extract_patterns_from_peaks',
+    #     'XCORR:corr',
+    #     'XCORR:variance_decomposition',
+    #     'ORDER:rank_corr',
+    #     'ORDER:left2right',
+    #     'ORDER:sliding_window',
+    #     'ORDER:correlation_between_days',
+    #     'ORDER:correlation_between_chords',
+    #     'ORDER:frequency',
+    #     'ORDER:variance_decomposition',
+    #     'PLOT:force_in_trial',  # ok
+    #     'PLOT:xcorr_chord',  # ok
+    #     'PLOT:recon_emg',
+    # ]
+                        )
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
     parser.add_argument('--session', default=None, help='',
