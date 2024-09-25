@@ -307,7 +307,11 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region EMG:merge_blocks
         case 'EMG:merge_blocks':
 
-            blocks = pinfo[pinfo['participant_id'] == participant_id[0]][f'blocks {session[3:]} day{day}'][0].split('.')
+            blocks = pinfo[
+                pinfo['participant_id'] == participant_id[0]
+                ][
+                f'blocks {session[3:]} day{day}'
+            ].iloc[0].split('.')
 
             df_out = pd.DataFrame()
             for block in blocks:
@@ -485,6 +489,32 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             df_out.to_csv(os.path.join(gl.baseDir, experiment, 'log_prob.tsv'), sep='\t', index=False)
 
             return df_out
+        # endregion
+
+        # region MEP:heatmap
+        case 'MEP:heatmap_norm':
+
+            heatmap = np.zeros((len(participant_id), 6, 5,))
+
+            for P, p in enumerate(participant_id):
+                sn = int(''.join([c for c in p if c.isdigit()]))
+                grid = pd.read_csv(os.path.join(gl.baseDir, experiment, 'Brainsight',
+                                                f'{experiment}_{sn}_day{day}.tsv'), sep='\t')
+                data = pd.read_csv(os.path.join(gl.baseDir, experiment,
+                                                'emgTMS',f'day{day}', p, 'mepAmp.tsv'), sep='\t')
+
+                data = data.to_numpy()
+                norm = np.linalg.norm(data, axis=1)
+
+                grid['grid_x'] = grid['Assoc. Target'].str.extract(r'(\d+),').astype(float)
+                grid['grid_y'] = grid['Assoc. Target'].str.extract(r',\s*(\d+)').astype(float)
+
+                grid['norm'] = norm
+
+                heatmap[P] = grid.pivot_table(index='grid_y', columns='grid_x', values='norm').to_numpy()
+
+            return heatmap
+
         # endregion
 
         # region NATURAL:peaks
