@@ -81,6 +81,7 @@ participants = {
         'subj113'
     ],
     'efc3': [
+        'subj100',
         'subj114'
     ]
 }

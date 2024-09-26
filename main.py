@@ -459,6 +459,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 'log_slope': []
             }
 
+            scaler = MinMaxScaler()
+
             for p in participant_id:
                 for day in ['1', '5']:
                     mepAmp = pd.read_csv(os.path.join(gl.baseDir, experiment,
@@ -467,11 +469,18 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                       'emgChords', f'day{day}', p, 'Chords.tsv'), sep='\t')
                     cols = Chords.columns
                     muscles = [col for col in cols if col in gl.channels['emgTMS']]
+                    Chords[muscles] = scaler.fit_transform(Chords[muscles])
                     chords_avg = Chords.groupby(['chordID', 'chord']).mean(numeric_only=True).reset_index()
+
+                    distr = mepAmp.to_numpy()
+                    distr = scaler.fit_transform(distr)
+
+                    norm = np.linalg.norm(distr, axis=1)
+
+                    distr = distr[norm > .25]
 
                     for index, row in chords_avg.iterrows():
                         pattern = row[muscles].to_numpy().astype(float)
-                        distr = mepAmp.to_numpy()
                         d = calc_distance_from_distr(pattern, distr)
                         x = np.linspace(1, n_thresh, n_thresh)
                         slope = np.dot(x, d[:n_thresh]) / np.dot(x, x)
@@ -496,6 +505,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             heatmap = np.zeros((len(participant_id), 6, 5,))
 
+            scaler = MinMaxScaler()
+
             for P, p in enumerate(participant_id):
                 sn = int(''.join([c for c in p if c.isdigit()]))
                 grid = pd.read_csv(os.path.join(gl.baseDir, experiment, 'Brainsight',
@@ -504,6 +515,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                                 'emgTMS',f'day{day}', p, 'mepAmp.tsv'), sep='\t')
 
                 data = data.to_numpy()
+                data = scaler.fit_transform(data)
                 norm = np.linalg.norm(data, axis=1)
 
                 grid['grid_x'] = grid['Assoc. Target'].str.extract(r'(\d+),').astype(float)
@@ -1165,7 +1177,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     sampled_metrics_tmp = metrics_tmp.groupby('participant_id', group_keys=False).sample(n=min_trials,
                                                                                                          random_state=42)
 
-                    part_vec = (sampled_metrics_tmp.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
+                    part_vec = np.ones(len(sampled_metrics_tmp))  # (sampled_metrics_tmp.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
                     subj_vec = sampled_metrics_tmp['participant_id'].to_numpy()
 
                     # Exit
