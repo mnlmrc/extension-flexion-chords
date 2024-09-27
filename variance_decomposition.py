@@ -75,9 +75,13 @@ def reliability_var(Y, subj_vec, part_vec, cond_vec=None, centered=False):
             N = A.shape[1]
 
             tmp_v_gse = np.trace(B) / (N * len(subjects))
-            mean_cov = B * (1 - np.eye(N))
-            mean_cov = np.nansum(mean_cov) / (N * (N - 1))
-            tmp_v_gs = mean_cov / len(subjects)
+
+            if N > 1:
+                mean_cov = B * (1 - np.eye(N))
+                mean_cov = np.nansum(mean_cov) / (N * (N - 1))
+                tmp_v_gs = mean_cov / len(subjects)
+            else:
+                tmp_v_gs = 0
 
             if len(conds) > 1:
                 v_gse[k] += tmp_v_gse

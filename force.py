@@ -167,6 +167,24 @@ def calc_exit_times(X, chordID, fthresh=None):
     return exit_time, finger_pos
 
 
+def calc_sim_chord(X, chordID, chord_vec):
+
+    sim_chord = {str(ch): [] for ch in chordID}
+
+    for ch in chordID:
+        ch = str(ch)
+
+        sel_finger = np.zeros_like(chord_vec, dtype='bool')
+
+        for f_idx, f in enumerate(ch):
+            sel_finger += np.array([str(chv)[f_idx] == f
+                                    if f is not '9' else False
+                                    for chv in chord_vec])
+
+        sim_chord[ch] = (X[sel_finger] - X[sel_finger, :, 0][:, :, np.newaxis]).mean(axis=0)
+
+    return sim_chord
+
 def calc_entry_times(X, chordID):
     X = np.abs(X)
     for k, char in enumerate(str(chordID)):

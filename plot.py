@@ -201,7 +201,7 @@ def plot(what, fontsize=12):
 
             chord = 'trained'
 
-            force = main('FORCE:average', experiment, day='5', chord=chord)
+            force = main('FORCE:average', experiment, day='1', chord=chord)
 
             fig, axs = plt.subplots(1, len(force), sharex=True, sharey='row', figsize=(15, 5))
 
@@ -266,7 +266,7 @@ def plot(what, fontsize=12):
             fig.suptitle('Force response in trained chords on day 5')
             fig.tight_layout()
 
-            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.force_avg2.svg'), fig)
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.force_avg4.svg'), fig)
 
         # endregion
 

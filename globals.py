@@ -81,7 +81,8 @@ participants = {
         'subj113'
     ],
     'efc3': [
-        'subj100'
+        'subj100',
+        'subj114'
     ]
 }
 
@@ -128,6 +129,7 @@ channels = {
 
 removeEMG = {
     'efc3': {
-        'subj100': ['flx_D5']
+        'subj100': ['flx_D5'],
+        'subj114': ['lum3']
     }
 }
