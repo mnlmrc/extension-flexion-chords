@@ -3,7 +3,9 @@ import os
 import time
 
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 
+from force import Force
 from main import main
 import globals as gl
 import numpy as np
@@ -270,9 +272,9 @@ def plot(what, fontsize=12):
 
         # endregion
 
-<<<<<<< Updated upstream
-        # region FORCE:finger_times
-=======
+# <<<<<<< Updated upstream
+#         # region FORCE:finger_times
+# =======
         # region FORCE:derivative
         case 'FORCE:derivative':
 
@@ -338,8 +340,8 @@ def plot(what, fontsize=12):
 
         # endregion
 
-        # FORCE:finger_times
->>>>>>> Stashed changes
+        # region FORCE:finger_times
+
         case 'FORCE:finger_times':
 
             experiment = 'efc2'
@@ -467,7 +469,7 @@ def plot(what, fontsize=12):
 
         # endregion
 
-<<<<<<< Updated upstream
+# <<<<<<< Updated upstream
         # region MEAN_DEVIATION:day
         case 'MEAN_DEVIATION:day':
 
@@ -675,8 +677,85 @@ def plot(what, fontsize=12):
 
         # endregion
 
+        # region EXAMPLE:force_derivative
+        case 'EXAMPLE:force_derivative':
 
-=======
+            experiment = 'efc2'
+
+            force = Force(experiment, 'subj100', 'testing', '5')
+            force = force.load_pkl() #['force_filt10Hz'][4]
+
+            chordID = int(force['chordID'][4])
+            force = force['force_filt10Hz'][4]
+
+            dforce = np.gradient(force, 1 / gl.fsample['force'], axis=0)
+
+            scaler = MinMaxScaler()
+
+            dforce = scaler.fit_transform(np.abs(dforce))
+
+            fig, axs = plt.subplots(2, sharex=True, figsize=(3, 5))
+
+            color = [
+                (0.031, 0.188, 0.419),  # Dark Blue
+                (0.129, 0.443, 0.710),  # Medium Blue
+                (0.258, 0.573, 0.816),  # Sky Blue
+                (0.454, 0.678, 0.819),  # Light Sky Blue
+                (0.671, 0.851, 0.914)  # Pale Blue
+            ]  # Pale Violet]
+
+            tAx = np.linspace(0, dforce.shape[0] / gl.fsample['force'], force.shape[0])
+
+            for i, char in enumerate(str(chordID)):
+                if char == '9':
+                    axs[0,].plot(tAx, np.abs(force[:, i]), color=color[i], lw=1, label=gl.channels['force'][i], ls='-')
+                elif char == '1':
+                    axs[0,].plot(tAx, np.abs(force[:, i]), color=color[i], lw=3, label=gl.channels['force'][i], ls='-')
+                else:
+                    axs[0,].plot(tAx, np.abs(force[:, i]), color=color[i], lw=3, label=gl.channels['force'][i], ls='-')
+
+            for i, char in enumerate(str(chordID)):
+                if char == '9':
+                    axs[1,].plot(tAx, dforce[:, i], color=color[i], lw=1, label=gl.channels['force'][i], ls='-')
+                elif char == '1':
+                    axs[1,].plot(tAx, dforce[:, i], color=color[i], lw=3, label=gl.channels['force'][i], ls='-')
+                else:
+                    axs[1,].plot(tAx, dforce[:, i], color=color[i], lw=3, label=gl.channels['force'][i], ls='-')
+
+            axs[0].legend(frameon=False)
+
+            axs[0].spines[['right', 'top', 'bottom']].set_visible(False)
+            axs[1].spines[['right', 'top',]].set_visible(False)
+            axs[1].spines['bottom'].set_linewidth(2)
+            axs[0].spines['left'].set_linewidth(2)
+            axs[1].spines['left'].set_linewidth(2)
+            axs[1].spines['bottom'].set_bounds([0, .8])
+            axs[0].set_yticks([0, 1, 2, 3, 4])
+            axs[1].set_yticks([.0, .2, .5, 1])
+            axs[0].spines['left'].set_bounds([0, 4])
+            axs[1].spines['left'].set_bounds([0, 1])
+            axs[1].set_xticks([0, .4, .8])
+            axs[1].set_xticklabels([0, 0.5, 1], fontsize=fontsize)
+            axs[1].tick_params(axis='x', width=2)
+            axs[0].tick_params(axis='x', width=0)
+            axs[1].tick_params(axis='y', width=2, labelsize=fontsize)
+            axs[0].tick_params(axis='y', width=2, labelsize=fontsize)
+            # axs[0].set_title(title, fontsize=fontsize)
+            axs[1].set_xlabel('time (s)', fontsize=fontsize)
+            axs[0].set_ylabel('force (N)', fontsize=fontsize)
+            axs[1].set_ylabel('normalized\nforce derivative (a.u.)', fontsize=fontsize)
+
+            axs[1].axhline(.2, color='k', ls='--')
+
+            axs[1].set_xlim([0, .8])
+
+            fig.tight_layout()
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.example_derivative.svg'), fig)
+        # endregion
+
+
+# =======
         # region ORDER:correlation_between_days
         case 'ORDER:correlation_between_days':
 
@@ -786,7 +865,7 @@ def plot(what, fontsize=12):
 
         # endregion
 
->>>>>>> Stashed changes
+# >>>>>>> Stashed changes
 if __name__ == "__main__":
 
     start_time = time.time()

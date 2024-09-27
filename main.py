@@ -210,7 +210,6 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 dF = list()
                 dF_norm = list()
                 chordID = list()
-                cn = 0
                 for f, force_tmp in enumerate(force_dict['force_filt10Hz']):
                     if force_tmp is not None:
                         df_tmp = np.gradient(force_tmp, 1 / gl.fsample['force'], axis=0)
