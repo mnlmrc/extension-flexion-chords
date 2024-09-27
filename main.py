@@ -7,9 +7,10 @@ import scipy
 from matplotlib import pyplot as plt
 from scipy.optimize import nnls
 from scipy.signal import resample, find_peaks
+from scipy.spatial.distance import mahalanobis
 from sklearn.linear_model import LinearRegression
 
-from scipy.stats import ttest_1samp, spearmanr
+from scipy.stats import ttest_1samp, spearmanr, pearsonr
 
 from sklearn.preprocessing import MinMaxScaler
 
@@ -23,7 +24,7 @@ from joblib import Parallel, delayed
 import seaborn as sns
 
 from force import Force, calc_sim_chord
-from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2
+from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2, reconstruct
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
     calc_distance_from_distr, fit_sigmoids, sigmoid
@@ -476,7 +477,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                     norm = np.linalg.norm(distr, axis=1)
 
-                    distr = distr[norm > .25]
+                    # distr = distr[norm > .25]
 
                     for index, row in chords_avg.iterrows():
                         pattern = row[muscles].to_numpy().astype(float)
@@ -1288,8 +1289,75 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return chords, natural
         # endregion
 
+        # region RECONSTRUCT:mep2chords
+        case 'RECONSTRUCT:mep2chords':
+
+            scaler = MinMaxScaler()
+
+            recon_mep2chords = {
+                'participant_id': [],
+                'chord': [],
+                'chordID': [],
+                'euclidean': [],
+                'mahalanobis': [],
+                'cosine': [],
+                'correlation': [],
+                'day': []
+            }
+
+            for day in ['1', '5']:
+                for p in participant_id:
+                    mepAmp = pd.read_csv(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mepAmp.tsv'), sep='\t').to_numpy()
+                    Chords = pd.read_csv(os.path.join(gl.baseDir, experiment, 'emgChords', f'day{day}', p, 'Chords.tsv'), sep='\t')
+
+                    chord = Chords['chord']
+                    chordID = Chords['chordID']
+
+                    cols = Chords.columns
+                    muscles = [col for col in cols if col in gl.channels['emgTMS']]
+
+                    Chords = Chords[muscles].to_numpy()
+
+                    mepAmp = scaler.fit_transform(mepAmp)
+                    Chords = scaler.fit_transform(Chords)
+
+                    Chords_hat, _, r2_tmp = reconstruct(mepAmp, Chords)
+
+                    for c, (ch1, ch2) in enumerate(zip(Chords, Chords_hat)):
+
+                        # correlation
+                        corr, _ = pearsonr(ch1, ch2)
+
+                        # eucliean
+                        eucl = np.linalg.norm(ch1 - ch2)
+
+                        # cosine
+                        cos = 1 - np.dot(ch1, ch2) / (np.linalg.norm(ch1) * np.linalg.norm(ch2))
+
+                        # mahalanobis
+                        cov_matrix = np.cov(np.vstack([ch1, ch2]).T)
+                        inv_cov_matrix = np.linalg.pinv(cov_matrix)
+                        maha = mahalanobis(ch1, ch2, inv_cov_matrix)
+
+                        recon_mep2chords['participant_id'].append(p)
+                        recon_mep2chords['chord'].append(chord.iloc[c])
+                        recon_mep2chords['euclidean'].append(eucl)
+                        recon_mep2chords['mahalanobis'].append(maha)
+                        recon_mep2chords['cosine'].append(cos)
+                        recon_mep2chords['correlation'].append(corr)
+                        recon_mep2chords['chordID'].append(chordID.iloc[c])
+                        recon_mep2chords['day'].append(day)
+
+            recon_mep2chords = pd.DataFrame(recon_mep2chords)
+
+            recon_mep2chords.to_csv(os.path.join(gl.baseDir, experiment, 'recon_mep2chords.tsv'), index=False, sep='\t')
+
+            return recon_mep2chords
+
+        # endregion
+
         # region RECONSTRUCT:emg
-        case 'RECONSTRUCT:emg':
+        case 'RECONSTRUCT:emg_tmp':
 
             M = pd.read_csv(os.path.join(gl.baseDir, experiment, 'chords', 'M.tsv'), sep='\t')[gl.channels['emg'] +
                                                                                                ['sn', 'chordID']]

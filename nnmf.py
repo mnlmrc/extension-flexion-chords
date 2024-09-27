@@ -6,6 +6,8 @@ import scipy
 from matplotlib import pyplot as plt
 from sklearn.decomposition import NMF
 from sklearn.metrics import mean_squared_error as mse
+
+from scipy.optimize import nnls
 # from deap import base, creator, tools, algorithms
 
 import globals as gl
@@ -78,7 +80,7 @@ def iterative_nnmf(X, thresh=0.1):
         r2 = calc_r2(X, Xhat)
         err = mse(X, Xhat)
 
-        # print(f"k:{k + 1}, R²: {r2:.4f}")
+        print(f"k:{k + 1}, R²: {r2:.4f}")
 
         if 1 - r2 < thresh:
             break
@@ -88,6 +90,23 @@ def iterative_nnmf(X, thresh=0.1):
 
 def calc_reconerr(W, Hp, M):
     return np.linalg.norm(M - np.dot(W, Hp))
+
+
+def reconstruct(X, Y):
+
+    W, H, r2 = iterative_nnmf(X)
+
+    W_hat = np.zeros((Y.shape[0], H.shape[0]))
+    res = np.zeros(Y.shape[0])
+    for i in range(Y.shape[0]):
+        W_hat[i], res[i] = nnls(H.T, Y[i])
+
+    Y_hat = np.dot(W_hat, H)
+
+    err = calc_reconerr(W_hat, H, Y)
+    r2 = calc_r2(Y, Y_hat)
+
+    return Y_hat, err, r2
 
 
 # def optimize_H(W, M, M_chord, method='genetic'):
