@@ -11,6 +11,8 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 from matplotlib.lines import Line2D
 
+plt.rcParams['svg.fonttype'] = 'none'
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_rel, ttest_ind, ttest_1samp
@@ -268,7 +270,76 @@ def plot(what, fontsize=12):
 
         # endregion
 
+<<<<<<< Updated upstream
         # region FORCE:finger_times
+=======
+        # region FORCE:derivative
+        case 'FORCE:derivative':
+
+            experiment = 'efc2'
+
+            chord = 'trained'
+
+            dforce, dforce_norm = main('FORCE:derivative', experiment, day='5', chord=chord)
+
+            fig, axs = plt.subplots(1, len(dforce), sharex=True, sharey=True, figsize=(15, 5))
+
+            color = [(0.031, 0.188, 0.419),  # Dark Blue
+                     (0.129, 0.443, 0.710),  # Medium Blue
+                     (0.258, 0.573, 0.816),  # Sky Blue
+                     (0.454, 0.678, 0.819),  # Light Sky Blue
+                     (0.671, 0.851, 0.914)]  # Pale Blue
+
+            for k, (key, f) in enumerate(dforce_norm.items()):
+
+                f = np.stack(f)
+                f = np.abs(f)
+
+                tAx = np.linspace(0, .8, f.shape[-1])
+
+                f_avg = f.mean(axis=0).squeeze().T
+                f_err = f.std(axis=0).squeeze().T / np.sqrt(f.shape[1])
+
+                for i, char in enumerate(str(key)):
+                    if char == '9':
+                        axs[k].plot(tAx, f_avg[:, i], color=color[i], lw=1, label=gl.channels['force'][i], ls='-')
+                    elif char == '1':
+                        axs[k].plot(tAx, f_avg[:, i], color=color[i], lw=3, label=gl.channels['force'][i], ls='-')
+                    else:
+                        axs[k].plot(tAx, f_avg[:, i], color=color[i], lw=3, label=gl.channels['force'][i], ls='-')
+                    axs[k].fill_between(tAx, f_avg[:, i] + f_err[:, i], f_avg[:, i] - f_err[:, i], lw=0, color=color[i],
+                                        alpha=0.2)
+
+                axs[k].set_title(f'chord:{key}', fontsize=fontsize)
+
+                # axs[1].spines['bottom'].set_bounds(1, 5)
+                axs[k].set_xlim([0, .8])
+                axs[k].spines[['right', 'top', 'left']].set_visible(False)
+                axs[k].spines[['bottom']].set_linewidth(2)
+                axs[k].tick_params(axis='x', width=2)
+                axs[k].tick_params(axis='y', width=0)
+                axs[k].set_xticks([axs[k].get_xlim()[0], axs[k].get_xlim()[1] / 2, axs[k].get_xlim()[1]])
+                # axs[k].set_xticklabels(axs[1].get_xticklabels(), fontsize=fontsize)
+                axs[k].set_xlabel('')
+
+            custom_handles = [Line2D([0], [0], color=color, label=gl.channels['force'][c], lw=3) for c, color in
+                              enumerate(color)]
+            axs[0].legend(handles=custom_handles, frameon=False, loc='upper left')
+            axs[0].spines[['left']].set_visible(True)
+            axs[0].spines[['left']].set_linewidth(2)
+            axs[0].spines[['left']].set_bounds(0, .5)
+            axs[0].tick_params(axis='y', width=2)
+
+            fig.supxlabel('time (s)', fontsize=fontsize)
+            fig.supylabel('force (N)', fontsize=fontsize)
+            fig.tight_layout()
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.force_der.svg'), fig)
+
+        # endregion
+
+        # FORCE:finger_times
+>>>>>>> Stashed changes
         case 'FORCE:finger_times':
 
             experiment = 'efc2'
@@ -396,6 +467,7 @@ def plot(what, fontsize=12):
 
         # endregion
 
+<<<<<<< Updated upstream
         # region MEAN_DEVIATION:day
         case 'MEAN_DEVIATION:day':
 
@@ -604,6 +676,117 @@ def plot(what, fontsize=12):
         # endregion
 
 
+=======
+        # region ORDER:correlation_between_days
+        case 'ORDER:correlation_between_days':
+
+            experiment = 'efc2'
+
+            corr = np.load(os.path.join(gl.baseDir, experiment, 'order_day_corr.npy'))
+            corr = np.nanmean(corr, axis=(0, 1))
+
+            days = [f'day{day}' for day in np.linspace(1, 5, 5, dtype=int)]
+
+            fig, axs = plt.subplots(figsize=(3, 4.5))
+
+            cax = axs.imshow(corr, vmin=0, vmax=.25)
+
+            # Add day labels to the axes
+            axs.set_xticks(np.arange(len(days)))
+            axs.set_yticks(np.arange(len(days)))
+            axs.set_xticklabels(days, fontsize=fontsize, rotation=45, ha='right')
+            axs.set_yticklabels(days, fontsize=fontsize, rotation=45, ha='right')
+
+            # Add a color bar to represent the values
+            cb = fig.colorbar(cax, orientation='horizontal', ticks=[0, .25])
+            cb.set_label(r"correlation (Spearman's $\rho$)", fontsize=fontsize)
+
+            cb.ax.tick_params(labelsize=fontsize)
+
+            fig.suptitle('Finger order correlation\nbetween days', fontsize=fontsize)
+
+            fig.tight_layout()
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.corr_between_days.svg'), fig)
+
+        # endregion
+
+        # region ORDER:variance_decomposition
+        case 'ORDER:variance_decomposition':
+
+            experiment = 'efc2'
+
+            var_dec_order = pd.read_csv(os.path.join(gl.baseDir, experiment, 'var_dec_order.tsv'), sep='\t')
+
+            var_dec_order = var_dec_order.groupby(['chord', 'day', 'chordID']).mean(numeric_only='True').reset_index()
+
+            fig, axs = plt.subplots(1, 3, figsize=(6, 5), sharey=True)
+
+            # sns.lineplot(data=var_dec_order, ax=axs[0], y='v_g_exit', x='day', hue='chord', palette=['red', 'blue'], marker='o',
+            #              markeredgecolor='none',
+            #              lw=3, err_kws={'linewidth': 0}, legend=False)
+            # sns.lineplot(data=var_dec_order, ax=axs[1], y='v_s_exit', x='day', hue='chord', palette=['red', 'blue'], marker='o',
+            #              markeredgecolor='none',
+            #              lw=3, err_kws={'linewidth': 0}, legend=False)
+            # sns.lineplot(data=var_dec_order, ax=axs[2], y='v_e_exit', x='day', hue='chord', palette=['red', 'blue'], marker='o',
+            #              markeredgecolor='none',
+            #              lw=3, err_kws={'linewidth': 0})
+
+            sns.lineplot(data=var_dec_order, ax=axs[0], y='v_g_onset', x='day', hue='chord', palette=['red', 'blue'],
+                         marker='o', markeredgecolor='none',
+                         lw=3, err_kws={'linewidth': 0}, legend=False)
+            sns.lineplot(data=var_dec_order, ax=axs[1], y='v_s_onset', x='day', hue='chord', palette=['red', 'blue'],
+                         marker='o', markeredgecolor='none',
+                         lw=3, err_kws={'linewidth': 0}, legend=False)
+            sns.lineplot(data=var_dec_order, ax=axs[2], y='v_e_onset', x='day', hue='chord', palette=['red', 'blue'],
+                         marker='o', markeredgecolor='none',
+                         lw=3, err_kws={'linewidth': 0})
+
+            custom_handles = [
+                Line2D([0], [0], marker='o', color='blue', markerfacecolor='blue', label='untrained', lw=3),
+                Line2D([0], [0], marker='o', color='red', markerfacecolor='red', label='trained', lw=3),
+                # Line2D([0], [0], marker='o', color=(.5, .5, 1), markerfacecolor=(.5, .5, 1), label='untrained, onset', lw=3),
+                # Line2D([0], [0], marker='o', color=(1, .5, .5), markerfacecolor=(1, .5, .5), label='trained, onset', lw=3)
+            ]
+
+            decor(axs=axs[0], fontsize=fontsize, ybounds=(.1, .7), xbounds=(1, 5), spines_width=2)
+
+            axs[0].set_ylabel('% variance', fontsize=fontsize)
+            axs[0].set_xlabel('')
+            axs[0].set_title('Chord', fontsize=fontsize)
+            axs[0].set_xticks([1, 2, 3, 4, 5])
+            axs[0].set_xticklabels([1, 2, 3, 4, 5], fontsize=fontsize)
+
+            axs[1].spines['bottom'].set_bounds(1, 5)
+            axs[1].spines[['right', 'top', 'left']].set_visible(False)
+            axs[1].spines[['bottom']].set_linewidth(2)
+            axs[1].tick_params(axis='x', width=2)
+            axs[1].tick_params(axis='y', width=0)
+            axs[1].set_xticks([1, 2, 3, 4, 5])
+            axs[1].set_xticklabels(axs[1].get_xticklabels(), fontsize=fontsize)
+            axs[1].set_title('Subject')
+            axs[1].set_xlabel('')
+
+            axs[2].spines['bottom'].set_bounds(1, 5)
+            axs[2].spines[['right', 'top', 'left']].set_visible(False)
+            axs[2].spines[['bottom']].set_linewidth(2)
+            axs[2].tick_params(axis='x', width=2)
+            axs[2].tick_params(axis='y', width=0)
+            axs[2].set_xticks([1, 2, 3, 4, 5])
+            axs[2].set_xticklabels(axs[2].get_xticklabels(), fontsize=fontsize)
+            axs[2].set_title('Error')
+            axs[2].set_xlabel('')
+
+            axs[2].legend(handles=custom_handles, frameon=False, fontsize=fontsize)
+
+            fig.supxlabel('day', fontsize=fontsize)
+            fig.suptitle('Variance decomposition of finger order', fontsize=fontsize)
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.var_dec_order.svg'), fig)
+
+        # endregion
+
+>>>>>>> Stashed changes
 if __name__ == "__main__":
 
     start_time = time.time()
