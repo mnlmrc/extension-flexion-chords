@@ -27,7 +27,7 @@ from force import Force, calc_sim_chord
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2, reconstruct
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
-    calc_distance_from_distr, fit_sigmoids, sigmoid
+    calc_distance_from_distr, fit_sigmoids, sigmoid, pearsonr_vec
 from variance_decomposition import reliability_var
 
 
@@ -1289,12 +1289,12 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return chords, natural
         # endregion
 
-        # region RECONSTRUCT:mep2chords
-        case 'RECONSTRUCT:mep2chords':
+        # region RECONSTRUCT:syn2chords
+        case 'RECONSTRUCT:syn2chords':
 
             scaler = MinMaxScaler()
 
-            recon_mep2chords = {
+            recon_syn2chords = {
                 'participant_id': [],
                 'chord': [],
                 'chordID': [],
@@ -1339,6 +1339,81 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         inv_cov_matrix = np.linalg.pinv(cov_matrix)
                         maha = mahalanobis(ch1, ch2, inv_cov_matrix)
 
+                        recon_syn2chords['participant_id'].append(p)
+                        recon_syn2chords['chord'].append(chord.iloc[c])
+                        recon_syn2chords['euclidean'].append(eucl)
+                        recon_syn2chords['mahalanobis'].append(maha)
+                        recon_syn2chords['cosine'].append(cos)
+                        recon_syn2chords['correlation'].append(corr)
+                        recon_syn2chords['chordID'].append(chordID.iloc[c])
+                        recon_syn2chords['day'].append(day)
+
+            recon_syn2chords = pd.DataFrame(recon_syn2chords)
+
+            recon_syn2chords.to_csv(os.path.join(gl.baseDir, experiment, 'recon_syn2chords.tsv'), index=False, sep='\t')
+
+            return recon_syn2chords
+
+        # endregion
+
+        # region RECONSTRUCT:mep2chords
+        case 'RECONSTRUCT:mep2chords':
+
+            scaler = MinMaxScaler()
+
+            recon_mep2chords = {
+                'participant_id': [],
+                'chord': [],
+                'chordID': [],
+                'euclidean': [],
+                'mahalanobis': [],
+                'cosine': [],
+                'correlation': [],
+                'day': []
+            }
+
+            for day in ['1', '5']:
+                for p in participant_id:
+                    mepAmp = pd.read_csv(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mepAmp.tsv'),
+                                         sep='\t').to_numpy()
+                    Chords = pd.read_csv(
+                        os.path.join(gl.baseDir, experiment, 'emgChords', f'day{day}', p, 'Chords.tsv'), sep='\t')
+
+                    cols = Chords.columns
+                    muscles = [col for col in cols if col in gl.channels['emgTMS']]
+
+                    # Chords[muscles] = scaler.fit_transform(Chords[muscles])
+
+                    Chords = Chords.groupby(['chord', 'chordID']).mean(numeric_only=True).reset_index()
+
+                    chord = Chords['chord']
+                    chordID = Chords['chordID']
+
+                    Chords = Chords[muscles].to_numpy()
+
+                    # mepAmp = scaler.fit_transform(mepAmp)
+
+                    W = np.zeros((mepAmp.shape[0], Chords.shape[0]))  # W will be N x 8
+                    for i in range(Chords.shape[0]):
+                        W[:, i], _ = nnls(mepAmp.T, Chords[i, :])
+
+                    Chords_hat = np.dot(mepAmp.T, W).T
+
+                    for c, (ch1, ch2) in enumerate(zip(Chords, Chords_hat)):
+                        # correlation
+                        corr, _ = pearsonr(ch1, ch2)
+
+                        # eucliean
+                        eucl = np.linalg.norm(ch1 - ch2)
+
+                        # cosine
+                        cos = 1 - np.dot(ch1, ch2) / (np.linalg.norm(ch1) * np.linalg.norm(ch2))
+
+                        # mahalanobis
+                        cov_matrix = np.cov(np.vstack([ch1, ch2]).T)
+                        inv_cov_matrix = np.linalg.pinv(cov_matrix)
+                        maha = mahalanobis(ch1, ch2, inv_cov_matrix)
+
                         recon_mep2chords['participant_id'].append(p)
                         recon_mep2chords['chord'].append(chord.iloc[c])
                         recon_mep2chords['euclidean'].append(eucl)
@@ -1350,9 +1425,72 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             recon_mep2chords = pd.DataFrame(recon_mep2chords)
 
-            recon_mep2chords.to_csv(os.path.join(gl.baseDir, experiment, 'recon_mep2chords.tsv'), index=False, sep='\t')
+            recon_mep2chords.to_csv(os.path.join(gl.baseDir, experiment, 'recon_mep2chords.tsv'), index=False,
+                                    sep='\t')
 
             return recon_mep2chords
+
+        # endregion
+
+        # region EMG:correlation
+        case 'EMG:correlation':
+
+            corr = {
+                'corr': [],
+                'participant_id': [],
+                'day': [],
+                'chord': [],
+                'chordID': [],
+            }
+
+            df_corr = {
+                'corr': [],
+                'participant_id': [],
+                'day': [],
+                'chord': [],
+                'chordID': [],
+            }
+
+            for day in ['1', '5']:
+                for p in participant_id:
+                    mepAmp = pd.read_csv(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mepAmp.tsv'),
+                                         sep='\t').to_numpy()
+                    Chords = pd.read_csv(
+                        os.path.join(gl.baseDir, experiment, 'emgChords', f'day{day}', p, 'Chords.tsv'), sep='\t')
+
+                    cols = Chords.columns
+                    muscles = [col for col in cols if col in gl.channels['emgTMS']]
+
+                    # Chords[muscles] = scaler.fit_transform(Chords[muscles])
+
+                    Chords = Chords.groupby(['chord', 'chordID']).mean(numeric_only=True).reset_index()
+
+                    chord = Chords['chord']
+                    chordID = Chords['chordID']
+
+                    Chords = Chords[muscles].to_numpy()
+
+                    for c, ch in enumerate(Chords):
+
+                        corr['corr'].append(pearsonr_vec(ch, mepAmp))
+                        corr['participant_id'].append(p)
+                        corr['day'].append(day)
+                        corr['chord'].append(chord.iloc[c])
+                        corr['chordID'].append(chordID.iloc[c])
+
+                        df_corr['corr'].append(pearsonr_vec(ch, mepAmp).mean())
+                        df_corr['participant_id'].append(p)
+                        df_corr['day'].append(day)
+                        df_corr['chord'].append(chord.iloc[c])
+                        df_corr['chordID'].append(chordID.iloc[c])
+
+            df_corr = pd.DataFrame(df_corr)
+            df_corr.to_csv(os.path.join(gl.baseDir, experiment, 'correlations.tsv'), sep='\t', index=False)
+
+            with open(os.path.join(gl.baseDir, experiment, 'correlations.pkl'), 'wb') as f:
+                pickle.dump(corr, f)
+
+            return corr
 
         # endregion
 

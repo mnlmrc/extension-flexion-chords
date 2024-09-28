@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 import time
 
 import pandas as pd
@@ -674,6 +675,92 @@ def plot(what, fontsize=12):
             fig.suptitle('Variance decomposition of finger order', fontsize=fontsize)
 
             savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.var_dec_day.svg'), fig)
+
+        # endregion
+
+        # region EMG:correlation
+        case 'EMG:correlation':
+
+            experiment = 'efc3'
+            participant_id = 'subj100'
+
+            with open(os.path.join(gl.baseDir, experiment, 'correlations.pkl'), 'rb') as f:
+                correlation = pickle.load(f)
+            df_correlation = pd.read_csv(os.path.join(gl.baseDir, experiment, 'correlations.tsv'), sep='\t')
+
+            pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
+
+            trained = pinfo[pinfo['participant_id'] == participant_id].reset_index()['trained'].iloc[0].split('.')
+            untrained = pinfo[pinfo['participant_id'] == participant_id].reset_index()['untrained'].iloc[0].split('.')
+
+            # Use `+` to concatenate trained and untrained lists
+            chords = trained + untrained
+
+            # Red and Blue shades
+            colors = [
+                # Reds
+                (1.0, 0.756, 0.756),  # Light Red
+                (1.0, 0.451, 0.451),  # Soft Red
+                (1.0, 0.2, 0.2),  # Medium Red
+                (0.698, 0.0, 0.0),  # Dark Red
+                # Blues
+                (0.678, 0.847, 0.902),  # Light Blue
+                (0.529, 0.808, 0.922),  # Sky Blue
+                (0.275, 0.510, 0.706),  # Medium Blue
+                (0.0, 0.0, 0.545)  # Dark Blue
+            ]
+
+            # Create a color map matching each chord to a color
+            color_map = {chord: color for chord, color in zip(chords, colors)}
+
+            fig, axs = plt.subplots(1, 3, sharey=True)
+
+            for c, corr in enumerate(correlation['corr']):
+                if correlation['participant_id'][c] == participant_id:
+                    corr = sorted(corr, reverse=True)
+
+                    df_corr_tmp = df_correlation[(df_correlation['chordID'] == correlation['chordID'][c]) & (
+                                df_correlation['participant_id'] == participant_id)]
+
+                    if correlation['day'][c] == '1':
+                        ax = axs[0]
+                    else:
+                        ax = axs[1]
+
+                    ax.plot(corr, color=color_map[str(correlation['chordID'][c])], lw=3, label=str(correlation['chordID'][c]))
+                    ax.set_title(f"day{correlation['day'][c]}")
+                    ax.axhline(0, color='k')
+                    # sns.lineplot(df_corr_tmp, ax=axs[2], y='corr', x='day', color=color_map[str(correlation['chordID'][c])], marker='o', markeredgecolor='none', alpha=.3, lw=3)
+
+            axs[0].set_ylabel('correlation')
+            axs[0].legend(frameon=False, loc='best')
+
+            df_correlation = df_correlation[df_correlation['participant_id'] == participant_id]
+
+            sns.lineplot(df_correlation, ax=axs[2], y='corr', x='day', hue='chord', hue_order=['trained', 'untrained'],
+                         palette=['red', 'blue'], marker='o', markeredgecolor='none', lw=3, err_kws={'lw': 0})
+            axs[2].legend(frameon=False)
+            axs[2].axhline(0, color='k')
+
+            for ax in axs[1:]:
+                # Remove the top, right, and left spines
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                ax.spines['left'].set_visible(False)
+
+                ax.tick_params(axis='x', width=2)  # Set thickness and length of x-axis ticks
+                ax.tick_params(axis='y', width=12)  # Set thickness and length of y-axis ticks
+                # Set spine thickness (only for bottom spine as left/right/top are hidden)
+                ax.spines['bottom'].set_linewidth(2)
+                ax.spines['bottom'].set_bounds(0, len(corr))
+
+                ax.set_yticks([])
+
+            # For the leftmost axis (axs[0]), keep only the left spine
+            axs[0].spines['top'].set_visible(False)
+            axs[0].spines['right'].set_visible(False)
+
+            # savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.emg_correlation.svg'), fig)
 
         # endregion
 

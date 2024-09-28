@@ -61,6 +61,35 @@ def calc_avg(X, columns=None, by=None):
     return avg
 
 
+def pearsonr_vec(y, X):
+    """
+    Computes the Pearson correlation between a 1x13 vector and each row of an nx13 matrix.
+
+    Parameters:
+    - vec: numpy array of shape (13,), the 1x13 vector.
+    - mat: numpy array of shape (n, 13), the nx13 matrix.
+
+    Returns:
+    - correlations: numpy array of shape (n,), containing Pearson correlations
+                    between the vector and each row of the matrix.
+    """
+    # Center the vector and the matrix by subtracting the mean
+    vec_mean = y - np.mean(y)
+    mat_mean = X - np.mean(X, axis=1)[:, np.newaxis]
+
+    # Compute the covariance (dot product of the centered data)
+    covariance = np.dot(mat_mean, vec_mean)
+
+    # Compute the standard deviations
+    vec_std = np.linalg.norm(vec_mean)  # Standard deviation of the vector
+    mat_std = np.linalg.norm(mat_mean, axis=1)  # Standard deviation of each row in the matrix
+
+    # Calculate Pearson correlation as the covariance divided by the product of std devs
+    stat = covariance / (vec_std * mat_std)
+
+    return stat
+
+
 def lowpass_butter(signal=None, cutoff=None, fsample=None, order=5, axis=-1):
     """
     Apply a low-pass filter to a 5-by-t signal array.
