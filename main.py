@@ -24,7 +24,7 @@ from joblib import Parallel, delayed
 import seaborn as sns
 
 from force import Force, calc_sim_chord
-from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2, reconstruct
+from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2, reconstruct, calc_nnmf
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
     calc_distance_from_distr, fit_sigmoids, sigmoid, pearsonr_vec
@@ -428,11 +428,14 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region EMG:nnmf
         case 'EMG:nnmf':
 
+            scaler = MinMaxScaler()
+
             W, H, r2 = [], [], []
             for p in participant_id:
-                M = pd.read_csv(os.path.join(gl.baseDir, experiment, session, p, fname), sep='\t')
-                M.drop(M.columns[0], axis=1, inplace=True)
+                M = pd.read_csv(os.path.join(gl.baseDir, experiment, session, day, p, fname), sep='\t')
                 M = M.to_numpy()
+
+                M = scaler.fit_transform(M)
 
                 W_tmp, H_tmp, r2_tmp = iterative_nnmf(M, thresh=0.1)
 
@@ -441,6 +444,35 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 r2.append(r2_tmp)
 
             return W, H, r2
+
+        case 'EMG:nnmf_spectrum':
+
+            scaler = MinMaxScaler()
+
+            r2 = {
+                'day': [],
+                'participant_id': [],
+                'r2': [],
+                'k': []
+            }
+
+            for day in ['1', '5']:
+                for p in participant_id:
+                    M = pd.read_csv(os.path.join(gl.baseDir, experiment, session, f'day{day}', p, fname), sep='\t')
+                    M = M.to_numpy()
+
+                    M = scaler.fit_transform(M)
+
+                    for k in range(M.shape[1]):
+                        W, H = calc_nnmf(M, k+1)
+                        M_hat = np.dot(W, H)
+                        r2['r2'].append(calc_r2(M, M_hat))
+                        r2['day'].append(day)
+                        r2['participant_id'].append(p)
+                        r2['k'].append(k+1)
+
+            return pd.DataFrame(r2)
+
 
         # endregion
 
@@ -500,7 +532,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return df_out
         # endregion
 
-        # region MEP:heatmap
+        # region MEP:heatmap_norm
         case 'MEP:heatmap_norm':
 
             heatmap = np.zeros((len(participant_id), 6, 5,))
@@ -561,22 +593,22 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             return df
         # endregion
 
-        # region EMG:mep_amplitude
-        case 'MEP:nnmf':
-
-            scaler = MinMaxScaler()
-
-            for p in participant_id:
-                mepAmp = pd.read_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mepAmp.tsv'), sep='\t').to_numpy()[
-                         :, 1:]
-                mepAmp = scaler.fit_transform(mepAmp)
-                W, H, r2 = iterative_nnmf(mepAmp, thresh=0.1)
-
-                df_H = pd.DataFrame(H, columns=gl.channels['emgTMS'])
-                df_H.to_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'preTraining_H.tsv'), sep='\t')
-                pass
-
-        # endregion
+        # # region EMG:mep_amplitude
+        # case 'MEP:nnmf':
+        #
+        #     scaler = MinMaxScaler()
+        #
+        #     for p in participant_id:
+        #         mepAmp = pd.read_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'mepAmp.tsv'), sep='\t').to_numpy()[
+        #                  :, 1:]
+        #         mepAmp = scaler.fit_transform(mepAmp)
+        #         W, H, r2 = iterative_nnmf(mepAmp, thresh=0.1)
+        #
+        #         df_H = pd.DataFrame(H, columns=gl.channels['emgTMS'])
+        #         df_H.to_csv(os.path.join(gl.baseDir, 'efc3', 'emgTMS', p, 'preTraining_H.tsv'), sep='\t')
+        #         pass
+        #
+        # # endregion
 
         # region XCORR:tau
         case 'XCORR:tau':

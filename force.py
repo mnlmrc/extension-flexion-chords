@@ -322,7 +322,8 @@ class Force:
             'jerk': [],
             'sine': [],
             # 'dist': [],
-            'repetition': []
+            'repetition': [],
+            'finger_asynch': []
         }
 
         # init dict force
@@ -390,6 +391,7 @@ class Force:
 
                     metrics_tmp = calc_metrics(force)
 
+                    # time to derivative peak
                     dforce_times_tmp = np.argmax(dforceRaw, axis=0) / gl.fsample['force']
                     for i, char in enumerate(str(dat_tmp.iloc[tr].chordID)):
                         if char == '9':
@@ -405,6 +407,8 @@ class Force:
 
                     # order at force onset
                     onset_times_tmp, onset_order_tmp = calc_exit_times(dforceRaw, dat_tmp.iloc[tr].chordID, fthresh=.2)
+
+                    finger_asynch = np.nanmax(onset_times_tmp) - np.nanmin(onset_times_tmp)
 
                     exit_times_tmp, exit_order_tmp = calc_exit_times(forceRaw, dat_tmp.iloc[tr].chordID)
                     entry_times_tmp, entry_order_tmp = calc_entry_times(forceRaw, dat_tmp.iloc[tr].chordID)
@@ -425,6 +429,7 @@ class Force:
                     metrics_dict['angle'].append(metrics_tmp['angle'])
                     metrics_dict['sine'].append(metrics_tmp['sine'])
                     metrics_dict['jerk'].append(metrics_tmp['jerk'])
+                    metrics_dict['finger_asynch'].append(finger_asynch)
 
                     force_dict['force'].append(forceRaw)
                     force_dict['force_filt10Hz'].append(forceRaw_filt10Hz)
@@ -446,6 +451,7 @@ class Force:
                     metrics_dict['angle'].append(None)
                     metrics_dict['sine'].append(None)
                     metrics_dict['jerk'].append(None)
+                    metrics_dict['finger_asynch'].append(None)
 
                     dforce_order.append([None] * 5)
                     dforce_times.append([None] * 5)
