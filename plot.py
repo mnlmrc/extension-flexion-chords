@@ -682,7 +682,7 @@ def plot(what, fontsize=12):
         case 'EMG:correlation':
 
             experiment = 'efc3'
-            participant_id = 'subj100'
+            participant_id = 'subj114'
 
             with open(os.path.join(gl.baseDir, experiment, 'correlations.pkl'), 'rb') as f:
                 correlation = pickle.load(f)
@@ -724,43 +724,65 @@ def plot(what, fontsize=12):
 
                     if correlation['day'][c] == '1':
                         ax = axs[0]
+                        ax.spines['top'].set_visible(False)
+                        ax.spines['right'].set_visible(False)
+                        ax.tick_params(axis='x', width=2, labelsize=fontsize)  # Set thickness and length of x-axis ticks
+                        ax.tick_params(axis='y', width=2, labelsize=fontsize)  # Set thickness and length of y-axis ticks
+                        ax.spines['bottom'].set_linewidth(2)
+                        ax.spines['left'].set_linewidth(2)
+                        ax.spines['bottom'].set_bounds(1, len(corr))
+                        ax.spines['left'].set_bounds(-.6, .8)
+                        ax.set_xticks([1, len(corr)])
                     else:
                         ax = axs[1]
+                        ax.spines['top'].set_visible(False)
+                        ax.spines['right'].set_visible(False)
+                        ax.spines['left'].set_visible(False)
+
+                        ax.tick_params(axis='x', width=2, labelsize=fontsize)  # Set thickness and length of x-axis ticks
+                        ax.tick_params(axis='y', width=0, labelsize=fontsize)  # Set thickness and length of y-axis ticks
+                        # Set spine thickness (only for bottom spine as left/right/top are hidden)
+                        ax.spines['bottom'].set_linewidth(2)
+                        ax.spines['bottom'].set_bounds(1, len(corr))
+                        ax.set_xticks([1, len(corr)])
 
                     ax.plot(corr, color=color_map[str(correlation['chordID'][c])], lw=3, label=str(correlation['chordID'][c]))
-                    ax.set_title(f"day{correlation['day'][c]}")
+                    ax.set_title(f"Day {correlation['day'][c]}", fontsize=fontsize)
                     ax.axhline(0, color='k')
+
                     # sns.lineplot(df_corr_tmp, ax=axs[2], y='corr', x='day', color=color_map[str(correlation['chordID'][c])], marker='o', markeredgecolor='none', alpha=.3, lw=3)
 
-            axs[0].set_ylabel('correlation')
+            axs[0].set_ylabel('correlation', fontsize=fontsize)
             axs[0].legend(frameon=False, loc='best')
+
+            # axs[1].set_yticks([])
 
             df_correlation = df_correlation[df_correlation['participant_id'] == participant_id]
 
             sns.lineplot(df_correlation, ax=axs[2], y='corr', x='day', hue='chord', hue_order=['trained', 'untrained'],
                          palette=['red', 'blue'], marker='o', markeredgecolor='none', lw=3, err_kws={'lw': 0})
             axs[2].legend(frameon=False)
-            axs[2].axhline(0, color='k')
-
-            for ax in axs[1:]:
-                # Remove the top, right, and left spines
-                ax.spines['top'].set_visible(False)
-                ax.spines['right'].set_visible(False)
-                ax.spines['left'].set_visible(False)
-
-                ax.tick_params(axis='x', width=2)  # Set thickness and length of x-axis ticks
-                ax.tick_params(axis='y', width=12)  # Set thickness and length of y-axis ticks
-                # Set spine thickness (only for bottom spine as left/right/top are hidden)
-                ax.spines['bottom'].set_linewidth(2)
-                ax.spines['bottom'].set_bounds(0, len(corr))
-
-                ax.set_yticks([])
+            axs[2].axhline(0, color='k', lw=2)
 
             # For the leftmost axis (axs[0]), keep only the left spine
             axs[0].spines['top'].set_visible(False)
             axs[0].spines['right'].set_visible(False)
 
-            # savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.emg_correlation.svg'), fig)
+            axs[2].spines['top'].set_visible(False)
+            axs[2].spines['right'].set_visible(False)
+            axs[2].spines['left'].set_visible(False)
+
+            axs[2].tick_params(axis='x', width=2, labelsize=fontsize)  # Set thickness and length of x-axis ticks
+            axs[2].tick_params(axis='y', width=0, labelsize=fontsize)  # Set thickness and length of y-axis ticks
+            # Set spine thickness (only for bottom spine as left/right/top are hidden)
+            axs[2].spines['bottom'].set_linewidth(2)
+            axs[2].spines['bottom'].set_bounds(1, 5)
+            axs[2].set_xticks([1, 5])
+            axs[2].set_xlabel('day', fontsize=fontsize)
+
+            axs[0].set_xlabel('No. TMS stimuli', fontsize=fontsize)
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.emg_correlation2.svg'), fig)
 
         # endregion
 
