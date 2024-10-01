@@ -1556,7 +1556,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 'participant_id': [],
                 'day': [],
                 'chord': [],
-                'chordID': [],
+                # 'chordID': [],
             }
 
             scaler = MinMaxScaler()
@@ -1573,10 +1573,10 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                     Chords[muscles] = scaler.fit_transform(Chords[muscles])
 
-                    Chords = Chords.groupby(['chord', 'chordID']).mean(numeric_only=True).reset_index()
+                    Chords = Chords.groupby(['chord']).mean(numeric_only=True).reset_index()
 
                     chord = Chords['chord']
-                    chordID = Chords['chordID']
+                    # chordID = Chords['chordID']
 
                     Chords = Chords[muscles].to_numpy()
 
@@ -1588,13 +1588,13 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         corr['participant_id'].append(p)
                         corr['day'].append(day)
                         corr['chord'].append(chord.iloc[c])
-                        corr['chordID'].append(chordID.iloc[c])
+                        # corr['chordID'].append(chordID.iloc[c])
 
                         df_corr['corr'].append(pearsonr_vec(ch, mepAmp).mean())
                         df_corr['participant_id'].append(p)
                         df_corr['day'].append(day)
                         df_corr['chord'].append(chord.iloc[c])
-                        df_corr['chordID'].append(chordID.iloc[c])
+                        # df_corr['chordID'].append(chordID.iloc[c])
 
             df_corr = pd.DataFrame(df_corr)
             df_corr.to_csv(os.path.join(gl.baseDir, experiment, 'correlations.tsv'), sep='\t', index=False)
