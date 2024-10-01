@@ -8,11 +8,12 @@ from matplotlib import pyplot as plt
 from scipy.optimize import nnls
 from scipy.signal import resample, find_peaks
 from scipy.spatial.distance import mahalanobis
+from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 
 from scipy.stats import ttest_1samp, spearmanr, pearsonr
 
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 import pandas as pd
 import pickle
@@ -445,6 +446,9 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             return W, H, r2
 
+        # endregion
+
+        # region EMG:nnmf_spectrum
         case 'EMG:nnmf_spectrum':
 
             scaler = MinMaxScaler()
@@ -473,6 +477,37 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
             return pd.DataFrame(r2)
 
+
+        # endregion
+
+        # region EMG:pca
+        case 'EMG:pca':
+
+            scaler = MinMaxScaler()
+
+            var = {
+                'day': [],
+                'participant_id': [],
+                'var': [],
+            }
+
+            for day in ['1', '5']:
+                for p in participant_id:
+                    M = pd.read_csv(os.path.join(gl.baseDir, experiment, session, f'day{day}', p, fname), sep='\t')
+                    M = M.to_numpy()
+
+                    M = scaler.fit_transform(M)
+
+                    pca = PCA(n_components=M.shape[1])  # You can adjust n_components as needed
+
+                    pca.fit_transform(M)
+
+                    # Step 4: Access the variance explained by each principal component
+                    var['var'].append(pca.explained_variance_ratio_)
+                    var['participant_id'].append(p)
+                    var['day'].append(day)
+
+            return var
 
         # endregion
 
@@ -558,6 +593,47 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 heatmap[P] = grid.pivot_table(index='grid_y', columns='grid_x', values='norm').to_numpy()
 
             return heatmap
+
+        # endregion
+
+        # region MEP:heatmap_angle
+        case 'MEP:heatmap_angle':
+
+            heatmap = np.zeros((len(participant_id), 6, 5,))
+
+            scaler = MinMaxScaler()
+
+            for P, p in enumerate(participant_id):
+                sn = int(''.join([c for c in p if c.isdigit()]))
+                grid = pd.read_csv(os.path.join(gl.baseDir, experiment, 'Brainsight',
+                                                f'{experiment}_{sn}_day{day}.tsv'), sep='\t')
+                data = pd.read_csv(os.path.join(gl.baseDir, experiment,
+                                                'emgTMS', f'day{day}', p, 'mepAmp.tsv'), sep='\t')
+                data = data.to_numpy()
+                data = scaler.fit_transform(data)
+
+                centre = data.mean(axis=0)
+
+                grid['grid_x'] = grid['Assoc. Target'].str.extract(r'(\d+),').astype(float)
+                grid['grid_y'] = grid['Assoc. Target'].str.extract(r',\s*(\d+)').astype(float)
+
+                dot_product = np.dot(data, centre)
+
+                norm_data = np.linalg.norm(data, axis=1)
+                norm_centre = np.linalg.norm(centre)
+
+                cos = dot_product / (norm_data * norm_centre)
+
+                theta = np.arccos(cos)
+
+                grid['theta'] = theta
+
+                heatmap[P] = grid.pivot_table(index='grid_y', columns='grid_x', values='theta').to_numpy()
+
+            return heatmap
+
+
+
 
         # endregion
 
@@ -1483,6 +1559,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 'chordID': [],
             }
 
+            scaler = MinMaxScaler()
+
             for day in ['1', '5']:
                 for p in participant_id:
                     mepAmp = pd.read_csv(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mepAmp.tsv'),
@@ -1493,7 +1571,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     cols = Chords.columns
                     muscles = [col for col in cols if col in gl.channels['emgTMS']]
 
-                    # Chords[muscles] = scaler.fit_transform(Chords[muscles])
+                    Chords[muscles] = scaler.fit_transform(Chords[muscles])
 
                     Chords = Chords.groupby(['chord', 'chordID']).mean(numeric_only=True).reset_index()
 
@@ -1501,6 +1579,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     chordID = Chords['chordID']
 
                     Chords = Chords[muscles].to_numpy()
+
+                    mepAmp = scaler.fit_transform(mepAmp)
 
                     for c, ch in enumerate(Chords):
 

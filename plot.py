@@ -419,6 +419,54 @@ def plot(what, fontsize=12):
 
         # endregion
 
+        # region FORCE:asynchrony
+        case 'FORCE:asynchrony':
+
+            experiment = 'efc2'
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            metrics['finger_asynch'] = metrics['finger_asynch']  # + 1
+
+            metrics_grouped = metrics.groupby(['chord', 'participant_id', 'day']).mean(numeric_only='True').reset_index()
+
+            fig, axs = plt.subplots(figsize=(3, 5))
+
+            dodge = .2
+
+            metrics_grouped['dday'] = metrics_grouped['day'] + metrics_grouped['chord'].map(
+                {'trained': -dodge, 'untrained': dodge}) - 1
+
+            sns.boxplot(data=metrics, ax=axs, y='finger_asynch', x='day', hue='chord', palette=[(1, .8, .8), (.8, .8, 1)],
+                        showfliers=False, legend=False)
+            # sns.violinplot(data=metrics, ax=axs, y='finger_asynch', x='day', hue='chord', palette=['red', 'blue'], split=True,
+            #                inner=None, linewidth=1, dodge=True)
+            sns.lineplot(data=metrics_grouped, ax=axs, y='finger_asynch', x='dday', hue='chord', palette=['red', 'blue'],
+                         marker='o', markeredgecolor='none',
+                         lw=3, err_kws={'linewidth': 0, 'alpha': 0}, errorbar='se', zorder=100)
+
+            # y_pos = add_significance_brackets(axs, metrics[metrics['chord'] == 'trained'], x='day', y='finger_asynch', pairs=[(1, 5)], test_type='t-test_rel', x1_pos=.9, x2_pos=4.9, significance_level=.05 / 3)
+            # add_significance_brackets(axs, metrics[metrics['chord'] == 'untrained'], x='day', y='finger_asynch', pairs=[(1, 5)], test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos, significance_level=.05 / 3)
+            # add_significance_asterisks(axs, metrics, x='day', y='finger_asynch', hue='chord', x_point=5, test_type='t-test_rel',
+            #                                     significance_level=.05 / 3, text_format='star', color='k', y_pos=.45)
+
+            decor(axs=axs, fontsize=fontsize, ybounds=(.0, 1), xbounds=(0, 4), spines_width=2)
+
+            axs.set_title('Finger asynchrony at force onset', fontsize=fontsize)
+            axs.set_ylabel(r"time (s)", fontsize=fontsize)
+            axs.set_xlabel(r"day", fontsize=fontsize)
+
+            axs.set_yscale('symlog', linthresh=.5)
+
+            axs.legend(ncol=1, frameon=False, fontsize=fontsize, loc='best')
+
+            fig.tight_layout()
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc2.asynchrony.svg'), fig)
+
+
+        # endregion
+
         # region ORDER:rank_corr
         case 'ORDER:rank_corr':
 
