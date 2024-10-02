@@ -33,6 +33,6 @@ axs.set_xlabel('day', fontsize=12)
 axs.set_ylabel('success rate', fontsize=12)
 
 fig.tight_layout()
-fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'success_rates.svg'), dpi=600)
+fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'success_rates.svg'), dpi=300)
 
 plt.show()

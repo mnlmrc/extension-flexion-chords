@@ -24,7 +24,7 @@ sns.lineplot(data=data, ax=axs, x='sess', y='MD', hue='num_fingers', marker='o',
 
 fontsize = 12
 
-axs.set_ylabel('MD (a.u.)', fontsize=fontsize)
+axs.set_ylabel('mean deviation (N)', fontsize=fontsize)
 axs.set_xlabel('day', fontsize=fontsize)
 # axs.set_ylim([0, 2.5])
 axs.set_yticklabels(axs.get_yticklabels(), fontsize=fontsize)
@@ -38,7 +38,7 @@ axs.legend(frameon=False, fontsize=fontsize, title='number\nof fingers', title_f
 
 fig.tight_layout()
 
-fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'md_efc1_day.svg'), dpi=300)
+# fig.savefig(os.path.join(gl.baseDir, experiment, 'figures', 'md_efc1_day.svg'), dpi=300)
 
 plt.show()
 

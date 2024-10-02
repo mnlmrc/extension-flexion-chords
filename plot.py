@@ -1022,6 +1022,168 @@ def plot(what, fontsize=12):
 
         # endregion
 
+        # region SUCCESS_RATE
+        case 'SUCCESS_RATE':
+
+            experiment = 'efc1'
+
+            np.random.seed(10)
+
+            data = pd.read_csv(os.path.join(gl.baseDir, experiment, 'efc1_all.tsv'), sep='\t')
+            data = data.groupby(['chordID', 'sess'])['trialCorr'].mean().reset_index()
+            data['sessj'] = data['sess'] + np.random.uniform(-1.2, -.8, size=data.shape[0])
+
+            fig, axs = plt.subplots(figsize=(3.5, 5))
+
+            sns.scatterplot(x='sessj', y='trialCorr', data=data, ax=axs, color='grey', legend=False, s=100,
+                            edgecolor='none', alpha=0.3)
+            sns.boxplot(x='sess', y='trialCorr', data=data, ax=axs, color='darkgrey', width=0.4, linewidth=2, linecolor='k',
+                        showfliers=False)
+
+            axs.set_ylim([0., 1.05])
+            axs.spines[['right', 'top']].set_visible(False)
+            axs.spines[['left', 'bottom']].set_linewidth(2)
+            axs.tick_params(axis='both', width=2)
+
+            axs.set_xticklabels(axs.get_xticklabels(), fontsize=12)
+            axs.set_yticklabels(axs.get_yticklabels(), fontsize=12)
+
+            axs.set_xlabel('day', fontsize=12)
+            axs.set_ylabel('success rate', fontsize=12)
+
+            fig.tight_layout()
+
+            decor(axs=axs, fontsize=fontsize, ybounds=(.0, 1.), xbounds=(0, 3), spines_width=2)
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc1.success_rate.svg'), fig)
+
+        # endregion
+
+        # region MEAN_DEVIATION:day_exp1
+        case 'MEAN_DEVIATION:day_exp1':
+
+            experiment = 'efc1'
+
+            np.random.seed(8)
+
+            data = pd.read_csv(os.path.join(gl.baseDir, experiment, 'efc1_chord.tsv'), sep='\t')
+            data['MD'] = pd.to_numeric(data['MD'], errors='coerce')
+
+            fig, axs = plt.subplots(figsize=(3.5, 5))
+
+            cmap = plt.get_cmap('Blues')
+            colors = cmap(np.linspace(0.2, 0.7, len(data['num_fingers'].unique())))
+            palette = sns.color_palette(colors)
+
+            sns.lineplot(data=data, ax=axs, x='sess', y='MD', hue='num_fingers', marker='o', palette=palette,
+                         linewidth=3,
+                         markeredgewidth=0, err_kws={'linewidth': 0, 'alpha': .2})
+
+            fontsize = 12
+
+            axs.set_ylabel('mean deviation (N)', fontsize=fontsize)
+            axs.set_xlabel('day', fontsize=fontsize)
+            # axs.set_ylim([0, 2.5])
+            axs.set_yticklabels(axs.get_yticklabels(), fontsize=fontsize)
+            axs.set_xticklabels(axs.get_xticklabels(), fontsize=fontsize)
+            axs.spines[['right', 'top']].set_visible(False)
+            axs.spines[['left', 'bottom']].set_linewidth(2)
+
+            axs.tick_params(axis='both', width=2)
+
+            axs.legend(frameon=False, fontsize=fontsize, title='number\nof fingers', title_fontsize=fontsize,
+                       loc='upper right')
+
+            fig.tight_layout()
+
+            decor(axs=axs, fontsize=fontsize, ybounds=(.75, 2.5), xbounds=(1, 4), spines_width=2)
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc1.md.svg'), fig)
+
+        # endregion
+
+        # region EXECUTION_TIME:day_exp1
+        case 'EXECUTION_TIME:day_exp1':
+
+            experiment = 'efc1'
+
+            np.random.seed(8)
+
+            data = pd.read_csv(os.path.join(gl.baseDir, experiment, 'efc1_chord.tsv'), sep='\t')
+            data['MT'] = pd.to_numeric(data['MT'], errors='coerce') / 1000
+
+            fig, axs = plt.subplots(figsize=(3.5, 5))
+
+            cmap = plt.get_cmap('Blues')
+            colors = cmap(np.linspace(0.2, 0.7, len(data['num_fingers'].unique())))
+            palette = sns.color_palette(colors)
+
+            sns.lineplot(data=data, ax=axs, x='sess', y='MT', hue='num_fingers', marker='o', palette=palette,
+                         linewidth=3,
+                         markeredgewidth=0, err_kws={'linewidth': 0, 'alpha': .2})
+
+            fontsize = 12
+
+            axs.set_ylabel('execution time (s)', fontsize=fontsize)
+            axs.set_xlabel('day', fontsize=fontsize)
+            axs.set_ylim([0, 2.7])
+            axs.set_yticklabels(axs.get_yticklabels(), fontsize=fontsize)
+            axs.set_xticklabels(axs.get_xticklabels(), fontsize=fontsize)
+            axs.spines[['right', 'top']].set_visible(False)
+            axs.spines[['left', 'bottom']].set_linewidth(2)
+
+            axs.tick_params(axis='both', width=2)
+
+            axs.legend(frameon=False, fontsize=fontsize, title='number\nof fingers', title_fontsize=fontsize,
+                       loc='upper right')
+
+            fig.tight_layout()
+
+            decor(axs=axs, fontsize=fontsize, ybounds=(.0, 2.5), xbounds=(1, 4), spines_width=2)
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc1.et.svg'), fig)
+
+        # endregion
+
+        # region EXAMPLE:meps
+        case 'EXAMPLE:meps':
+
+            experiment = 'efc3'
+            session = 'emgTMS'
+            day = 'day1'
+            participant_id = 'subj114'
+
+            meps = np.load(os.path.join(gl.baseDir, experiment, session, day, participant_id, 'mep_segmented.npy'))
+
+            meps = np.delete(meps, 9, axis=1)
+
+            fig, axs = plt.subplots(meps.shape[1], sharex=True, sharey=True, figsize=(3, 8))
+
+            tAx = np.linspace(0, .05, meps.shape[-1])
+
+            for a, ax in enumerate(axs):
+
+                ax.plot(tAx, meps[:, a, :].T, lw=.8, color='k', alpha=.3)
+
+                ax.spines[['bottom', 'top', 'right']].set_visible(False)
+                ax.spines['left'].set_linewidth(2)
+                ax.spines['left'].set_bounds(-2, 2)
+                ax.tick_params(axis='y', width=0)
+                ax.tick_params(axis='x', width=0)
+
+            ax.spines['bottom'].set_visible(True)
+            ax.spines['bottom'].set_linewidth(2)
+            ax.spines['bottom'].set_bounds(0., .05)
+            ax.tick_params(axis='x', width=2)
+            ax.set_xticks([0., .025, .05])
+
+            ax.set_xlabel('time relative to TMS pulse (s)')
+
+            savefig(os.path.join(gl.baseDir, experiment, 'figures', 'efc3.meps.svg'), fig)
+
+
+        # endregion
+
 # >>>>>>> Stashed changes
 if __name__ == "__main__":
 
