@@ -38,7 +38,7 @@ def calc_md(X):
     d = np.array(d)
     MD = d.mean()
 
-    return MD
+    return MD, d
 
 
 def calc_pca(X):
@@ -226,7 +226,7 @@ def get_segment(x, hold_time=gl.hold_time):
 
 
 def calc_metrics(force):
-    md = calc_md(force)
+    md, _ = calc_md(force)
     exp, loadings, _ = calc_pca(force)
 
     L = force[-1] - force[0]

@@ -8,6 +8,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import nnls
 from scipy.signal import resample, find_peaks
 from scipy.spatial.distance import mahalanobis
+from scipy.interpolate import interp1d
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 
@@ -24,7 +25,7 @@ from joblib import Parallel, delayed
 
 import seaborn as sns
 
-from force import Force, calc_sim_chord
+from force import Force, calc_sim_chord, get_segment, calc_md
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2, reconstruct, calc_nnmf
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
@@ -233,6 +234,64 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     dforce_avg_norm[ch].append(dF_tmp_norm.mean(axis=0))
 
             return dforce_avg, dforce_avg_norm
+
+        # endregion
+
+        # region FORCE:deviation_from_straight_line
+        case 'FORCE:deviation_from_straight_line':
+
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            deviation = {
+                'deviation': [],
+                'participant_id': [],
+                'chordID': [],
+                'chord': [],
+                'day': [],
+            }
+
+            for day in metrics['day'].unique():
+                for P, p in enumerate(participant_id):
+
+                    metrics_tmp = metrics[(metrics['participant_id'] == p) &
+                                          (metrics['day'] == day)]
+
+                    if day == 1 or day == 5:
+                        session = 'testing'
+                    else:
+                        session = 'training'
+
+                    # if chord is None:
+                    #     chords = [str(ch) for ch in gl.chordID]
+                    # else:
+                    #     chords = pinfo[pinfo['participant_id'] == p][chord].iloc[0].split('.')
+
+                    force = Force(experiment, p, session, day)
+                    force_dict = force.load_pkl()
+
+                    for tr, forceRaw in enumerate(force_dict['force']):
+                        if metrics_tmp.iloc[tr].trialPoint == 1:
+                            force_segmented_tmp, _, _ = get_segment(forceRaw)
+
+                            tAx = np.linspace(0, force_segmented_tmp.shape[0] - 1, force_segmented_tmp.shape[0])
+                            tAx_norm = np.linspace(0, force_segmented_tmp.shape[0] - 1, 102)
+
+                            intep_func = interp1d(tAx, force_segmented_tmp, axis=0)
+
+                            force_timenorm_tmp = intep_func(tAx_norm)
+
+                            _, d_tmp = calc_md(force_timenorm_tmp)
+
+                            deviation['deviation'].append(d_tmp)
+                            deviation['participant_id'].append(p)
+                            deviation['chordID'].append(metrics_tmp.iloc[tr]['chordID'])
+                            deviation['chord'].append(metrics_tmp.iloc[tr]['chord'])
+                            deviation['day'].append(day)
+
+            with open(os.path.join(gl.baseDir, experiment, 'deviation.pkl'), 'wb') as pickle_file:
+                pickle.dump(deviation, pickle_file)
+
+            return deviation
 
         # endregion
 
