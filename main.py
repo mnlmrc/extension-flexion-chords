@@ -1344,7 +1344,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                     sampled_metrics_tmp = metrics_tmp.groupby('participant_id', group_keys=False).sample(n=min_trials,
                                                                                                          random_state=42)
 
-                    part_vec = np.ones(len(sampled_metrics_tmp))  # (sampled_metrics_tmp.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
+                    part_vec = (sampled_metrics_tmp.groupby('participant_id').cumcount() // 5 + 1).to_numpy()
                     subj_vec = sampled_metrics_tmp['participant_id'].to_numpy()
 
                     # Exit
