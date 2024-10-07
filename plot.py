@@ -283,7 +283,7 @@ def plot(what, fontsize=12):
 
             chord = 'trained'
 
-            dforce, dforce_norm = main('FORCE:derivative', experiment, day='5', chord=chord)
+            dforce, dforce_norm = main('FORCE:derivative', experiment, day='1', chord=chord)
 
             fig, axs = plt.subplots(1, len(dforce), sharex=True, sharey=True, figsize=(15, 5))
 
@@ -316,12 +316,12 @@ def plot(what, fontsize=12):
                 axs[k].set_title(f'chord:{key}', fontsize=fontsize)
 
                 # axs[1].spines['bottom'].set_bounds(1, 5)
-                axs[k].set_xlim([0, .8])
+                axs[k].set_xlim([.17, .33])
                 axs[k].spines[['right', 'top', 'left']].set_visible(False)
                 axs[k].spines[['bottom']].set_linewidth(2)
                 axs[k].tick_params(axis='x', width=2)
                 axs[k].tick_params(axis='y', width=0)
-                axs[k].set_xticks([axs[k].get_xlim()[0], axs[k].get_xlim()[1] / 2, axs[k].get_xlim()[1]])
+                # axs[k].set_xticks([axs[k].get_xlim()[0], axs[k].get_xlim()[1] / 2, axs[k].get_xlim()[1]])
                 # axs[k].set_xticklabels(axs[1].get_xticklabels(), fontsize=fontsize)
                 axs[k].set_xlabel('')
 
