@@ -420,7 +420,7 @@ def plot(what, fontsize=12):
         # endregion
 
         # region FORCE:asynchrony
-        case 'FORCE:asynchrony':
+        case 'ASYNCHRONY:day':
 
             experiment = 'efc2'
 
@@ -430,33 +430,36 @@ def plot(what, fontsize=12):
 
             metrics_grouped = metrics.groupby(['chord', 'participant_id', 'day']).mean(numeric_only='True').reset_index()
 
-            fig, axs = plt.subplots(figsize=(3, 5))
+            fig, axs = plt.subplots(figsize=(3.5, 5))
 
             dodge = .2
 
             metrics_grouped['dday'] = metrics_grouped['day'] + metrics_grouped['chord'].map(
                 {'trained': -dodge, 'untrained': dodge}) - 1
 
-            sns.boxplot(data=metrics, ax=axs, y='finger_asynch', x='day', hue='chord', palette=[(1, .8, .8), (.8, .8, 1)],
-                        showfliers=False, legend=False)
-            # sns.violinplot(data=metrics, ax=axs, y='finger_asynch', x='day', hue='chord', palette=['red', 'blue'], split=True,
-            #                inner=None, linewidth=1, dodge=True)
+            # sns.boxplot(data=metrics, ax=axs, y='finger_asynch', x='day', hue='chord', palette=[(1, .8, .8), (.8, .8, 1)],
+            #             showfliers=False, legend=False)
+            sns.violinplot(data=metrics, ax=axs, y='finger_asynch', x='day', hue='chord', palette=['red', 'blue'], split=True,
+                           inner=None, linewidth=0, dodge=True, alpha=.2, legend=False, cut=0)
             sns.lineplot(data=metrics_grouped, ax=axs, y='finger_asynch', x='dday', hue='chord', palette=['red', 'blue'],
                          marker='o', markeredgecolor='none',
-                         lw=3, err_kws={'linewidth': 0, 'alpha': 0}, errorbar='se', zorder=100)
+                         lw=3, err_kws={'linewidth': 0, 'alpha': .2}, errorbar='se', zorder=100)
 
             # y_pos = add_significance_brackets(axs, metrics[metrics['chord'] == 'trained'], x='day', y='finger_asynch', pairs=[(1, 5)], test_type='t-test_rel', x1_pos=.9, x2_pos=4.9, significance_level=.05 / 3)
             # add_significance_brackets(axs, metrics[metrics['chord'] == 'untrained'], x='day', y='finger_asynch', pairs=[(1, 5)], test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos, significance_level=.05 / 3)
             # add_significance_asterisks(axs, metrics, x='day', y='finger_asynch', hue='chord', x_point=5, test_type='t-test_rel',
             #                                     significance_level=.05 / 3, text_format='star', color='k', y_pos=.45)
 
-            decor(axs=axs, fontsize=fontsize, ybounds=(.0, 1), xbounds=(0, 4), spines_width=2)
-
-            axs.set_title('Finger asynchrony at force onset', fontsize=fontsize)
+            axs.set_title('Finger asynchrony\nat force onset', fontsize=fontsize)
             axs.set_ylabel(r"time (s)", fontsize=fontsize)
             axs.set_xlabel(r"day", fontsize=fontsize)
 
             axs.set_yscale('symlog', linthresh=.5)
+
+            axs.set_yticks([0, .1, 1, 4])
+            axs.set_yticklabels([0, .1, 1, 4])
+
+            decor(axs=axs, fontsize=fontsize,  ybounds=(-0., 4), xbounds=(0, 4), spines_width=2)
 
             axs.legend(ncol=1, frameon=False, fontsize=fontsize, loc='best')
 
@@ -528,27 +531,27 @@ def plot(what, fontsize=12):
 
             metrics = metrics.groupby(['chord', 'participant_id', 'day']).mean(numeric_only='True').reset_index()
 
-            fig, axs = plt.subplots(figsize=(3, 5))
+            fig, axs = plt.subplots(figsize=(3.5, 5))
 
             dodge = 0.1
 
             metrics['dday'] = metrics['day'] + metrics['chord'].map({'trained': -dodge, 'untrained': dodge})
 
-            sns.lineplot(data=metrics, ax=axs, y='MD', x='dday', hue='chord', palette=['red', 'blue'], marker='o',
+            sns.lineplot(data=metrics, ax=axs, y='MD', x='day', hue='chord', palette=['red', 'blue'], marker='o',
                          markeredgecolor='none',
                          lw=3, err_kws={'linewidth': 0}, errorbar='se')
 
-            y_pos = add_significance_brackets(axs, metrics[metrics['chord'] == 'trained'], x='day', y='MD', pairs=[(1, 5)],
-                                              test_type='t-test_rel', x1_pos=.9, x2_pos=4.9, significance_level=.05 / 3)
-            add_significance_brackets(axs, metrics[metrics['chord'] == 'untrained'], x='day', y='MD', pairs=[(1, 5)],
-                                      test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos, significance_level=.05 / 3)
-            add_significance_asterisks(axs, metrics, x='day', y='MD', hue='chord', x_point=5, test_type='t-test_rel',
-                                       significance_level=.05 / 3, text_format='star', color='k', y_pos=1.55)
+            # y_pos = add_significance_brackets(axs, metrics[metrics['chord'] == 'trained'], x='day', y='MD', pairs=[(1, 5)],
+            #                                   test_type='t-test_rel', x1_pos=.9, x2_pos=4.9, significance_level=.05 / 3)
+            # add_significance_brackets(axs, metrics[metrics['chord'] == 'untrained'], x='day', y='MD', pairs=[(1, 5)],
+            #                           test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos, significance_level=.05 / 3)
+            # add_significance_asterisks(axs, metrics, x='day', y='MD', hue='chord', x_point=5, test_type='t-test_rel',
+            #                            significance_level=.05 / 3, text_format='star', color='k', y_pos=1.55)
 
-            decor(axs=axs, fontsize=fontsize, ybounds=(.8, 1.8), xbounds=(1, 5), spines_width=2)
+            decor(axs=axs, fontsize=fontsize, ybounds=(.8, 1.6), xbounds=(1, 5), spines_width=2)
 
             axs.set_title('Mean deviation', fontsize=fontsize)
-            axs.set_ylabel('MD (a.u.)', fontsize=fontsize)
+            axs.set_ylabel('mean deviation (N)', fontsize=fontsize)
 
             axs.legend(ncol=1, frameon=False, fontsize=fontsize, loc='lower left')
 
@@ -567,29 +570,29 @@ def plot(what, fontsize=12):
 
             metrics = metrics.groupby(['chord', 'participant_id', 'day']).mean(numeric_only='True').reset_index()
 
-            fig, axs = plt.subplots(figsize=(3, 5))
+            fig, axs = plt.subplots(figsize=(3.5, 5))
 
             dodge = 0.1
 
             metrics['dday'] = metrics['day'] + metrics['chord'].map({'trained': -dodge, 'untrained': dodge})
 
-            sns.lineplot(data=metrics, ax=axs, y='ET', x='dday', hue='chord', palette=['red', 'blue'], marker='o',
+            sns.lineplot(data=metrics, ax=axs, y='ET', x='day', hue='chord', palette=['red', 'blue'], marker='o',
                          markeredgecolor='none',
                          lw=3, err_kws={'linewidth': 0}, errorbar='se')
 
-            y_pos = add_significance_brackets(axs, metrics[metrics['chord'] == 'trained'], x='day', y='ET',
-                                              pairs=[(1, 5)], test_type='t-test_rel', x1_pos=.9, x2_pos=4.9,
-                                              significance_level=.05 / 3)
-            add_significance_brackets(axs, metrics[metrics['chord'] == 'untrained'], x='day', y='ET', pairs=[(1, 5)],
-                                      test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos,
-                                      significance_level=.05 / 3)
-            add_significance_asterisks(axs, metrics, x='day', y='ET', hue='chord', x_point=5, test_type='t-test_rel',
-                                       significance_level=.05 / 3, text_format='star', color='k', y_pos=2)
+            # y_pos = add_significance_brackets(axs, metrics[metrics['chord'] == 'trained'], x='day', y='ET',
+            #                                   pairs=[(1, 5)], test_type='t-test_rel', x1_pos=.9, x2_pos=4.9,
+            #                                   significance_level=.05 / 3)
+            # add_significance_brackets(axs, metrics[metrics['chord'] == 'untrained'], x='day', y='ET', pairs=[(1, 5)],
+            #                           test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos,
+            #                           significance_level=.05 / 3)
+            # add_significance_asterisks(axs, metrics, x='day', y='ET', hue='chord', x_point=5, test_type='t-test_rel',
+            #                            significance_level=.05 / 3, text_format='star', color='k', y_pos=2)
 
             decor(axs=axs, fontsize=fontsize, ybounds=(.5, 2.5), xbounds=(1, 5), spines_width=2)
 
             axs.set_title('Execution time', fontsize=fontsize)
-            axs.set_ylabel('ET (s)', fontsize=fontsize)
+            axs.set_ylabel('execution time (s)', fontsize=fontsize)
 
             axs.legend(ncol=1, frameon=False, fontsize=fontsize, loc='lower left')
 
@@ -614,17 +617,17 @@ def plot(what, fontsize=12):
 
             rank_corr['dday'] = rank_corr['day'] + rank_corr['chord'].map({'trained': -dodge, 'untrained': dodge})
 
-            sns.lineplot(data=rank_corr, ax=axs, y='onset', x='dday', hue='chord', palette=['red', 'blue'], marker='o',
+            sns.lineplot(data=rank_corr, ax=axs, y='onset', x='day', hue='chord', palette=['red', 'blue'], marker='o',
                          markeredgecolor='none',
                          lw=3, err_kws={'linewidth': 0}, errorbar='se')
 
-            y_pos = add_significance_brackets(axs, rank_corr[rank_corr['chord'] == 'trained'], x='day', y='onset',
-                                              pairs=[(1, 5)], test_type='t-test_rel', x1_pos=.9, x2_pos=4.9,
-                                              significance_level=.05 / 3)
-            # add_significance_brackets(axs, rank_corr[rank_corr['chord'] == 'untrained'], x='day', y='onset', pairs=[(1, 5)], test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos, significance_level=.05 / 3)
-            add_significance_asterisks(axs, rank_corr, x='day', y='onset', hue='chord', x_point=5,
-                                       test_type='t-test_rel',
-                                       significance_level=.05 / 3, text_format='star', color='k', y_pos=.45)
+            # y_pos = add_significance_brackets(axs, rank_corr[rank_corr['chord'] == 'trained'], x='day', y='onset',
+            #                                   pairs=[(1, 5)], test_type='t-test_rel', x1_pos=.9, x2_pos=4.9,
+            #                                   significance_level=.05 / 3)
+            # # add_significance_brackets(axs, rank_corr[rank_corr['chord'] == 'untrained'], x='day', y='onset', pairs=[(1, 5)], test_type='t-test_rel', x1_pos=1.1, x2_pos=5.1, y_pos=y_pos, significance_level=.05 / 3)
+            # add_significance_asterisks(axs, rank_corr, x='day', y='onset', hue='chord', x_point=5,
+            #                            test_type='t-test_rel',
+            #                            significance_level=.05 / 3, text_format='star', color='k', y_pos=.45)
 
             decor(axs=axs, fontsize=fontsize, ybounds=(.25, .45), xbounds=(1, 5), spines_width=2)
 
