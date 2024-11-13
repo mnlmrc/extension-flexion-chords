@@ -142,29 +142,29 @@ def calc_xcorr(X):
     return xcorr, tau, lags
 
 
-def calc_exit_times(X, chordID, fthresh=None):
+def calc_finger_latency(X, chordID, fthresh=None):
     if fthresh is None:
         fthresh = gl.fthresh
 
     X = np.abs(X)
-    exit_time = np.zeros(X.shape[1])
+    latency = np.zeros(X.shape[1])
     for i in range(X.shape[1]):
         a = X[:, i]
         da = np.gradient(a, 1 / gl.fsample['force'])
 
-        exit_time[i] = np.argmax((a > fthresh) & (da > 0)) / gl.fsample['force']
+        latency[i] = np.argmax((a > fthresh) & (da > 0)) / gl.fsample['force']
 
     for i, char in enumerate(str(chordID)):
         if char == '9':
-            exit_time[i] = np.nan
+            latency[i] = np.nan
 
-    order = np.argsort(exit_time[~np.isnan(exit_time)])
-    fingers = [f for f in gl.channels['force'] if not np.isnan(exit_time[gl.channels['force'].index(f)])]
+    order = np.argsort(latency[~np.isnan(latency)])
+    fingers = [f for f in gl.channels['force'] if not np.isnan(latency[gl.channels['force'].index(f)])]
     finger_pos = np.full(len(gl.channels['force']), np.nan)
     for i, idx in enumerate(order):
         finger_pos[gl.channels['force'].index(fingers[idx])] = i
 
-    return exit_time, finger_pos
+    return latency, finger_pos
 
 
 def calc_sim_chord(X, chordID, chord_vec):

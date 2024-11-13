@@ -25,7 +25,7 @@ from joblib import Parallel, delayed
 
 import seaborn as sns
 
-from force import Force, calc_sim_chord, get_segment, calc_md
+from force import Force, calc_sim_chord, get_segment, calc_md, calc_pca, load_mov, calc_finger_latency
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2, reconstruct, calc_nnmf
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
@@ -43,30 +43,243 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
     pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
 
     match what:
-        # region FORCE:preprocessing
-        case 'FORCE:preprocessing':
+        # region FORCE:single_trial
+        case 'FORCE:single_trial':
 
-            metrics = pd.DataFrame()
+            behavioural_dict = {
+                'BN': [],
+                'TN': [],
+                'participant_id': [],
+                'subNum': [],
+                'chordID': [],
+                'chord': [],
+                'trialPoint': [],
+                'repetition': [],
+                'session': [],
+                'day': [],
+                'MD': [],
+                'RT': [],
+                'ET': [],
+                'thumb_latency': [],
+                'index_latency': [],
+                'middle_latency': [],
+                'ring_latency': [],
+                'pinkie_latency': [],
+                'thumb_pos': [],
+                'index_pos': [],
+                'middle_pos': [],
+                'ring_pos': [],
+                'pinkie_pos': []
+            }
+
             for p in participant_id:
+
+                sn = int(''.join([c for c in p if c.isdigit()]))
+
                 for day in gl.days:
                     if day == '1' or day == '5':
                         session = 'testing'
                     else:
                         session = 'training'
 
-                    force = Force(experiment, p, session, day)
-                    metrics_tmp, force_dict = force.preprocessing()
-                    metrics = pd.concat([metrics, metrics_tmp])
+                    path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
 
-                    # save force to binary
-                    with open(os.path.join(gl.baseDir, experiment, session,
-                                           f'day{day}', f'{experiment}_{force.sn}_force.pkl'), "wb") as file:
-                        pickle.dump(force_dict, file)
+                    dat = pd.read_csv(os.path.join(path, f"{experiment}_{sn}.dat"), sep="\t")
 
-            print('saving...')
-            metrics.to_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+                    nblocks = len(pinfo[pinfo['participant_id'] == participant_id]
+                                  [f'blocks Chords day{day}'].iloc[0].split('.'))
 
-            return metrics
+                    for block in range(nblocks):
+
+                        filename = os.path.join(path, f'{experiment}_{sn}_{block + 1:02d}.mov')
+
+                        mov = load_mov(filename)
+
+                        dat_tmp = dat[dat.BN == block + 1].reset_index()  # .dat file for block
+
+                        for tr in range(len(mov)):
+                            if tr == 0 or dat_tmp.iloc[tr].chordID != dat_tmp.iloc[tr - 1].chordID:
+                                rep = 1
+                            else:
+                                rep += 1
+
+                            chordID = dat_tmp.iloc[tr].chordID
+                            chord = 'trained' if chordID in pinfo[pinfo['participant_id'] == p]['trained'].iloc[0].split('.') else 'untrained'
+
+                            # add trial info to dictionary
+                            behavioural_dict['BN'].append(dat_tmp.iloc[tr].BN)
+                            behavioural_dict['TN'].append(dat_tmp.iloc[tr].TN)
+                            behavioural_dict['subNum'].append(sn)
+                            behavioural_dict['participant_id'].append(p)
+                            behavioural_dict['chordID'].append(chordID)
+                            behavioural_dict['trialPoint'].append(dat_tmp.iloc[tr].trialPoint)
+                            behavioural_dict['chord'].append(chord)
+                            behavioural_dict['day'].append(day)
+                            behavioural_dict['repetition'].append(rep)
+                            behavioural_dict['session'].append(session)
+
+                            if dat_tmp.iloc[tr].trialPoint == 1:
+
+                                forceRaw = mov[tr][:, gl.diffCols][mov[tr][:, 1] == 4] * gl.fGain  # take only states 3 (i.e., WAIT_EXEC)
+                                force_filt10Hz = lowpass_butter(forceRaw.T, 10, gl.fsample['force']).T
+                                dforce_filt10Hz = np.gradient(force_filt10Hz, 1 / gl.fsample['force'], axis=0)
+
+                                # calc single trial metrics
+                                force, rt, et = get_segment(forceRaw)
+
+                                assert rt > 0, "negative reaction time"
+                                assert et > 0, "negative execution time"
+
+                                md, _ = calc_md(force)
+                                latency_tmp, order_tmp = calc_finger_latency(dforce_filt10Hz, dat_tmp.iloc[tr].chordID, fthresh=.2)
+
+                                # add measures to dictionary
+                                behavioural_dict['RT'].append(rt)
+                                behavioural_dict['ET'].append(et)
+                                behavioural_dict['MD'].append(md)
+                                behavioural_dict['thumb_latency'].append(latency_tmp[0])
+                                behavioural_dict['index_latency'].append(latency_tmp[1])
+                                behavioural_dict['middle_latency'].append(latency_tmp[2])
+                                behavioural_dict['ring_latency'].append(latency_tmp[3])
+                                behavioural_dict['pinkie_latency'].append(latency_tmp[4])
+                                behavioural_dict['thumb_pos'].append(order_tmp[0])
+                                behavioural_dict['index_pos'].append(order_tmp[1])
+                                behavioural_dict['middle_pos'].append(order_tmp[2])
+                                behavioural_dict['ring_pos'].append(order_tmp[3])
+                                behavioural_dict['pinkie_pos'].append(order_tmp[4])
+
+                            else:
+
+                                # add to dictionary
+                                behavioural_dict['RT'].append(None)
+                                behavioural_dict['ET'].append(None)
+                                behavioural_dict['MD'].append(None)
+                                behavioural_dict['thumb_latency'].append(None)
+                                behavioural_dict['index_latency'].append(None)
+                                behavioural_dict['middle_latency'].append(None)
+                                behavioural_dict['ring_latency'].append(None)
+                                behavioural_dict['pinkie_latency'].append(None)
+                                behavioural_dict['thumb_pos'].append(None)
+                                behavioural_dict['index_pos'].append(None)
+                                behavioural_dict['middle_pos'].append(None)
+                                behavioural_dict['ring_pos'].append(None)
+                                behavioural_dict['pinkie_pos'].append(None)
+
+            behavioural = pd.DataFrame(behavioural_dict)
+
+            behavioural.to_csv(os.path.join(gl.baseDir, experiment, 'behavioural.tsv'), sep='\t', index=False)
+
+            return behavioural
+
+
+            # exp, loadings, _ = calc_pca(force)
+
+            # L = force[-1] - force[0]
+            # L_norm = L / np.linalg.norm(L)
+            # pc1 = loadings[0]
+            # pc1_norm = pc1 / np.linalg.norm(pc1)
+            # proj = np.dot(pc1_norm, L_norm)
+            # angle = np.arccos(proj)
+            # sine = np.sin(angle)
+            # jerk = calc_jerk(force)
+            #         force = Force(experiment, p, session, day)
+            #         metrics_tmp, force_dict = force.preprocessing()
+            #         metrics = pd.concat([metrics, metrics_tmp])
+            #
+            #         # save force to binary
+            #         with open(os.path.join(gl.baseDir, experiment, session,
+            #                                f'day{day}', f'{experiment}_{force.sn}_force.pkl'), "wb") as file:
+            #             pickle.dump(force_dict, file)
+            #
+            # print('saving...')
+            # metrics.to_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+
+            # return metrics
+        # endregion
+
+        # region FORCE:single_trial_continuous
+        case 'FORCE:single_trial_continuous':
+
+            force_dict = {
+                'BN': [],
+                'TN': [],
+                'participant_id': [],
+                'subNum': [],
+                'chordID': [],
+                'chord': [],
+                'trialPoint': [],
+                'repetition': [],
+                'session': [],
+                'day': [],
+                'force_filt10Hz': [],
+                'forceRaw': []
+            }
+
+            for p in participant_id:
+
+                sn = int(''.join([c for c in p if c.isdigit()]))
+
+                for day in gl.days:
+                    if day == '1' or day == '5':
+                        session = 'testing'
+                    else:
+                        session = 'training'
+
+                    path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
+
+                    dat = pd.read_csv(os.path.join(path, f"{experiment}_{sn}.dat"), sep="\t")
+
+                    nblocks = len(pinfo[pinfo['participant_id'] == participant_id]
+                                  [f'blocks Chords day{day}'].iloc[0].split('.'))
+
+                    for block in range(nblocks):
+
+                        filename = os.path.join(path, f'{experiment}_{sn}_{block + 1:02d}.mov')
+
+                        mov = load_mov(filename)
+
+                        dat_tmp = dat[dat.BN == block + 1].reset_index()  # .dat file for block
+
+                        for tr in range(len(mov)):
+                            if tr == 0 or dat_tmp.iloc[tr].chordID != dat_tmp.iloc[tr - 1].chordID:
+                                rep = 1
+                            else:
+                                rep += 1
+
+                            chordID = dat_tmp.iloc[tr].chordID
+                            chord = 'trained' if chordID in pinfo[pinfo['participant_id'] == p]['trained'].iloc[0].split(
+                                '.') else 'untrained'
+
+                            # add trial info to dictionary
+                            force_dict['participant_id'].append(participant_id)
+                            force_dict['session'].append(session)
+                            force_dict['day'].append(day)
+                            force_dict['subNum'].append(sn)
+                            force_dict['BN'].append(block + 1)
+                            force_dict['TN'].append(tr)
+                            force_dict['chordID'].append(dat_tmp.iloc[tr].chordID)
+                            force_dict['chord'].append(chord)
+                            force_dict['repetition'].append(rep)
+                            force_dict['trialPoint'].append(dat_tmp.iloc[tr].trialPoint)
+
+                            if dat_tmp.iloc[tr].trialPoint == 1:
+
+                                forceRaw = mov[tr][:, gl.diffCols][
+                                               mov[tr][:, 1] == 4] * gl.fGain  # take only states 3 (i.e., WAIT_EXEC)
+                                force_filt10Hz = lowpass_butter(forceRaw.T, 10, gl.fsample['force']).T
+
+                                force_dict['forceRaw'].append(forceRaw)
+                                force_dict['force_filt10Hz'].append(force_filt10Hz)
+
+                            else:
+
+                                force_dict['forceRaw'].append(None)
+                                force_dict['force_filt10Hz'].append(None)
+
+            np.save(os.path.join(gl.baseDir, experiment, 'behavioural_continuous.npy'), force_dict)
+
+            return force_dict
+
         # endregion
 
         # region FORCE:simulation

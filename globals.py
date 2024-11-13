@@ -22,7 +22,7 @@ movCols = ['state', 'timeReal', 'time',
            'fThumb', 'fIndex', 'fMiddle', 'fRing', 'fPinkie',
            'Thumb', 'Index', 'Middle', 'Ring', 'Pinkie',  # 13, 14, 15, 16, 17
            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
-diffCols = [13, 14, 15, 16, 17]
+diffCols = [14, 15, 16, 17, 18]  # [13, 14, 15, 16, 17]
 
 Dirs = ["/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
         "/cifs/diedrichsen/data/SequenceAndChord/ExtFlexChord"]
@@ -81,15 +81,14 @@ participants = {
         'subj113'
     ],
     'efc3': [
-        'subj100',
-        'subj114'
+        'subj100'
     ]
 }
 
 natDir = 'natural'
 chordDir = 'chords'
 
-days = ['1', '2', '3', '4', '5']
+days = ['1']
 
 channels = {
     'force': ['thumb',
