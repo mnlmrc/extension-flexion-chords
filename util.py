@@ -6,6 +6,7 @@ import scipy
 from scipy.optimize import least_squares
 from scipy.signal import butter, filtfilt, firwin
 from scipy.special import expit
+import globals as gl
 
 
 def load_nat_emg(file_path):
@@ -242,3 +243,22 @@ def fit_sigmoids(F, t, N):
     result = least_squares(calc_sigmoid_sse, init_params, args=(t, F, N), method='lm')
 
     return result
+
+
+def calc_planTime(experiment, p, session, day):
+    from force import load_mov
+    sn = int(''.join([c for c in p if c.isdigit()]))
+    path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
+
+    len_planTime = []
+    for block in range(7):
+
+        filename = os.path.join(path, f'{experiment}_{sn}_{block + 1:02d}.mov')
+
+        mov = load_mov(filename)
+
+        for tr in range(len(mov)):
+
+            len_planTime.append(np.sum(mov[tr][:, 1] == 3) / gl.fsample['force'])
+
+    return np.array(len_planTime)

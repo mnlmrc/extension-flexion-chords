@@ -29,7 +29,7 @@ from force import Force, calc_sim_chord, get_segment, calc_md, calc_pca, load_mo
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2, reconstruct, calc_nnmf
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
-    calc_distance_from_distr, fit_sigmoids, sigmoid, pearsonr_vec
+    calc_distance_from_distr, fit_sigmoids, sigmoid, pearsonr_vec, calc_planTime
 from variance_decomposition import reliability_var
 
 
@@ -86,7 +86,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                     dat = pd.read_csv(os.path.join(path, f"{experiment}_{sn}.dat"), sep="\t")
 
-                    nblocks = len(pinfo[pinfo['participant_id'] == participant_id]
+                    nblocks = len(pinfo[pinfo['participant_id'] == p]
                                   [f'blocks Chords day{day}'].iloc[0].split('.'))
 
                     for block in range(nblocks):
@@ -583,7 +583,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
             blocks = pinfo[
                 pinfo['participant_id'] == participant_id[0]
                 ][
-                f'blocks {session[3:]} day{day}'
+                f'blocks {session} day{day}'
             ].iloc[0].split('.')
 
             df_out = pd.DataFrame()
@@ -617,9 +617,19 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 df = df.drop('Trigger', axis=1)
                 trigOn = trigger > 4
                 trigOn_diff = np.diff(trigOn.astype(int))
-                trigOn_times = np.where(trigOn_diff == 1)[0][dat['trialPoint'] == 1]  # Trigger turning on (rising edge)
-                ET = (dat[dat['trialPoint'] == 1]['RT'] - 600) / 1000
-                trigOn_times = (trigOn_times + ET * gl.fsample['emg']).to_numpy().astype(int)
+                trigOn_times = np.where(trigOn_diff == 1)[0] # [dat['trialPoint'] == 1]  # Trigger turning on (rising edge)
+                ET = (dat['RT'] - 600) / 1000
+                stimTrig = calc_planTime(experiment, p, 'testing', day) - dat['stimTrig'] / 1000
+
+                for row in dat.iterrows():
+
+                    if (row[1]['Trig'] == 1) & (row[1]['iti'] > 4000):
+
+                        
+
+                        pass
+
+                trigOn_times = (trigOn_times + (ET + stimTrig) * gl.fsample['emg']).to_numpy().astype(int)
 
                 print(f'{p}: {len(trigOn_times)} trials found...')
 
@@ -2389,7 +2399,7 @@ if __name__ == "__main__":
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
     parser.add_argument('--session', default=None, help='',
-                        choices=['training', 'testing', 'emgTMS', 'emgNatural', 'emgChords'])
+                        choices=['training', 'testing', 'emg', 'emgTMS', 'emgNatural', 'emgChords'])
     parser.add_argument('--day', default=gl.days, help='')
     parser.add_argument('--ntrial', default=None, help='')
     parser.add_argument('--metric', default=None, choices=['MD', 'RT', 'ET'], help='')

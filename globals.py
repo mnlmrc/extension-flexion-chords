@@ -128,7 +128,6 @@ channels = {
 
 removeEMG = {
     'efc3': {
-        'subj100': ['flx_D5'],
-        'subj114': ['lum3']
+        'subj100': ['lum1', 'lum2', 'lum3']
     }
 }
