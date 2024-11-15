@@ -618,18 +618,31 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 trigOn = trigger > 4
                 trigOn_diff = np.diff(trigOn.astype(int))
                 trigOn_times = np.where(trigOn_diff == 1)[0] # [dat['trialPoint'] == 1]  # Trigger turning on (rising edge)
+
+                min_interval = 3  # Minimum interval in seconds
+                time_diffs = np.diff(trigOn_times, prepend=-np.inf)  # Prepend a large negative value
+                trigOn_times = trigOn_times[time_diffs > min_interval * gl.fsample['emg']]
+
                 ET = (dat['RT'] - 600) / 1000
                 stimTrig = calc_planTime(experiment, p, 'testing', day) - dat['stimTrig'] / 1000
 
-                for row in dat.iterrows():
-
+                trigOn_times_tmp = np.zeros_like(stimTrig)
+                n = 0
+                for r, row in enumerate(dat.iterrows()):
                     if (row[1]['Trig'] == 1) & (row[1]['iti'] > 4000):
+                        trigOn_times_tmp[r] = trigOn_times[n]
+                        n = n + 2
+                    elif (row[1]['Trig'] == 0) & (row[1]['iti'] > 4000):
+                        n = n + 1
+                    elif (row[1]['Trig'] == 1) & (row[1]['iti'] == 4000):
+                        trigOn_times_tmp[r] = trigOn_times[n]
+                        n = n + 1
 
-                        
+                trigOn_times_tmp = trigOn_times_tmp[dat['Trig'] == 1]
+                stimTrig = stimTrig[dat['Trig'] == 1]
+                ET = ET[dat['Trig'] == 1]
 
-                        pass
-
-                trigOn_times = (trigOn_times + (ET + stimTrig) * gl.fsample['emg']).to_numpy().astype(int)
+                trigOn_times = (trigOn_times_tmp + (ET + stimTrig) * gl.fsample['emg']).to_numpy().astype(int)
 
                 print(f'{p}: {len(trigOn_times)} trials found...')
 
@@ -666,46 +679,89 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region EMG:df2mep
         case 'EMG:df2mep':
 
-            for p in participant_id:
-                filepath = os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'emg_continuous.tsv')
-                df = pd.read_csv(filepath, sep='\t')
+            filepath = os.path.join(gl.baseDir, experiment, 'emg', f'day{day}', participant_id[0], 'emg_continuous.tsv')
+            df = pd.read_csv(filepath, sep='\t')
 
-                # nn_log = pd.read_csv(os.path.join(gl.baseDir, 'efc3', 'Brainsight', 'efc3_100_pretraining.tsv'), sep='\t')
-                # time_in_seconds = [time_to_seconds(t) for t in nn_log['Time'].tolist()]
-                # time_diff_NN = np.diff(time_in_seconds)
+            sn = int(''.join([c for c in participant_id[0] if c.isdigit()]))
 
-                trigger = df['Trigger'].to_numpy()
-                df = df.drop('Trigger', axis=1)
-                trigOn = trigger > 4
-                trigOn_diff = np.diff(trigOn.astype(int))
-                trigOn_times = np.where(trigOn_diff == 1)[0]  # Trigger turning on (rising edge)
+            dat = pd.read_csv(os.path.join(gl.baseDir, experiment, 'testing',
+                                           f'day{day}', f'{experiment}_{sn}.dat'), sep='\t')
 
-                print(f'{p}: {len(trigOn_times)} MEPs found...')
+            # nn_log = pd.read_csv(os.path.join(gl.baseDir, 'efc3', 'Brainsight', 'efc3_100_pretraining.tsv'), sep='\t')
+            # time_in_seconds = [time_to_seconds(t) for t in nn_log['Time'].tolist()]
+            # time_diff_NN = np.diff(time_in_seconds)
 
-                # time_diff_EMG = np.diff(trigOn_times / gl.fsample['emg'])
+            trigger = df['Trigger'].to_numpy()
+            df = df.drop('Trigger', axis=1)
+            trigOn = trigger > 4
+            trigOn_diff = np.diff(trigOn.astype(int))
+            trigOn_times = np.where(trigOn_diff == 1)[0]  # Trigger turning on (rising edge)
 
-                nsamples = int(.05 * gl.fsample['emg'])
-                mep = np.zeros((len(trigOn_times), df.shape[1], nsamples))
-                for TN in range(len(trigOn_times)):
-                    mep[TN] = df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy().T
+            min_interval = 3  # Minimum interval in seconds
+            time_diffs = np.diff(trigOn_times, prepend=-np.inf)  # Prepend a large negative value
+            trigOn_times = trigOn_times[time_diffs > min_interval * gl.fsample['emg']]
 
-                np.save(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mep_segmented.npy'), mep)
+            # stimTrig = calc_planTime(experiment, p, 'testing', day) - dat['stimTrig'] / 1000
 
-            return mep, trigOn_times
+            print(f'{participant_id[0]}: {len(trigOn_times)} MEPs found...')
+
+            info_mep = {
+                'condition': [],
+                'chordID': [],
+                'stimTrig': [],
+                # 'chord': [],
+                'BN': []
+            }
+            # n = 0
+            for r, row in enumerate(dat.iterrows()):
+                if (row[1]['Trig'] == 1) & (row[1]['iti'] > 4000):
+                    info_mep['condition'].append('planning')
+                    info_mep['condition'].append('rest')
+                    info_mep['chordID'].append(row[1]['chordID'])
+                    info_mep['chordID'].append(row[1]['chordID'])
+                    info_mep['stimTrig'].append(row[1]['stimTrig'])
+                    info_mep['stimTrig'].append(row[1]['stimTrig'])
+                    info_mep['BN'].append(row[1]['BN'])
+                    info_mep['BN'].append(row[1]['BN'])
+                elif (row[1]['Trig'] == 0) & (row[1]['iti'] > 4000):
+                    info_mep['condition'].append('rest')
+                    info_mep['chordID'].append(row[1]['chordID'])
+                    info_mep['stimTrig'].append(row[1]['stimTrig'])
+                    info_mep['BN'].append(row[1]['BN'])
+                elif (row[1]['Trig'] == 1) & (row[1]['iti'] == 4000):
+                    info_mep['condition'].append('planning')
+                    info_mep['chordID'].append(row[1]['chordID'])
+                    info_mep['stimTrig'].append(row[1]['stimTrig'])
+                    info_mep['BN'].append(row[1]['BN'])
+
+            # time_diff_EMG = np.diff(trigOn_times / gl.fsample['emg'])
+
+            nsamples = int(.05 * gl.fsample['emg'])
+            mep = np.zeros((len(trigOn_times), df.shape[1], nsamples))
+            for TN in range(len(trigOn_times)):
+                mep[TN] = df.iloc[trigOn_times[TN]:trigOn_times[TN] + nsamples, :].to_numpy().T
+
+            info_mep = pd.DataFrame(info_mep)
+            np.save(os.path.join(gl.baseDir, experiment, 'emg', f'day{day}', participant_id[0], 'mep_segmented.npy'), mep)
+
+            return mep, info_mep
         # endregion
 
         # region EMG:mep2amp
         case 'EMG:mep2amp':
 
             for p in participant_id:
-                mep = np.load(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mep_segmented.npy'))
+                # mep = np.load(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mep_segmented.npy'))
+                mep, info_mep = main('EMG:df2mep', experiment=experiment, participant_id=[p],
+                                     session=session, day=day)
                 mepAmp = np.ptp(mep, axis=-1)
                 df_mepAmp = pd.DataFrame(mepAmp, columns=gl.channels['emgTMS'])
+                df_mepAmp = pd.concat([df_mepAmp, info_mep], axis=1)
                 df_mepAmp.drop(gl.removeEMG[experiment][p], axis=1, inplace=True)
-                df_mepAmp.to_csv(os.path.join(gl.baseDir, experiment, 'emgTMS', f'day{day}', p, 'mepAmp.tsv'), sep='\t',
+                df_mepAmp.to_csv(os.path.join(gl.baseDir, experiment, session, f'day{day}', p, 'mepAmp.tsv'), sep='\t',
                                  index=False)
 
-            return df_mepAmp
+            # return df_mepAmp
         # endregion
 
         # region EMG:nnmf
