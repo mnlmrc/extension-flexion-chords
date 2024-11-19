@@ -50,7 +50,7 @@ for n in range(nruns):
     target['startTime'] = startTime
     target['endTime'] = endTime
 
-    target.to_csv(os.path.join(out_path, f'{experiment}_{sn}_day{day}_run{n+1}.tsv'), index=False, sep='\t')
+    target.to_csv(os.path.join(out_path, f'{experiment}_{sn}_day{day}_run{n+1}.tgt'), index=False, sep='\t')
 
 
 
