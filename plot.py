@@ -424,7 +424,7 @@ def plot(what, fontsize=12):
 
             experiment = 'efc2'
 
-            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'metrics.tsv'), sep='\t')
+            metrics = pd.read_csv(os.path.join(gl.baseDir, experiment, 'behavioural.tsv'), sep='\t')
 
             metrics['finger_asynch'] = metrics['finger_asynch']  # + 1
 

@@ -25,7 +25,7 @@ from joblib import Parallel, delayed
 
 import seaborn as sns
 
-from force import Force, calc_sim_chord, get_segment, calc_md, calc_pca, load_mov, calc_finger_latency
+from force import Force, get_segment, calc_md, calc_pca, load_mov, calc_finger_latency
 from nnmf import iterative_nnmf, calc_reconerr, assert_selected_rows_belong, calc_r2, reconstruct, calc_nnmf
 from stats import perm_test_1samp
 from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_seconds, lowpass_fir, \
@@ -46,6 +46,8 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
         # region FORCE:single_trial
         case 'FORCE:single_trial':
 
+            scaler = MinMaxScaler()
+
             behavioural_dict = {
                 'BN': [],
                 'TN': [],
@@ -60,6 +62,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 'MD': [],
                 'RT': [],
                 'ET': [],
+                'finger_asynch': [],
                 'thumb_latency': [],
                 'index_latency': [],
                 'middle_latency': [],
@@ -91,6 +94,12 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                     for block in range(nblocks):
 
+                        print(f"experiment:{experiment}, "
+                              f"participant_id:{p}, "
+                              f"session:{session}, "
+                              f"day:{day}, "
+                              f"block:{block}")
+
                         filename = os.path.join(path, f'{experiment}_{sn}_{block + 1:02d}.mov')
 
                         mov = load_mov(filename)
@@ -98,12 +107,13 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                         dat_tmp = dat[dat.BN == block + 1].reset_index()  # .dat file for block
 
                         for tr in range(len(mov)):
+
                             if tr == 0 or dat_tmp.iloc[tr].chordID != dat_tmp.iloc[tr - 1].chordID:
                                 rep = 1
                             else:
                                 rep += 1
 
-                            chordID = dat_tmp.iloc[tr].chordID
+                            chordID = dat_tmp.iloc[tr].chordID.astype(int).astype(str)
                             chord = 'trained' if chordID in pinfo[pinfo['participant_id'] == p]['trained'].iloc[0].split('.') else 'untrained'
 
                             # add trial info to dictionary
@@ -120,7 +130,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
 
                             if dat_tmp.iloc[tr].trialPoint == 1:
 
-                                forceRaw = mov[tr][:, gl.diffCols][mov[tr][:, 1] == 4] * gl.fGain  # take only states 3 (i.e., WAIT_EXEC)
+                                forceRaw = mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3] * gl.fGain  # take only states 3 (i.e., WAIT_EXEC)
                                 force_filt10Hz = lowpass_butter(forceRaw.T, 10, gl.fsample['force']).T
                                 dforce_filt10Hz = np.gradient(force_filt10Hz, 1 / gl.fsample['force'], axis=0)
 
@@ -131,12 +141,16 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                 assert et > 0, "negative execution time"
 
                                 md, _ = calc_md(force)
+
+                                dforce_filt10Hz = scaler.fit_transform(np.abs(dforce_filt10Hz))
+
                                 latency_tmp, order_tmp = calc_finger_latency(dforce_filt10Hz, dat_tmp.iloc[tr].chordID, fthresh=.2)
 
                                 # add measures to dictionary
                                 behavioural_dict['RT'].append(rt)
                                 behavioural_dict['ET'].append(et)
                                 behavioural_dict['MD'].append(md)
+                                behavioural_dict['finger_asynch'].append(latency_tmp.max() - latency_tmp.min())
                                 behavioural_dict['thumb_latency'].append(latency_tmp[0])
                                 behavioural_dict['index_latency'].append(latency_tmp[1])
                                 behavioural_dict['middle_latency'].append(latency_tmp[2])
@@ -154,6 +168,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                 behavioural_dict['RT'].append(None)
                                 behavioural_dict['ET'].append(None)
                                 behavioural_dict['MD'].append(None)
+                                behavioural_dict['finger_asynch'].append(None)
                                 behavioural_dict['thumb_latency'].append(None)
                                 behavioural_dict['index_latency'].append(None)
                                 behavioural_dict['middle_latency'].append(None)
