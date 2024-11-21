@@ -150,7 +150,7 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                                 behavioural_dict['RT'].append(rt)
                                 behavioural_dict['ET'].append(et)
                                 behavioural_dict['MD'].append(md)
-                                behavioural_dict['finger_asynch'].append(latency_tmp.max() - latency_tmp.min())
+                                behavioural_dict['finger_asynch'].append(np.nanmax(latency_tmp) - np.nanmin(latency_tmp))
                                 behavioural_dict['thumb_latency'].append(latency_tmp[0])
                                 behavioural_dict['index_latency'].append(latency_tmp[1])
                                 behavioural_dict['middle_latency'].append(latency_tmp[2])
