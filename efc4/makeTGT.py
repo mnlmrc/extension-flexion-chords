@@ -34,7 +34,7 @@ for n in range(nruns):
         target = pd.concat([target, target_tmp]).reset_index(drop=True)
 
     start = 6000
-    step = 6500
+    step = 6000
     num = target.shape[0]
 
     startTime = start + step * np.arange(num)
