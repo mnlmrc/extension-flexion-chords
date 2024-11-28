@@ -41,7 +41,7 @@ for n in range(nruns):
     startTime[16:] = startTime[16:] + 16000
     startTime[32:] = startTime[32:] + 16000
     endTime = np.zeros_like(startTime)
-    endTime[-1] = startTime[-1] + target[['planTime', 'execMaxTime', 'feedbackTime', 'iti']].iloc[-1].sum() + 12500
+    endTime[-1] = startTime[-1] + target[['planTime', 'execMaxTime', 'feedbackTime', 'iti']].iloc[-1].sum() + 12000
 
     # # Shuffle 'iti' and 'Trig' columns independently
     # target['iti'] = np.random.permutation(target['iti'].values)
