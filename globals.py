@@ -22,9 +22,10 @@ movCols = ['state', 'timeReal', 'time',
            'fThumb', 'fIndex', 'fMiddle', 'fRing', 'fPinkie',
            'Thumb', 'Index', 'Middle', 'Ring', 'Pinkie',  # 13, 14, 15, 16, 17
            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
-diffCols = [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18]
+diffCols = [18,19,20, 21,22] # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
 
-Dirs = ["/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
+Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord",
+        "/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
         "/cifs/diedrichsen/data/SequenceAndChord/ExtFlexChord"]
 
 # natChord_chordDir = "/Users/mnlmrc/Downloads/natChord_chord.tsv"
@@ -32,7 +33,7 @@ Dirs = ["/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive
 
 baseDir = next((Dir for Dir in Dirs if Path(Dir).exists()), None)
 
-if baseDir:
+if baseDir is not None:
     print(f"Base directory found: {baseDir}")
 else:
     print("No valid base directory found.")
@@ -83,6 +84,9 @@ participants = {
     ],
     'efc3': [
         'subj100'
+    ],
+    'efc4': [
+        'subj999'
     ]
 }
 

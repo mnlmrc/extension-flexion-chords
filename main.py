@@ -33,8 +33,8 @@ from util import load_nat_emg, calc_avg, calc_success, lowpass_butter, time_to_s
 from variance_decomposition import reliability_var
 
 
-def main(what, experiment=None, participant_id=None, session=None, day=None, chordID=None, chord=None, ntrial=None,
-         fname=None, muscles=None, trigger=None, n_jobs=None,
+def main(what, experiment=None, participant_id=None, session=None, day=None, chordID=None, chord=None, block=None,
+         ntrial=None, fname=None, muscles=None, trigger=None, n_jobs=None,
          fig=None, axs=None, width=None, linewidth=None, linecolor=None, showfliers=True, color=None, palette=None,
          err_kw=None):
     if participant_id is None:
@@ -75,110 +75,110 @@ def main(what, experiment=None, participant_id=None, session=None, day=None, cho
                 'pinkie_pos': []
             }
 
-            for p in participant_id:
+            # for p in participant_id:
 
-                sn = int(''.join([c for c in p if c.isdigit()]))
+            sn = int(''.join([c for c in participant_id[0] if c.isdigit()]))
 
-                for day in gl.days:
-                    if day == '1' or day == '5':
-                        session = 'testing'
-                    else:
-                        session = 'training'
+            # for day in gl.days:
+                # if day == '1' or day == '5':
+                #     session = 'testing'
+                # else:
+                #     session = 'training'
 
-                    path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
+            path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
 
-                    dat = pd.read_csv(os.path.join(path, f"{experiment}_{sn}.dat"), sep="\t")
+            dat = pd.read_csv(os.path.join(path, f"{experiment}_{sn}.dat"), sep="\t")
 
-                    nblocks = len(pinfo[pinfo['participant_id'] == p]
-                                  [f'blocks Chords day{day}'].iloc[0].split('.'))
+            # nblocks = len(pinfo[pinfo['participant_id'] == p][f'blocks Chords day{day}'][0].split(','))
 
-                    for block in range(nblocks):
+            # for block in range(nblocks):
 
-                        print(f"experiment:{experiment}, "
-                              f"participant_id:{p}, "
-                              f"session:{session}, "
-                              f"day:{day}, "
-                              f"block:{block}")
+            print(f"experiment:{experiment}, "
+                  f"participant_id:{participant_id}, "
+                  f"session:{session}, "
+                  f"day:{day}, "
+                  f"block:{block}")
 
-                        filename = os.path.join(path, f'{experiment}_{sn}_{block + 1:02d}.mov')
+            filename = os.path.join(path, f'{experiment}_{sn}_{block + 1:02d}.mov')
 
-                        mov = load_mov(filename)
+            mov = load_mov(filename)
 
-                        dat_tmp = dat[dat.BN == block + 1].reset_index()  # .dat file for block
+            dat_tmp = dat[dat.BN == block + 1].reset_index()  # .dat file for block
 
-                        for tr in range(len(mov)):
+            for tr in range(len(mov)):
 
-                            if tr == 0 or dat_tmp.iloc[tr].chordID != dat_tmp.iloc[tr - 1].chordID:
-                                rep = 1
-                            else:
-                                rep += 1
+                if tr == 0 or dat_tmp.iloc[tr].chordID != dat_tmp.iloc[tr - 1].chordID:
+                    rep = 1
+                else:
+                    rep += 1
 
-                            chordID = dat_tmp.iloc[tr].chordID.astype(int).astype(str)
-                            chord = 'trained' if chordID in pinfo[pinfo['participant_id'] == p]['trained'].iloc[0].split('.') else 'untrained'
+                chordID = dat_tmp.iloc[tr].chordID.astype(int).astype(str)
+                chord = 'trained' if chordID in pinfo[pinfo['participant_id'] ==
+                                                      participant_id]['trained'][0].split('.') else 'untrained'
 
-                            # add trial info to dictionary
-                            behavioural_dict['BN'].append(dat_tmp.iloc[tr].BN)
-                            behavioural_dict['TN'].append(dat_tmp.iloc[tr].TN)
-                            behavioural_dict['subNum'].append(sn)
-                            behavioural_dict['participant_id'].append(p)
-                            behavioural_dict['chordID'].append(chordID)
-                            behavioural_dict['trialPoint'].append(dat_tmp.iloc[tr].trialPoint)
-                            behavioural_dict['chord'].append(chord)
-                            behavioural_dict['day'].append(day)
-                            behavioural_dict['repetition'].append(rep)
-                            behavioural_dict['session'].append(session)
+                # add trial info to dictionary
+                behavioural_dict['BN'].append(dat_tmp.iloc[tr].BN)
+                behavioural_dict['TN'].append(dat_tmp.iloc[tr].TN)
+                behavioural_dict['subNum'].append(sn)
+                behavioural_dict['participant_id'].append(participant_id)
+                behavioural_dict['chordID'].append(chordID)
+                behavioural_dict['trialPoint'].append(dat_tmp.iloc[tr].trialPoint)
+                behavioural_dict['chord'].append(chord)
+                behavioural_dict['day'].append(day)
+                behavioural_dict['repetition'].append(rep)
+                behavioural_dict['session'].append(session)
 
-                            if dat_tmp.iloc[tr].trialPoint == 1:
+                if dat_tmp.iloc[tr].trialPoint == 1:
 
-                                forceRaw = mov[tr][:, gl.diffCols][mov[tr][:, 0] == 3] * gl.fGain  # take only states 3 (i.e., WAIT_EXEC)
-                                force_filt10Hz = lowpass_butter(forceRaw.T, 10, gl.fsample['force']).T
-                                dforce_filt10Hz = np.gradient(force_filt10Hz, 1 / gl.fsample['force'], axis=0)
+                    forceRaw = mov[tr][:, gl.diffCols][mov[tr][:, 1] == 4] * gl.fGain  # take only states 3 (i.e., WAIT_EXEC)
+                    force_filt10Hz = lowpass_butter(forceRaw.T, 10, gl.fsample['force']).T
+                    dforce_filt10Hz = np.gradient(force_filt10Hz, 1 / gl.fsample['force'], axis=0)
 
-                                # calc single trial metrics
-                                force, rt, et = get_segment(forceRaw)
+                    # calc single trial metrics
+                    force, rt, et = get_segment(forceRaw)
 
-                                assert rt > 0, "negative reaction time"
-                                assert et > 0, "negative execution time"
+                    assert rt > 0, "negative reaction time"
+                    assert et > 0, "negative execution time"
 
-                                md, _ = calc_md(force)
+                    md, _ = calc_md(force)
 
-                                dforce_filt10Hz = scaler.fit_transform(np.abs(dforce_filt10Hz))
+                    dforce_filt10Hz = scaler.fit_transform(np.abs(dforce_filt10Hz))
 
-                                latency_tmp, order_tmp = calc_finger_latency(dforce_filt10Hz, dat_tmp.iloc[tr].chordID, fthresh=.2)
+                    latency_tmp, order_tmp = calc_finger_latency(dforce_filt10Hz, dat_tmp.iloc[tr].chordID, fthresh=.2)
 
-                                # add measures to dictionary
-                                behavioural_dict['RT'].append(rt)
-                                behavioural_dict['ET'].append(et)
-                                behavioural_dict['MD'].append(md)
-                                behavioural_dict['finger_asynch'].append(np.nanmax(latency_tmp) - np.nanmin(latency_tmp))
-                                behavioural_dict['thumb_latency'].append(latency_tmp[0])
-                                behavioural_dict['index_latency'].append(latency_tmp[1])
-                                behavioural_dict['middle_latency'].append(latency_tmp[2])
-                                behavioural_dict['ring_latency'].append(latency_tmp[3])
-                                behavioural_dict['pinkie_latency'].append(latency_tmp[4])
-                                behavioural_dict['thumb_pos'].append(order_tmp[0])
-                                behavioural_dict['index_pos'].append(order_tmp[1])
-                                behavioural_dict['middle_pos'].append(order_tmp[2])
-                                behavioural_dict['ring_pos'].append(order_tmp[3])
-                                behavioural_dict['pinkie_pos'].append(order_tmp[4])
+                    # add measures to dictionary
+                    behavioural_dict['RT'].append(rt)
+                    behavioural_dict['ET'].append(et)
+                    behavioural_dict['MD'].append(md)
+                    behavioural_dict['finger_asynch'].append(np.nanmax(latency_tmp) - np.nanmin(latency_tmp))
+                    behavioural_dict['thumb_latency'].append(latency_tmp[0])
+                    behavioural_dict['index_latency'].append(latency_tmp[1])
+                    behavioural_dict['middle_latency'].append(latency_tmp[2])
+                    behavioural_dict['ring_latency'].append(latency_tmp[3])
+                    behavioural_dict['pinkie_latency'].append(latency_tmp[4])
+                    behavioural_dict['thumb_pos'].append(order_tmp[0])
+                    behavioural_dict['index_pos'].append(order_tmp[1])
+                    behavioural_dict['middle_pos'].append(order_tmp[2])
+                    behavioural_dict['ring_pos'].append(order_tmp[3])
+                    behavioural_dict['pinkie_pos'].append(order_tmp[4])
 
-                            else:
+                else:
 
-                                # add to dictionary
-                                behavioural_dict['RT'].append(None)
-                                behavioural_dict['ET'].append(None)
-                                behavioural_dict['MD'].append(None)
-                                behavioural_dict['finger_asynch'].append(None)
-                                behavioural_dict['thumb_latency'].append(None)
-                                behavioural_dict['index_latency'].append(None)
-                                behavioural_dict['middle_latency'].append(None)
-                                behavioural_dict['ring_latency'].append(None)
-                                behavioural_dict['pinkie_latency'].append(None)
-                                behavioural_dict['thumb_pos'].append(None)
-                                behavioural_dict['index_pos'].append(None)
-                                behavioural_dict['middle_pos'].append(None)
-                                behavioural_dict['ring_pos'].append(None)
-                                behavioural_dict['pinkie_pos'].append(None)
+                    # add to dictionary
+                    behavioural_dict['RT'].append(None)
+                    behavioural_dict['ET'].append(None)
+                    behavioural_dict['MD'].append(None)
+                    behavioural_dict['finger_asynch'].append(None)
+                    behavioural_dict['thumb_latency'].append(None)
+                    behavioural_dict['index_latency'].append(None)
+                    behavioural_dict['middle_latency'].append(None)
+                    behavioural_dict['ring_latency'].append(None)
+                    behavioural_dict['pinkie_latency'].append(None)
+                    behavioural_dict['thumb_pos'].append(None)
+                    behavioural_dict['index_pos'].append(None)
+                    behavioural_dict['middle_pos'].append(None)
+                    behavioural_dict['ring_pos'].append(None)
+                    behavioural_dict['pinkie_pos'].append(None)
 
             behavioural = pd.DataFrame(behavioural_dict)
 
@@ -2469,10 +2469,10 @@ if __name__ == "__main__":
                         )
     parser.add_argument('--experiment', default='efc2', help='')
     parser.add_argument('--participant_id', nargs='+', default=None, help='')
-    parser.add_argument('--session', default=None, help='',
-                        choices=['training', 'testing', 'emg', 'emgTMS', 'emgNatural', 'emgChords'])
+    parser.add_argument('--session', default=None, help='',)
     parser.add_argument('--day', default=gl.days, help='')
     parser.add_argument('--ntrial', default=None, help='')
+    parser.add_argument('--block', default=None, help='')
     parser.add_argument('--metric', default=None, choices=['MD', 'RT', 'ET'], help='')
     parser.add_argument('--chordID', default=None, help='')
     parser.add_argument('--chord', default=None, help='', choices=['trained', 'untrained'])
@@ -2487,6 +2487,7 @@ if __name__ == "__main__":
     participant_id = args.participant_id
     session = args.session
     day = args.day
+    block = int(args.block)
     ntrial = int(args.ntrial) if args.ntrial is not None else None
     metric = args.metric
     chordID = int(args.chordID) if args.chordID is not None else None
@@ -2499,7 +2500,7 @@ if __name__ == "__main__":
         participant_id = gl.participants[experiment]
 
     main(what, experiment=experiment, participant_id=participant_id, session=session, day=day,
-         ntrial=ntrial, chordID=chordID, chord=chord, fname=fname, n_jobs=n_jobs)
+         block=block, ntrial=ntrial, chordID=chordID, chord=chord, fname=fname, n_jobs=n_jobs)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
