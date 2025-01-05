@@ -4,6 +4,12 @@ function varargout = efcl_anat(what, varargin)
     % server. Add more directory if needed.
     if isfolder('/cifs/diedrichsen/data/Chord_exp/ExtFlexChord/efc4/')
         baseDir = '/cifs/diedrichsen/data/Chord_exp/ExtFlexChord/efc4/';
+        
+        addpath(genpath('~/Documents/GitHub/dataframe/'))
+        addpath(genpath('~/Documents/GitHub/spmj_tools/'))
+        addpath(genpath('~/Documents/MATLAB/spm12/'))
+        addpath(genpath('~/Documents/GitHub/surfAnalysis/'))
+        
     elseif isfolder("/path/to/project/cifs/directory/")
         baseDir = "/path/to/project/cifs/directory/";
     else
@@ -44,12 +50,12 @@ function varargout = efcl_anat(what, varargin)
 %             anat_name = subj_row.anat_name{1};
             
             % anatomical file
-            anat_full_path = fullfile(baseDir,bidsDir,subj_id,'subj100/anat',sprintf('sub-%s_acq-MP2RAGE_run-01_T1w.nii.gz', sub_id));
+            anat_full_path = fullfile(baseDir,bidsDir,subj_id, 'day1', 'anat',sprintf('sub-s%d_acq-MP2RAGE_run-01_T1w.nii.gz', sn));
             
            % Define output di
-            output_folder = fullfile(baseDir,anatomicalDir, sub_id);
-            dircheck(output_folder)
-            output_file = fullfile(output_folder,sprintf('%s_T1w_raw.nii.gz', sub_id));
+            output_folder = fullfile(baseDir,anatomicalDir, subj_id);
+%             dircheck(output_folder)
+            output_file = fullfile(output_folder,sprintf('%s_T1w_raw.nii.gz', subj_id));
             
             % copy file to destination:
             copyfile(anat_full_path,output_file);
@@ -61,14 +67,14 @@ function varargout = efcl_anat(what, varargin)
             delete(output_file);
         
         case 'ANAT:reslice_LPI'           % Reslice anatomical image within LPI coordinate systems
-        % handling input args:
+            % handling input args:
             sn = [];
             vararginoptions(varargin,{'sn'})
             if isempty(sn)
                 error('ANAT:reslice_LPI -> ''sn'' must be passed to this function.')
             end
             
-            subj_row=getrow(pinfo,pinfo.sn== s );
+            subj_row=getrow(pinfo,pinfo.sn==sn);
             subj_id = subj_row.participant_id{1};
             
             % (1) Reslice anatomical image to set it within LPI co-ordinate frames
@@ -100,24 +106,30 @@ function varargout = efcl_anat(what, varargin)
             subj_id = subj_row.participant_id{1};
 
             % Get the anat of subject
-            subj_anat_img = fullfile(baseDir,anatomicalDir, sub_id, sprintf('%s_T1w_LPI.nii', subj_id));
+            subj_anat_img = fullfile(baseDir,anatomicalDir, subj_id, sprintf('%s_T1w_LPI.nii', subj_id));
 
             % get location of ac
-            locACx = subj_id.locACx;
-            locACy = subj_id.locACy;
-            locACz = subj_id.locACz;
+            locACx = subj_row.locACx;
+            locACy = subj_row.locACy;
+            locACz = subj_row.locACz;
 
             loc_AC = [locACx locACy locACz];
             loc_AC = loc_AC';
 
-            %recenter
-            V               = spm_vol(subj_anat_img);
-            dat             = spm_read_vols(V);
-            oldOrig         = V.mat(1:3,4);
-            V.mat(1:3,4)    = oldOrig-loc_AC;
+%             %recenter
+             V               = spm_vol(subj_anat_img);
+             dat             = spm_read_vols(V);
+%             oldOrig         = V.mat(1:3,4);
+%             V.mat(1:3,4)    = oldOrig-loc_AC;
+            
+            R = V.mat(1:3,1:3);
+            AC = [pinfo.locACx(pinfo.sn==sn),pinfo.locACy(pinfo.sn==sn),pinfo.locACz(pinfo.sn==sn)]';
+            t = -1 * R * AC;
+            V.mat(1:3,4) = t;
+            sprintf('ACx: %d, ACy: %d, ACz: %d', pinfo.locACx(pinfo.sn==sn), pinfo.locACy(pinfo.sn==sn), pinfo.locACz(pinfo.sn==sn))
 
             % Modify filename
-            new_filename = fullfile(anatomical_dir, sub_id, sprintf('%s_T1w.nii', subj_id));
+            new_filename = fullfile(baseDir, anatomicalDir, subj_id, sprintf('%s_T1w.nii', subj_id));
             V.fname = new_filename;
             spm_write_vol(V,dat);
                 
@@ -130,11 +142,12 @@ function varargout = efcl_anat(what, varargin)
                 error('ANAT:segment -> ''sn'' must be passed to this function.')
             end
             
-            subj_row=getrow(pinfo,pinfo.sn== s );
+            subj_row=getrow(pinfo,pinfo.sn== sn );
             subj_id = subj_row.participant_id{1};
             
-            subj_anat = fullfile(baseDir,anatomicalDir, sub_id, sprintf('%s_T1w.nii', subj_id);
-    
+            subj_anat = fullfile(baseDir,anatomicalDir, subj_id, sprintf('%s_T1w.nii', subj_id));
+            
+            SPMhome=fileparts(which('spm.m'));
             J.channel.vols     = {subj_anat};
             J.channel.biasreg  = 0.001;
             J.channel.biasfwhm = 60;
@@ -184,17 +197,17 @@ function varargout = efcl_anat(what, varargin)
                 error('SURF:reconall -> ''sn'' must be passed to this function.')
             end
 
-            subj_row=getrow(pinfo,pinfo.sn== s );
+            subj_row=getrow(pinfo,pinfo.sn== sn );
             subj_id = subj_row.participant_id{1};   
         
             % recon all inputs
-            fs_dir = fullfile(baseDir,freesurferDir);
+            fs_dir = fullfile(baseDir,freesurferDir, subj_id);
             anatomical_dir = fullfile(baseDir,anatomicalDir);
             anatomical_name = sprintf('%s_T1w.nii', subj_id);
             
             % Get the directory of subjects anatomical;
-            freesurfer_reconall(fs_dir, sub_id, ...
-                fullfile(anatomical_dir, sub_id, anatomical_name));
+            freesurfer_reconall(fs_dir, subj_id, ...
+                fullfile(anatomical_dir, subj_id, anatomical_name));
             
         case 'SURF:fs2wb'          % Resampling subject from freesurfer fsaverage to fs_LR        
             res  = 32;          % resolution of the atlas. options are: 32, 164
@@ -206,14 +219,14 @@ function varargout = efcl_anat(what, varargin)
                 error('SURF:fs2wb -> ''sn'' must be passed to this function.')
             end
     
-            subj_row=getrow(pinfo,pinfo.sn== s );
+            subj_row=getrow(pinfo,pinfo.sn== sn );
             subj_id = subj_row.participant_id{1};  
             
             % get the subject id folder name
-            outDir   = fullfile(baseDir, surfacewbDir; 
-            dircheck(outDir);
-            fs_dir = fullfile(baseDir,freesurferDir);
-            surf_resliceFS2WB(sub_id, fs_dir, outDir, 'hemisphere', hemi, 'resolution', sprintf('%dk', res))
+            outDir   = fullfile(baseDir, surfacewbDir); 
+%             dircheck(outDir);
+            fs_dir = fullfile(baseDir,freesurferDir, subj_id);
+            surf_resliceFS2WB(subj_id, fs_dir, outDir, 'hemisphere', hemi, 'resolution', sprintf('%dk', res))
     
     end
             
