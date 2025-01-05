@@ -43,8 +43,8 @@ function efcl_glm(what, varargin)
 
             D = dload(fullfile(baseDir, behavDir, day_id, subj_id, ['efcl_' sn '.dat']));
 
+            chords = unique(D.chordID);
             
-
     end
 
 end
