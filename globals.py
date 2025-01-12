@@ -26,7 +26,7 @@ diffCols = [18,19,20, 21,22] # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
 
 Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord",
         "/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
-        "/cifs/diedrichsen/data/SequenceAndChord/ExtFlexChord"]
+        "/cifs/diedrichsen/data/Chord_exp/ExtFlexChord"]
 
 # natChord_chordDir = "/Users/mnlmrc/Downloads/natChord_chord.tsv"
 

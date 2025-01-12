@@ -103,11 +103,11 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                       f"day:{day}, "
                       f"block:{block}")
 
-                filename = os.path.join(path, f'{experiment}_{sn}_{block + 1:02d}.mov')
+                filename = os.path.join(path, f'{experiment}_{sn}_{block:02d}.mov')
 
                 mov = load_mov(filename)
 
-                dat_tmp = dat[dat.BN == block + 1].reset_index()  # .dat file for block
+                dat_tmp = dat[dat.BN == block].reset_index()  # .dat file for block
 
                 for tr in range(len(mov)):
 
@@ -183,10 +183,10 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                         behavioural_dict['ring_pos'].append(None)
                         behavioural_dict['pinkie_pos'].append(None)
 
-                behavioural = pd.DataFrame(behavioural_dict)
+            behavioural = pd.DataFrame(behavioural_dict)
 
-                behavioural.to_csv(os.path.join(gl.baseDir, experiment, gl.behavDir, f'day{day}', f'subj{sn}',
-                                                'single_trial.tsv'), sep='\t', index=False)
+            behavioural.to_csv(os.path.join(gl.baseDir, experiment, gl.behavDir, f'day{day}', f'subj{sn}',
+                                            'single_trial.tsv'), sep='\t', index=False)
 
 
             # exp, loadings, _ = calc_pca(force)
