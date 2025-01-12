@@ -214,9 +214,11 @@ def get_segment(x, hold_time=gl.hold_time):
     start_samp_exec = np.argmax(c)
 
     if hold_time is None:
-        x_s = x[start_samp_exec:]
         starttime = start_samp_exec / gl.fsample['force']
-        endtime = (len(x) / gl.fsample['force']) - starttime
+        d = np.all(np.abs(x) > gl.ftarget, axis=1)
+        end_samp_exec = np.argmax(d) if np.any(d) else None
+        endtime = end_samp_exec / gl.fsample['force'] if end_samp_exec is not None else None
+        x_s = x[start_samp_exec:end_samp_exec]
     else:
         x_s = x[start_samp_exec:-int(hold_time * gl.fsample['force'])]
         starttime = start_samp_exec / gl.fsample['force']

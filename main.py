@@ -138,7 +138,7 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                         dforce_filt10Hz = np.gradient(force_filt10Hz, 1 / gl.fsample['force'], axis=0)
 
                         # calc single trial metrics
-                        force, rt, et = get_segment(forceRaw)
+                        force, rt, et = get_segment(forceRaw, hold_time=None)
 
                         assert rt > 0, "negative reaction time"
                         assert et > 0, "negative execution time"
@@ -147,7 +147,8 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
 
                         dforce_filt10Hz = scaler.fit_transform(np.abs(dforce_filt10Hz))
 
-                        latency_tmp, order_tmp = calc_finger_latency(dforce_filt10Hz, dat_tmp.iloc[tr].chordID, fthresh=.2)
+                        latency_tmp, order_tmp = calc_finger_latency(dforce_filt10Hz, dat_tmp.iloc[tr].chordID,
+                                                                     fthresh=.2)
 
                         # add measures to dictionary
                         behavioural_dict['RT'].append(rt)

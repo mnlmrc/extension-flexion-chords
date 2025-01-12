@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 
 fthresh = 1.2  # threshold to exit the baseline area
+ftarget = 2
 fGain = np.array([1, 1, 1, 1.5, 1.5])
 hold_time = .6  # in seconds
 
@@ -22,7 +23,7 @@ movCols = ['state', 'timeReal', 'time',
            'fThumb', 'fIndex', 'fMiddle', 'fRing', 'fPinkie',
            'Thumb', 'Index', 'Middle', 'Ring', 'Pinkie',  # 13, 14, 15, 16, 17
            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
-diffCols = [18,19,20, 21,22] # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
+diffCols = [18, 19, 20, 21, 22]  # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
 
 Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord",
         "/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
