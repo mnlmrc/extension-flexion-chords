@@ -33,6 +33,10 @@ Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord",
 
 
 baseDir = next((Dir for Dir in Dirs if Path(Dir).exists()), None)
+natDir = 'natural'
+chordDir = 'chords'
+behavDir = 'behavioural'
+glmDir = 'glm'
 
 if baseDir is not None:
     print(f"Base directory found: {baseDir}")
@@ -91,10 +95,6 @@ participants = {
     ]
 }
 
-natDir = 'natural'
-chordDir = 'chords'
-behavDir = 'behavioural'
-
 days = ['1', '2', '3', '4', '5']
 
 channels = {
@@ -138,3 +138,20 @@ removeEMG = {
         'subj100': ['lum1', 'lum2', 'lum3']
     }
 }
+
+rois = {
+        'Desikan': [
+            'rostralmiddlefrontal',
+            'caudalmiddlefrontal',
+            'precentral',
+            'postcentral',
+            'superiorparietal',
+            'pericalcarine'
+        ],
+        'BA_handArea': [
+            'ba4a', 'ba4p', 'ba3A', 'ba3B', 'ba1', 'ba2'
+        ],
+        'ROI': [
+            'SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1'
+        ]
+    }

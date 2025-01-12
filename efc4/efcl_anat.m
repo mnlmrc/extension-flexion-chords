@@ -21,6 +21,7 @@ function varargout = efcl_anat(what, varargin)
     freesurferDir = 'surfaceFreesurfer'; % freesurfer reconall output
     surfacewbDir = 'surfaceWB'; % fs32k template 
     suitDir = 'suit'; % SUIT 2.0 outputs
+    regDir          = 'ROI';
     
     pinfo = dload(fullfile(baseDir,'participants.tsv'));
 
@@ -227,6 +228,60 @@ function varargout = efcl_anat(what, varargin)
 %             dircheck(outDir);
             fs_dir = fullfile(baseDir,freesurferDir, subj_id);
             surf_resliceFS2WB(subj_id, fs_dir, outDir, 'hemisphere', hemi, 'resolution', sprintf('%dk', res))
+        
+        case 'ROI:define'
+            
+            sn = [];
+            glm = 1;
+            atlas = 'ROI';
+            
+            vararginoptions(varargin,{'sn', 'atlas', 'glm'});
+            
+            if isfolder('/Volumes/diedrichsen_data$/data/Atlas_templates/fs_LR_32')
+                atlasDir = '/Volumes/diedrichsen_data$/data/Atlas_templates/fs_LR_32';
+            elseif isfolder('/cifs/diedrichsen/data/Atlas_templates/fs_LR_32')
+                atlasDir = '/cifs/diedrichsen/data/Atlas_templates/fs_LR_32';
+            end
+            atlasH = {sprintf('%s.32k.L.label.gii', atlas), sprintf('%s.32k.R.label.gii', atlas)};
+            atlas_gii = {gifti(fullfile(atlasDir, atlasH{1})), gifti(fullfile(atlasDir, atlasH{1}))};
+
+            subj_id = pinfo.subj_id{pinfo.sn==sn};
+
+            Hem = {'L', 'R'};
+            R = {};
+            r = 1;
+            for h = 1:length(Hem)
+                for reg = 1:length(atlas_gii{h}.labels.name)
+
+                    R{r}.white = fullfile(baseDir, wbDir, subj_id, [subj_id '.' Hem{h} '.white.32k.surf.gii']);
+                    R{r}.pial = fullfile(baseDir, wbDir, subj_id, [subj_id '.' Hem{h} '.pial.32k.surf.gii']);
+                    R{r}.image = fullfile(baseDir, [glmEstDir num2str(glm)], subj_id, 'mask.nii');
+                    R{r}.linedef = [5 0 1];
+                    key = atlas_gii{h}.labels.key(reg);
+                    R{r}.location = find(atlas_gii{h}.cdata==key);
+                    R{r}.hem = Hem{h};
+                    R{r}.name = atlas_gii{h}.labels.name{reg};
+                    R{r}.type = 'surf_nodes_wb';
+
+                    r = r+1;
+                end
+            end
+
+            R = region_calcregions(R, 'exclude', [2 3; 2 4; 2 5; 4 5; 8 9; 2 8;...
+                11 12; 11 13; 11 14; 13 14; 17 18; 11 17], 'exclude_thres', .8);
+            
+            output_path = fullfile(baseDir, regDir, subj_id);
+            if ~exist(output_path, 'dir')
+                mkdir(output_path)
+            end
+            
+            Vol = fullfile(baseDir, [glmEstDir num2str(glm)], subj_id, 'mask.nii');
+            for r = 1:length(R)
+                img = region_saveasimg(R{r}, Vol, 'name',fullfile(baseDir, regDir, subj_id, sprintf('%s.%s.%s.nii', atlas, R{r}.hem, R{r}.name)));
+            end       
+            
+            save(fullfile(output_path, sprintf('%s_%s_region.mat',subj_id, atlas)), 'R');
+
     
     end
             

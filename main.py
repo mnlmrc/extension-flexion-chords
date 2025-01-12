@@ -1,6 +1,8 @@
 import argparse
 import os
 import time
+import nibabel as nb
+import nitools as nt
 
 import mat73
 import scipy
@@ -34,7 +36,7 @@ from variance_decomposition import reliability_var
 
 
 def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, chord=None, block=None,
-         ntrial=None, fname=None, muscles=None, trigger=None, n_jobs=None,
+         ntrial=None, fname=None, muscles=None, trigger=None, n_jobs=None, roi=None, glm=None, Hem=None,
          fig=None, axs=None, width=None, linewidth=None, linecolor=None, showfliers=True, color=None, palette=None,
          err_kw=None):
     # if participant_id is None:
@@ -1912,6 +1914,55 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
 
             return recon_mep2chords
 
+        # endregion
+
+        # region BETAS:save_to_numpy_roi
+        case 'BETAS:save_to_numpy_roi':
+
+            reginfo = pd.read_csv(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'subj{sn}',
+                                               f'subj{sn}_reginfo.tsv'), sep="\t")
+
+            mat = scipy.io.loadmat(os.path.join(gl.baseDir, experiment, gl.roiDir, f'subj{sn}',
+                                                f'subj{sn}_ROI_region.mat'))
+            R_cell = mat['R'][0]
+            R = list()
+            for r in R_cell:
+                R.append({field: r[field].item() for field in r.dtype.names})
+
+            # find roi
+            R = R[[True if (r['name'].size > 0) and (r['name'] == roi) and (r['hem'] == Hem)
+                   else False for r in R].index(True)]
+
+            ResMS = nb.load(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'subj{sn}', 'ResMS.nii'))
+            res = nt.sample_image(ResMS, R['data'][:, 0], R['data'][:, 1], R['data'][:, 2], 0)
+
+            betas = list()
+            for n_regr in np.arange(0, reginfo.shape[0]):
+                print(f'ROI.{Hem}.{roi} - loading regressor #{n_regr + 1}')
+
+                vol = nb.load(
+                    os.path.join(gl.baseDir, 'smp2', gl.glmDir + '12', f'subj{sn}', f'beta_{n_regr + 1:04d}.nii'))
+                beta = nt.sample_image(vol, R['data'][:, 0], R['data'][:, 1], R['data'][:, 2], 0)
+                betas.append(beta)
+
+            betas = np.array(betas)
+
+            return betas, res
+
+        # endregion
+
+        # region RDM:rois
+        case 'BETAS:save_to_numpy_rois':
+            rois = gl.rois['ROI']
+            Hem = ['L', 'R']
+            for H in Hem:
+                for r in rois:
+                    betas, res = main('BETAS:save_to_numpy_roi', experiment=experiment, sn=sn, roi=r, Hem=H, glm=glm)
+
+                    np.save(os.path.join(gl.baseDir, experiment, gl.glmDir + str(glm), f'subj{sn}',
+                                         f'ROI.{H}.{r}.beta.npy'), betas)
+                    np.save(os.path.join(gl.baseDir, experiment, gl.glmDir + str(glm), f'subj{sn}',
+                                         f'ROI.{H}.{r}.res.npy'), res)
         # endregion
 
         # region EMG:correlation
