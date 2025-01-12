@@ -62,6 +62,11 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                 'MD': [],
                 'RT': [],
                 'ET': [],
+                'thumb_force': [],
+                'index_force': [],
+                'middle_force': [],
+                'ring_force': [],
+                'pinkie_force': [],
                 'finger_asynch': [],
                 'thumb_latency': [],
                 'index_latency': [],
@@ -140,8 +145,11 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                         # calc single trial metrics
                         force, rt, et = get_segment(forceRaw, hold_time=None)
 
+                        force_avg = force.mean(axis=0)
+
                         assert rt > 0, "negative reaction time"
-                        assert et > 0, "negative execution time"
+                        if et is not None:
+                            assert et > 0, "negative execution time"
 
                         md, _ = calc_md(force)
 
@@ -154,6 +162,11 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                         behavioural_dict['RT'].append(rt)
                         behavioural_dict['ET'].append(et)
                         behavioural_dict['MD'].append(md)
+                        behavioural_dict['thumb_force'].append(force_avg[0])
+                        behavioural_dict['index_force'].append(force_avg[1])
+                        behavioural_dict['middle_force'].append(force_avg[2])
+                        behavioural_dict['ring_force'].append(force_avg[3])
+                        behavioural_dict['pinkie_force'].append(force_avg[4])
                         behavioural_dict['finger_asynch'].append(np.nanmax(latency_tmp) - np.nanmin(latency_tmp))
                         behavioural_dict['thumb_latency'].append(latency_tmp[0])
                         behavioural_dict['index_latency'].append(latency_tmp[1])
@@ -172,6 +185,11 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                         behavioural_dict['RT'].append(None)
                         behavioural_dict['ET'].append(None)
                         behavioural_dict['MD'].append(None)
+                        behavioural_dict['thumb_force'].append(None)
+                        behavioural_dict['index_force'].append(None)
+                        behavioural_dict['middle_force'].append(None)
+                        behavioural_dict['ring_force'].append(None)
+                        behavioural_dict['pinkie_force'].append(None)
                         behavioural_dict['finger_asynch'].append(None)
                         behavioural_dict['thumb_latency'].append(None)
                         behavioural_dict['index_latency'].append(None)
