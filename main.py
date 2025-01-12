@@ -1919,10 +1919,10 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
         # region BETAS:save_to_numpy_roi
         case 'BETAS:save_to_numpy_roi':
 
-            reginfo = pd.read_csv(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'subj{sn}',
-                                               f'subj{sn}_reginfo.tsv'), sep="\t")
+            reginfo = pd.read_csv(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}', f'subj{sn}',
+                                               f'day{day}_subj{sn}_reginfo.tsv'), sep="\t")
 
-            mat = scipy.io.loadmat(os.path.join(gl.baseDir, experiment, gl.roiDir, f'subj{sn}',
+            mat = scipy.io.loadmat(os.path.join(gl.baseDir, experiment, gl.roiDir, f'day{day}', f'subj{sn}',
                                                 f'subj{sn}_ROI_region.mat'))
             R_cell = mat['R'][0]
             R = list()
@@ -1933,7 +1933,7 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
             R = R[[True if (r['name'].size > 0) and (r['name'] == roi) and (r['hem'] == Hem)
                    else False for r in R].index(True)]
 
-            ResMS = nb.load(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'subj{sn}', 'ResMS.nii'))
+            ResMS = nb.load(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}',f'subj{sn}', 'ResMS.nii'))
             res = nt.sample_image(ResMS, R['data'][:, 0], R['data'][:, 1], R['data'][:, 2], 0)
 
             betas = list()
@@ -1941,7 +1941,8 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                 print(f'ROI.{Hem}.{roi} - loading regressor #{n_regr + 1}')
 
                 vol = nb.load(
-                    os.path.join(gl.baseDir, 'smp2', gl.glmDir + '12', f'subj{sn}', f'beta_{n_regr + 1:04d}.nii'))
+                    os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}', f'subj{sn}',
+                                 f'beta_{n_regr + 1:04d}.nii'))
                 beta = nt.sample_image(vol, R['data'][:, 0], R['data'][:, 1], R['data'][:, 2], 0)
                 betas.append(beta)
 
@@ -1957,11 +1958,12 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
             Hem = ['L', 'R']
             for H in Hem:
                 for r in rois:
-                    betas, res = main('BETAS:save_to_numpy_roi', experiment=experiment, sn=sn, roi=r, Hem=H, glm=glm)
+                    betas, res = main('BETAS:save_to_numpy_roi', experiment=experiment, sn=sn, day=day, glm=glm,
+                                      roi=r, Hem=H)
 
-                    np.save(os.path.join(gl.baseDir, experiment, gl.glmDir + str(glm), f'subj{sn}',
+                    np.save(os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}', f'subj{sn}',
                                          f'ROI.{H}.{r}.beta.npy'), betas)
-                    np.save(os.path.join(gl.baseDir, experiment, gl.glmDir + str(glm), f'subj{sn}',
+                    np.save(os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}', f'subj{sn}',
                                          f'ROI.{H}.{r}.res.npy'), res)
         # endregion
 
@@ -2543,6 +2545,9 @@ if __name__ == "__main__":
     parser.add_argument('--sn', default=None, help='')
     parser.add_argument('--session', default=None, help='',)
     parser.add_argument('--day', default=gl.days, help='')
+    parser.add_argument('--glm', default='1', help='')
+    parser.add_argument('--roi', default=None, help='')
+    parser.add_argument('--Hem', default=None, help='')
     parser.add_argument('--ntrial', default=None, help='')
     parser.add_argument('--block', default=1, help='')
     parser.add_argument('--metric', default=None, choices=['MD', 'RT', 'ET'], help='')
@@ -2560,6 +2565,7 @@ if __name__ == "__main__":
     session = args.session
     day = args.day
     block = int(args.block)
+    glm = args.glm
     ntrial = int(args.ntrial) if args.ntrial is not None else None
     metric = args.metric
     chordID = int(args.chordID) if args.chordID is not None else None
@@ -2571,7 +2577,7 @@ if __name__ == "__main__":
     # if participant_id is None:
     #     participant_id = gl.participants[experiment]
 
-    main(what, experiment=experiment, sn=sn, session=session, day=day,
+    main(what, experiment=experiment, sn=sn, session=session, day=day, glm=glm,
          block=block, ntrial=ntrial, chordID=chordID, chord=chord, fname=fname, n_jobs=n_jobs)
 
     end_time = time.time()
