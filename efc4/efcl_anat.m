@@ -21,7 +21,9 @@ function varargout = efcl_anat(what, varargin)
     freesurferDir = 'surfaceFreesurfer'; % freesurfer reconall output
     surfacewbDir = 'surfaceWB'; % fs32k template 
     suitDir = 'suit'; % SUIT 2.0 outputs
-    regDir          = 'ROI';
+    regDir = 'ROI';
+    wbDir = 'surfaceWB';
+    glmEstDir = 'glm';
     
     pinfo = dload(fullfile(baseDir,'participants.tsv'));
 
@@ -245,7 +247,8 @@ function varargout = efcl_anat(what, varargin)
             atlasH = {sprintf('%s.32k.L.label.gii', atlas), sprintf('%s.32k.R.label.gii', atlas)};
             atlas_gii = {gifti(fullfile(atlasDir, atlasH{1})), gifti(fullfile(atlasDir, atlasH{1}))};
 
-            subj_id = pinfo.subj_id{pinfo.sn==sn};
+            subj_row=getrow(pinfo,pinfo.sn==sn);
+            subj_id = subj_row.participant_id{1};
 
             Hem = {'L', 'R'};
             R = {};
@@ -255,7 +258,7 @@ function varargout = efcl_anat(what, varargin)
 
                     R{r}.white = fullfile(baseDir, wbDir, subj_id, [subj_id '.' Hem{h} '.white.32k.surf.gii']);
                     R{r}.pial = fullfile(baseDir, wbDir, subj_id, [subj_id '.' Hem{h} '.pial.32k.surf.gii']);
-                    R{r}.image = fullfile(baseDir, [glmEstDir num2str(glm)], subj_id, 'mask.nii');
+                    R{r}.image = fullfile(baseDir, [glmEstDir '1'], 'day1', subj_id, 'mask.nii');
                     R{r}.linedef = [5 0 1];
                     key = atlas_gii{h}.labels.key(reg);
                     R{r}.location = find(atlas_gii{h}.cdata==key);
@@ -270,14 +273,14 @@ function varargout = efcl_anat(what, varargin)
             R = region_calcregions(R, 'exclude', [2 3; 2 4; 2 5; 4 5; 8 9; 2 8;...
                 11 12; 11 13; 11 14; 13 14; 17 18; 11 17], 'exclude_thres', .8);
             
-            output_path = fullfile(baseDir, regDir, subj_id);
+            output_path = fullfile(baseDir, regDir, 'day1', subj_id);
             if ~exist(output_path, 'dir')
                 mkdir(output_path)
             end
             
-            Vol = fullfile(baseDir, [glmEstDir num2str(glm)], subj_id, 'mask.nii');
+            Vol = fullfile(baseDir, [glmEstDir '1'], 'day1', subj_id, 'mask.nii');
             for r = 1:length(R)
-                img = region_saveasimg(R{r}, Vol, 'name',fullfile(baseDir, regDir, subj_id, sprintf('%s.%s.%s.nii', atlas, R{r}.hem, R{r}.name)));
+                img = region_saveasimg(R{r}, Vol, 'name',fullfile(baseDir, regDir, 'day1', subj_id, sprintf('%s.%s.%s.nii', atlas, R{r}.hem, R{r}.name)));
             end       
             
             save(fullfile(output_path, sprintf('%s_%s_region.mat',subj_id, atlas)), 'R');
