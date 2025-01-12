@@ -4,6 +4,8 @@ import time
 import nibabel as nb
 import nitools as nt
 
+import rsatoolbox as rsa
+
 import mat73
 import scipy
 from matplotlib import pyplot as plt
@@ -1952,7 +1954,7 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
 
         # endregion
 
-        # region RDM:rois
+        # region BETAS:save_to_numpy_rois
         case 'BETAS:save_to_numpy_rois':
             rois = gl.rois['ROI']
             Hem = ['L', 'R']
@@ -1965,6 +1967,44 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                                          f'ROI.{H}.{r}.beta.npy'), betas)
                     np.save(os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}', f'subj{sn}',
                                          f'ROI.{H}.{r}.res.npy'), res)
+        # endregion
+
+        # region RDM:roi
+        case 'RDM:roi':
+
+            print(f'region:{roi}, hemisphere:{Hem}, {roi} voxels')
+
+            reginfo = pd.read_csv(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}', f'subj{sn}',
+                                               f'day{day}_subj{sn}_reginfo.tsv'), sep="\t")
+
+            betas = np.load(
+                os.path.join(gl.baseDir, experiment, gl.glmDir + str(glm), f'subj{sn}', 'ROI.L.M1.beta.npy'))
+            res = np.load(
+                os.path.join(gl.baseDir, experiment, gl.glmDir + str(glm), f'subj{sn}', 'ROI.L.M1.res.npy'))
+            betas_prewhitened = betas / np.sqrt(res)
+
+            betas_prewhitened = np.array(betas_prewhitened)
+            dataset = rsa.data.Dataset(
+                betas_prewhitened,
+                channel_descriptors={
+                    'channel': np.array(['vox_' + str(x) for x in range(betas_prewhitened.shape[-1])])},
+                obs_descriptors={'conds': reginfo.name,
+                                 'run': reginfo.run})
+            rdm = rsa.rdm.calc_rdm(dataset, method='crossnobis', descriptor='conds', cv_descriptor='run')
+            rdm.rdm_descriptors = {'roi': roi, 'hem': Hem, 'index': [0]}
+            rdm.save(os.path.join(gl.baseDir, experiment, gl.rdmDir, f'day{day}', f'subj{sn}',
+                                  f'glm{glm}.{Hem}.{roi}.hdf5'), overwrite=True, file_type='hdf5')
+
+        # endregion
+
+        # region RDM:rois
+        case 'RDM:rois':
+            rois = gl.rois['ROI']
+            Hem = ['L', 'R']
+            for H in Hem:
+                for r in rois:
+                    main('RDM:roi', experiment=experiment, sn=sn, roi=r, Hem=H, glm=glm)
+
         # endregion
 
         # region EMG:correlation

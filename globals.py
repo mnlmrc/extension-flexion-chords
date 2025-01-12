@@ -38,6 +38,7 @@ chordDir = 'chords'
 behavDir = 'behavioural'
 glmDir = 'glm'
 roiDir = 'ROI'
+rdmDir = 'rdm'
 
 if baseDir is not None:
     print(f"Base directory found: {baseDir}")
