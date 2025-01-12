@@ -408,7 +408,7 @@ function varargout = efcl_glm(what, varargin)
             end
 
             efcl_glm('GLM:make_event', 'sn', sn, 'glm', glm, 'day', day)
-            efcl_glm('GLM:design', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day)
+            efcl_glm('GLM:design', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day, 'derivs', [1, 0])
             efcl_glm('GLM:estimate', 'sn', sn, 'glm', glm, 'day', day)
             efcl_glm('GLM:T_contrasts', 'sn', sn, 'glm', glm, 'day', day)
             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'spmT', 'day', day)
