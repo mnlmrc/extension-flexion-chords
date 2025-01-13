@@ -26,7 +26,8 @@ function varargout = efcl_glm(what, varargin)
     glm = [];
     type = 'spmT';
     hrf_params = [5 14 1 1 6 0 32];
-    vararginoptions(varargin,{'sn', 'day', 'type', 'glm', 'hrf_params'})
+    derivs = [0, 0];
+    vararginoptions(varargin,{'sn', 'day', 'type', 'glm', 'hrf_params', 'derivs'})
 
     glmEstDir = 'glm';
     behavDir = 'behavioural';
@@ -91,11 +92,11 @@ function varargout = efcl_glm(what, varargin)
             
             for chordID = chords'
                 
-                events.BN = [events.BN; D.BN(D.chordID == chordID && D.trialPoint == 1)];
-                events.TN = [events.TN; D.TN(D.chordID == chordID && D.trialPoint == 1)];
-                events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID && D.trialPoint == 1) + 500];
-                events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID && D.trialPoint == 1)];
-                events.eventtype = [events.eventtype; D.chordID(D.chordID == chordID && D.trialPoint == 1)];
+                events.BN = [events.BN; D.BN(D.chordID == chordID & D.trialPoint == 1)];
+                events.TN = [events.TN; D.TN(D.chordID == chordID & D.trialPoint == 1)];
+                events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.trialPoint == 1) + 500];
+                events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.trialPoint == 1)];
+                events.eventtype = [events.eventtype; D.chordID(D.chordID == chordID & D.trialPoint == 1)];
                 
             end
             
@@ -272,7 +273,7 @@ function varargout = efcl_glm(what, varargin)
 
                 % Specify hrf parameters for convolution with
                 % regressors
-                J.bases.hrf.derivs = [0 0];
+                J.bases.hrf.derivs = derivs;
                 J.bases.hrf.params = hrf_params;  % positive and negative peak of HRF - set to [] if running wls (?)
                 defaults.stats.fmri.hrf=J.bases.hrf.params; 
                 
@@ -436,7 +437,7 @@ function varargout = efcl_glm(what, varargin)
             end
 
             efcl_glm('GLM:make_event', 'sn', sn, 'glm', glm, 'day', day)
-            efcl_glm('GLM:design', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day, 'derivs', [1, 0])
+            efcl_glm('GLM:design', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day, 'derivs', derivs)
             efcl_glm('GLM:estimate', 'sn', sn, 'glm', glm, 'day', day)
             efcl_glm('GLM:T_contrasts', 'sn', sn, 'glm', glm, 'day', day)
             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'spmT', 'day', day)
