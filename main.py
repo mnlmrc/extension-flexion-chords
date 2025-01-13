@@ -1978,9 +1978,9 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                                                f'day{day}_subj{sn}_reginfo.tsv'), sep="\t")
 
             betas = np.load(
-                os.path.join(gl.baseDir, experiment, gl.glmDir + str(glm), f'subj{sn}', 'ROI.L.M1.beta.npy'))
+                os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}', f'subj{sn}', 'ROI.L.M1.beta.npy'))
             res = np.load(
-                os.path.join(gl.baseDir, experiment, gl.glmDir + str(glm), f'subj{sn}', 'ROI.L.M1.res.npy'))
+                os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}', f'subj{sn}', 'ROI.L.M1.res.npy'))
             betas_prewhitened = betas / np.sqrt(res)
 
             betas_prewhitened = np.array(betas_prewhitened)
@@ -2003,7 +2003,7 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
             Hem = ['L', 'R']
             for H in Hem:
                 for r in rois:
-                    main('RDM:roi', experiment=experiment, sn=sn, roi=r, Hem=H, glm=glm)
+                    main('RDM:roi', experiment=experiment, sn=sn, roi=r, Hem=H, glm=glm, day=day)
 
         # endregion
 
