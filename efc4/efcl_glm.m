@@ -30,7 +30,7 @@ function varargout = efcl_glm(what, varargin)
 
     glmEstDir = 'glm';
     behavDir = 'behavioural';
-    anatomicalDir = 'anatomicals';
+    % anatomicalDir = 'anatomicals';
     imagingDir = 'imaging_data';
     wbDir = 'surfaceWB';
 
@@ -68,6 +68,34 @@ function varargout = efcl_glm(what, varargin)
                 events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID) + 500];
                 events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID)];
                 events.eventtype = [events.eventtype; D.chordID(D.chordID == chordID)];
+                
+            end
+            
+            events = struct2table(events);
+            events.Onset = events.Onset ./ 1000;
+            events.Duration = events.Duration ./ 1000;
+            
+            varargout{1} = events;
+
+        case 'GLM:make_glm2'
+
+            D = dload(fullfile(baseDir, behavDir, day_id, subj_id, sprintf('efc4_%d.dat', sn)));
+
+            chords = unique(D.chordID);
+            
+            events.BN = [];
+            events.TN = [];
+            events.Onset = [];
+            events.Duration = [];
+            events.eventtype = [];
+            
+            for chordID = chords'
+                
+                events.BN = [events.BN; D.BN(D.chordID == chordID && D.trialPoint == 1)];
+                events.TN = [events.TN; D.TN(D.chordID == chordID && D.trialPoint == 1)];
+                events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID && D.trialPoint == 1) + 500];
+                events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID && D.trialPoint == 1)];
+                events.eventtype = [events.eventtype; D.chordID(D.chordID == chordID && D.trialPoint == 1)];
                 
             end
             
@@ -149,7 +177,7 @@ function varargout = efcl_glm(what, varargin)
         
             for run = runs
                 % Setup scans for current session
-                J.sess(run).scans = {fullfile(baseDir, imagingDir,  subj_id, day_id,sprintf('u%s_run_%02d.nii', subj_id, run))};
+                J.sess(run).scans = {fullfile(baseDir, imagingDir, day_id, subj_id, sprintf('u%s_run_%02d.nii', subj_id, run))};
         
         
                 % Preallocate memory for conditions
@@ -261,7 +289,7 @@ function varargout = efcl_glm(what, varargin)
                 J.global = 'None';
 
                 % remove voxels involving non-neural tissue (e.g., skull)
-                J.mask = {fullfile(baseDir, imagingDir, subj_id, day_id, 'rmask_noskull.nii')};
+                J.mask = {fullfile(baseDir, imagingDir, day_id,subj_id,  'rmask_noskull.nii')};
                 
                 % Set threshold for brightness threshold for masking 
                 % If supplying explicit mask, set to 0  (default is 0.8)
@@ -269,7 +297,7 @@ function varargout = efcl_glm(what, varargin)
 
                 % Create map where non-sphericity correction must be
                 % applied
-                J.cvi_mask = {fullfile(baseDir, imagingDir, subj_id, day_id, 'rmask_gray.nii')};
+                J.cvi_mask = {fullfile(baseDir, imagingDir, day_id, subj_id,  'rmask_gray.nii')};
 
                 % Method for non sphericity correction
                 J.cvi =  'fast';
