@@ -1993,6 +1993,17 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                                   f'force.hdf5'), overwrite=True, file_type='hdf5')
         # endregion
 
+        # region RDM:emg
+        case 'RDM:emg':
+
+            emg = pd.read_csv('/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord/EFC_natChord/analysis/natChord_all.tsv', sep='\t')
+
+            nChords = len(emg.chordID.unique())
+
+            print(f'{nChords} Chords found.')
+
+        # endregion
+
         # region RDM:roi
         case 'RDM:roi':
 
@@ -2604,9 +2615,9 @@ if __name__ == "__main__":
     # ]
                         )
     parser.add_argument('--experiment', default='efc2', help='')
-    parser.add_argument('--sn', default=None, help='')
+    parser.add_argument('--sn', default=100, help='')
     parser.add_argument('--session', default=None, help='',)
-    parser.add_argument('--day', default=gl.days, help='')
+    parser.add_argument('--day', default=1, help='')
     parser.add_argument('--glm', default='1', help='')
     parser.add_argument('--roi', default=None, help='')
     parser.add_argument('--Hem', default=None, help='')
