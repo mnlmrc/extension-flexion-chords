@@ -1969,18 +1969,41 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                                          f'ROI.{H}.{r}.res.npy'), res)
         # endregion
 
+        # region RDM:force
+        case 'RDM:force':
+
+            st = pd.read_csv(os.path.join(gl.baseDir, experiment, gl.behavDir, f'day{day}', f'subj{sn}',
+                                          'single_trial.tsv'), sep='\t')
+            st = st[(st.trialPoint == 1) & (st.subNum == sn) & (st.BN != 11)]
+
+            st = st.groupby(['chordID', 'BN']).mean(numeric_only='True').reset_index()
+
+            force = st[['thumb_force', 'index_force', 'middle_force', 'ring_force', 'pinkie_force']].to_numpy()
+
+            dataset = rsa.data.Dataset(
+                force,
+                channel_descriptors={
+                    'channel': gl.channels['force']},
+                obs_descriptors={'conds': st.chordID,
+                                 'run': st.BN})
+
+            rdm = rsa.rdm.calc_rdm(dataset, method='crossnobis', descriptor='conds', cv_descriptor='run')
+            rdm.rdm_descriptors = {'roi': roi, 'hem': Hem, 'index': [0]}
+            rdm.save(os.path.join(gl.baseDir, experiment, gl.rdmDir, f'day{day}', f'subj{sn}',
+                                  f'force.hdf5'), overwrite=True, file_type='hdf5')
+        # endregion
+
         # region RDM:roi
         case 'RDM:roi':
 
-            print(f'region:{roi}, hemisphere:{Hem}, {roi} voxels')
+            print(f'region:{roi}, hemisphere:{Hem}')
 
             reginfo = pd.read_csv(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}', f'subj{sn}',
                                                f'day{day}_subj{sn}_reginfo.tsv'), sep="\t")
 
-            betas = np.load(
-                os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}', f'subj{sn}', 'ROI.L.M1.beta.npy'))
+            betas = np.load(os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}',f'subj{sn}', f'ROI.{Hem}.{roi}.beta.npy'))
             res = np.load(
-                os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}', f'subj{sn}', 'ROI.L.M1.res.npy'))
+                os.path.join(gl.baseDir, experiment, gl.glmDir + glm, f'day{day}', f'subj{sn}', f'ROI.{Hem}.{roi}.res.npy'))
             betas_prewhitened = betas / np.sqrt(res)
 
             betas_prewhitened = np.array(betas_prewhitened)
@@ -1994,7 +2017,6 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
             rdm.rdm_descriptors = {'roi': roi, 'hem': Hem, 'index': [0]}
             rdm.save(os.path.join(gl.baseDir, experiment, gl.rdmDir, f'day{day}', f'subj{sn}',
                                   f'glm{glm}.{Hem}.{roi}.hdf5'), overwrite=True, file_type='hdf5')
-
         # endregion
 
         # region RDM:rois
@@ -2603,7 +2625,7 @@ if __name__ == "__main__":
     experiment = args.experiment
     sn = int(args.sn)
     session = args.session
-    day = args.day
+    day = int(args.day)
     block = int(args.block)
     glm = args.glm
     ntrial = int(args.ntrial) if args.ntrial is not None else None
