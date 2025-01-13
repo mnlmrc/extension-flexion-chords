@@ -1988,7 +1988,7 @@ def main(what, experiment=None, sn=None, session=None, day=None, chordID=None, c
                                  'run': st.BN})
 
             rdm = rsa.rdm.calc_rdm(dataset, method='crossnobis', descriptor='conds', cv_descriptor='run')
-            rdm.rdm_descriptors = {'roi': roi, 'hem': Hem, 'index': [0]}
+            # rdm.rdm_descriptors = {'roi': roi, 'hem': Hem, 'index': [0]}
             rdm.save(os.path.join(gl.baseDir, experiment, gl.rdmDir, f'day{day}', f'subj{sn}',
                                   f'force.hdf5'), overwrite=True, file_type='hdf5')
         # endregion
