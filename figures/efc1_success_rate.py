@@ -3,7 +3,6 @@ import pandas as pd
 import os
 import seaborn as sns
 import matplotlib.pyplot as plt
-from main import main
 import globals as gl
 
 experiment = 'efc1'

@@ -1,5 +1,9 @@
 import PcmPy as pcm
 
+def calc_G(experiment, glm, day, sn):
+
+
+
 def pcm():
     scaler = MinMaxScaler()
 

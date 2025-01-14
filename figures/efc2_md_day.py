@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-from main import main
+from depreciated.main import main
 import pandas as pd
 import os
 import globals as gl

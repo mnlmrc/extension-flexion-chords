@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-from main import main
+from depreciated.main import main
 import pandas as pd
 import globals as gl
 import os

@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
-from main import main
+from depreciated.main import main
 import globals as gl
-import os
 
 experiment = 'efc2'
 participant_id = 'subj100'

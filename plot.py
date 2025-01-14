@@ -7,9 +7,8 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 
 from force import Force
-from main import main
+from depreciated.main import main
 import globals as gl
-import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
 from matplotlib.lines import Line2D

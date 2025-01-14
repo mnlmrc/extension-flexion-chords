@@ -2,7 +2,7 @@ import os
 
 import pandas as pd
 from matplotlib import pyplot as plt
-from main import main
+from depreciated.main import main
 import globals as gl
 import seaborn as sns
 

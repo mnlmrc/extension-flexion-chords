@@ -2,7 +2,7 @@ import os
 
 import matplotlib.pyplot as plt
 import globals as gl
-from main import main
+from depreciated.main import main
 
 experiment = 'efc2'
 
