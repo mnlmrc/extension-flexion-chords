@@ -55,7 +55,7 @@ def within_subj_var(Y, partition_vec, cond_vec, subtract_mean=True):
         # avg of the main diagonal:
         avg_main_diag = np.sum(np.diag(cov_Y)) / (len(cond) * len(partition))
 
-        # avg of the main off-diagonal:
+        # avg of the main off-diagonal (i.e., within-run regressor covariance):
         mask = np.kron(np.eye(len(partition)), np.ones((len(cond), len(cond))))
         mask = mask - np.eye(mask.shape[0])
         avg_main_off_diag = np.sum(cov_Y * mask) / (np.sum(mask))
@@ -63,7 +63,7 @@ def within_subj_var(Y, partition_vec, cond_vec, subtract_mean=True):
         # within partition variance:
         v_se = avg_main_diag
 
-        # avg across session diagonals:
+        # avg across session diagonals (i.e., covariance between regressors across runs):
         mask = np.kron(np.ones((len(partition), len(partition))), np.eye(len(cond)))
         mask = mask - np.eye(mask.shape[0])
         avg_across_diag = np.sum(cov_Y * mask) / (np.sum(mask))
@@ -203,12 +203,24 @@ def main():
 
     if args.what == 'within_subj_var':
 
-        Y = np.load(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
-                             f'ROI.{args.Hem}.{args.roi}.beta.npy'))
-        reginfo = pd.read_csv(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
-                             'reginfo.tsv'), sep='\t')
-        partition_vec = reginfo.run
-        cond_vec = reginfo.name
-        v_s, v_se = within_subj_var(Y, partition_vec, cond_vec, subtract_mean=True)
+        for Hem in ['L', 'R']:
+            for roi in gl.rois['ROI']:
+                Y = np.load(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
+                                     f'ROI.{Hem}.{roi}.beta.npy'))
+                res = np.load(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
+                                     f'ROI.{Hem}.{roi}.res.npy'))
+                Y_prewhitened = Y / np.sqrt(res)
+                reginfo = pd.read_csv(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
+                                     'reginfo.tsv'), sep='\t')
+                partition_vec = reginfo.run
+                cond_vec = reginfo.name
+                v_s, v_se = within_subj_var(Y_prewhitened, partition_vec, cond_vec, subtract_mean=True)
+
+                snr = v_s / v_se
+
+                print(f'subj{args.sn}, Hem: {Hem}, roi: {roi}, glm: {args.glm}, snr: {snr:.2f}')
 
         pass
+
+if __name__ == '__main__':
+    main()
