@@ -83,24 +83,13 @@ def main():
     parser.add_argument('--experiment', type=str, default=None)
     parser.add_argument('--sn', type=int, default=None)
     parser.add_argument('--day', type=int, default=None)
-    parser.add_argument('--Hem', type=str, default=None)
-    parser.add_argument('--roi', type=str, default=None)
+    # parser.add_argument('--Hem', type=str, default=None)
+    # parser.add_argument('--roi', type=str, default=None)
     parser.add_argument('--glm', type=int, default=None)
 
     args = parser.parse_args()
 
-    if args.what == 'save_roi_contrasts':
-        contrasts = get_roi_contrasts(
-            experiment=args.experiment,
-            sn=args.sn,
-            Hem=args.Hem,
-            roi=args.roi,
-            glm=args.glm,
-            day=args.day
-        )
-        np.save(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
-                             f'ROI.{args.Hem}.{args.roi}.con.npy'), contrasts)
-    elif args.what == 'save_rois_contrasts':
+    if args.what == 'save_rois_contrasts':
         Hem = ['L', 'R']
         rois = ['SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1']
         for H in Hem:
@@ -116,17 +105,6 @@ def main():
                 )
                 np.save(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
                                      f'ROI.{H}.{roi}.con.npy'), contrasts)
-    elif args.what == 'save_roi_betas':
-        betas = get_roi_betas(
-            experiment=args.experiment,
-            sn=args.sn,
-            Hem=args.Hem,
-            roi=args.roi,
-            glm=args.glm,
-            day=args.day
-        )
-        np.save(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
-                             f'ROI.{args.Hem}.{args.roi}.beta.npy'), betas)
     elif args.what == 'save_rois_betas':
         Hem = ['L', 'R']
         rois = ['SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1']
