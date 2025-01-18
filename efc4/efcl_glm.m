@@ -68,7 +68,7 @@ function varargout = efcl_glm(what, varargin)
                 events.TN = [events.TN; D.TN(D.chordID == chordID)];
                 events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID) + 500];
                 events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID)];
-                events.eventtype = [events.eventtype; D.chordID(D.chordID == chordID)];
+                events.eventtype = [events.eventtype; repmat({sprintf('chordID:%d', chordID)}, [60, 1])];
                 
             end
             
@@ -170,9 +170,9 @@ function varargout = efcl_glm(what, varargin)
             output_folder = fullfile(baseDir, behavDir, day_id, subj_id);
             writetable(events, fullfile(output_folder, sprintf('glm%d_events.tsv', glm)), 'FileType', 'text', 'Delimiter','\t')
 
-            if ~isfolder(fullfile(baseDir, [glmEstDir num2str(glm)] , subj_id))
-                mkdir(fullfile(baseDir, [glmEstDir num2str(glm)], subj_id))
-            end
+%             if ~isfolder(fullfile(baseDir, [glmEstDir num2str(glm)] , subj_id))
+%                 mkdir(fullfile(baseDir, [glmEstDir num2str(glm)], subj_id))
+%             end
             
         case 'GLM:design'
 
@@ -202,7 +202,6 @@ function varargout = efcl_glm(what, varargin)
             events_file = sprintf('glm%d_events.tsv', glm);
 
             Dd = dload(fullfile(baseDir,behavDir, day_id, subj_id, events_file));
-%             Dd.eventtype = cellstr(string(Dd.eventtype));
             
             regressors = unique(Dd.eventtype);
             nRegr = length(regressors); 
@@ -376,7 +375,7 @@ function varargout = efcl_glm(what, varargin)
                 mkdir(J.dir{1});
             end
             
-            dsave(fullfile(J.dir{1},sprintf('%s_%s_reginfo.tsv', day_id, subj_id)), T);
+            dsave(fullfile(J.dir{1},sprintf('reginfo.tsv', day_id, subj_id)), T);
             spm_rwls_run_fmri_spec(J);
 
             cd(currentDir)
