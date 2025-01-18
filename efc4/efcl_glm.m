@@ -432,7 +432,7 @@ function varargout = efcl_glm(what, varargin)
                 SPM  = rmfield(SPM,'xCon');
             end
 
-            T    = dload(fullfile(glm_dir, sprintf('%s_%s_reginfo.tsv', day_id, subj_id)));
+            T    = dload(fullfile(glm_dir, 'reginfo.tsv'));
             T.name = cellstr(string(T.name));
             contrasts = unique(T.name);
 
