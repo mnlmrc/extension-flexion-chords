@@ -106,6 +106,46 @@ function varargout = efcl_glm(what, varargin)
             
             varargout{1} = events;
             
+        case 'GLM:make_glm3'
+
+            D = dload(fullfile(baseDir, behavDir, day_id, subj_id, sprintf('efc4_%d.dat', sn)));
+            
+            D.repetition = ones(length(D.TN), 1); % Initialize repetition column with 1
+
+            for i = 1:length(D.TN)
+                if i == 1
+                    D.repetition(i) = 1;
+                else
+                    if D.chordID(i) == D.chordID(i-1)
+                        D.repetition(i) = 2;
+                    end
+                end
+            end
+    
+            events.BN = [];
+            events.TN = [];
+            events.Onset = [];
+            events.Duration = [];
+            events.eventtype = [];
+            
+            for rep = unique(D.repetition)'
+                for chordID = unique(D.chordID)'
+
+                    events.BN = [events.BN; D.BN(D.chordID == chordID & D.repetition == rep)];
+                    events.TN = [events.TN; D.TN(D.chordID == chordID & D.repetition == rep)];
+                    events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.repetition == rep) + 500];
+                    events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.repetition == rep)];
+                    events.eventtype = [events.eventtype; D.chordID(D.chordID == chordID & D.repetition == rep)];
+
+                end
+            end
+            
+            events = struct2table(events);
+            events.Onset = events.Onset ./ 1000;
+            events.Duration = events.Duration ./ 1000;
+            
+            varargout{1} = events;
+            
         case 'GLM:make_event'
     
             % get runs (FuncRuns column needs to be in participants.tsv)    
