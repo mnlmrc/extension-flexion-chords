@@ -126,7 +126,9 @@ function varargout = efcl_glm(what, varargin)
             events.TN = [];
             events.Onset = [];
             events.Duration = [];
-            events.eventtype = [];
+            events.eventtype = {};
+            events.chordID = [];
+            events.repetition = [];
             
             for rep = unique(D.repetition)'
                 for chordID = unique(D.chordID)'
@@ -135,7 +137,11 @@ function varargout = efcl_glm(what, varargin)
                     events.TN = [events.TN; D.TN(D.chordID == chordID & D.repetition == rep)];
                     events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.repetition == rep) + 500];
                     events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.repetition == rep)];
-                    events.eventtype = [events.eventtype; D.chordID(D.chordID == chordID & D.repetition == rep)];
+                    events.repetition = [events.repetition; D.repetition(D.chordID == chordID & D.repetition == rep)];
+                    events.chordID = [events.chordID; D.repetition(D.chordID == chordID & D.repetition == rep)];
+                    events.eventtype = [events.eventtype; repmat({sprintf('chordID:%d,repetition:%d', chordID, rep)}, [30, 1])];
+                    
+%                     events.eventtype = repmat({'100%,index'}, [length(index100.BN), 1])
 
                 end
             end
@@ -196,7 +202,7 @@ function varargout = efcl_glm(what, varargin)
             events_file = sprintf('glm%d_events.tsv', glm);
 
             Dd = dload(fullfile(baseDir,behavDir, day_id, subj_id, events_file));
-            Dd.eventtype = cellstr(string(Dd.eventtype));
+%             Dd.eventtype = cellstr(string(Dd.eventtype));
             
             regressors = unique(Dd.eventtype);
             nRegr = length(regressors); 
