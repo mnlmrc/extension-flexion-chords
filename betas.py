@@ -158,7 +158,7 @@ def main():
                     day=args.day
                 )
                 np.save(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
-                                     f'ROI.{H}.{roi}.beta.npy'), res)
+                                     f'ROI.{H}.{roi}.res.npy'), res)
     else:
         parser.print_help()
 
