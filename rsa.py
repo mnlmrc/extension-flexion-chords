@@ -10,12 +10,12 @@ import rsatoolbox as rsa
 
 
 def calc_rdm_roi(experiment=None, sn=None, Hem=None, roi=None, glm=None, day=None):
-
     reginfo = pd.read_csv(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}', f'subj{sn}',
                                        f'reginfo.tsv'), sep="\t")
 
     betas = np.load(
-        os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}', f'subj{sn}', f'ROI.{Hem}.{roi}.beta.npy'))
+        os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}', f'subj{sn}',
+                     f'ROI.{Hem}.{roi}.beta.npy'))
     res = np.load(
         os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}', f'subj{sn}', f'ROI.{Hem}.{roi}.res.npy'))
     betas_prewhitened = betas / np.sqrt(res)
@@ -29,12 +29,12 @@ def calc_rdm_roi(experiment=None, sn=None, Hem=None, roi=None, glm=None, day=Non
                          'run': reginfo.run})
     rdm = rsa.rdm.calc_rdm(dataset, method='crossnobis', descriptor='conds', cv_descriptor='run')
     rdm.rdm_descriptors = {'roi': [roi], 'hem': [Hem], 'index': [0]}
+    rdm.reorder(rdm_index[f'glm{glm}'])
 
     return rdm
 
 
 def main():
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument('what', nargs='?', default=None)
@@ -64,5 +64,11 @@ def main():
                 rdm.save(os.path.join(gl.baseDir, args.experiment, gl.rdmDir, f'day{args.day}', f'subj{args.sn}',
                                       f'glm{args.glm}.{H}.{roi}.hdf5'), overwrite=True, file_type='hdf5')
 
+
 if __name__ == '__main__':
+    rdm_index = {
+        'glm1': [0, 1, 2, 3, 4, 5, 6, 7],
+        'glm3': [0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15],
+    }
+
     main()

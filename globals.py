@@ -2,6 +2,24 @@ import os
 from pathlib import Path
 import numpy as np
 
+Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord",
+        "/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
+        "/cifs/diedrichsen/data/Chord_exp/ExtFlexChord"]
+
+# natChord_chordDir = "/Users/mnlmrc/Downloads/natChord_chord.tsv"
+baseDir = next((Dir for Dir in Dirs if Path(Dir).exists()), None)
+natDir = 'natural'
+chordDir = 'chords'
+behavDir = 'behavioural'
+glmDir = 'glm'
+roiDir = 'ROI'
+rdmDir = 'rdm'
+
+if baseDir is not None:
+    print(f"Base directory found: {baseDir}")
+else:
+    print("No valid base directory found.")
+
 fthresh = 1.2  # threshold to exit the baseline area
 ftarget = 2
 fGain = np.array([1, 1, 1, 1.5, 1.5])
@@ -18,86 +36,66 @@ chordID = [29212, 92122, 91211, 22911, 21291, 12129, 12291, 19111]
 # trained = [29212, 92122, 91211, 22911]
 # untrained = [21291, 12129, 12291, 19111]
 
-movCols = ['state', 'timeReal', 'time',
-           'eThumb', 'eIndex', 'eMiddle', 'eRing', 'ePinkie',
-           'fThumb', 'fIndex', 'fMiddle', 'fRing', 'fPinkie',
-           'Thumb', 'Index', 'Middle', 'Ring', 'Pinkie',  # 13, 14, 15, 16, 17
-           'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
+# movCols = ['state', 'timeReal', 'time',
+#            'eThumb', 'eIndex', 'eMiddle', 'eRing', 'ePinkie',
+#            'fThumb', 'fIndex', 'fMiddle', 'fRing', 'fPinkie',
+#            'Thumb', 'Index', 'Middle', 'Ring', 'Pinkie',  # 13, 14, 15, 16, 17
+#            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
 diffCols = [18, 19, 20, 21, 22]  # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
 
-Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord",
-        "/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
-        "/cifs/diedrichsen/data/Chord_exp/ExtFlexChord"]
+# participants = {
+#     'efc0': ['subj01',
+#              'subj02',
+#              'subj03',
+#              'subj04',
+#              'subj05',
+#              'subj06',
+#              'subj07',
+#              'subj08',
+#              'subj09',
+#              'subj10',
+#              'subj11',
+#              'subj10',
+#              'subj10',
+#              'subj10'],
+#     'efc1': [
+#         'subj01',
+#         'subj02',
+#         'subj03',
+#         'subj04',
+#         'subj05',
+#         'subj06',
+#         'subj07',
+#         'subj08',
+#         'subj09',
+#         'subj10'
+#     ],
+#     'efc2': [
+#         'subj100',
+#         'subj101',
+#         'subj102',
+#         'subj103',
+#         'subj104',
+#         # 'subj105',
+#         'subj106',
+#         'subj107',
+#         'subj108',
+#         'subj109',
+#         'subj110',
+#         'subj111',
+#         'subj112',
+#         'subj113',
+#         'subj114'
+#     ],
+#     'efc3': [
+#         'subj100'
+#     ],
+#     'efc4': [
+#         'subj999'
+#     ]
+# }
 
-# natChord_chordDir = "/Users/mnlmrc/Downloads/natChord_chord.tsv"
-
-
-baseDir = next((Dir for Dir in Dirs if Path(Dir).exists()), None)
-natDir = 'natural'
-chordDir = 'chords'
-behavDir = 'behavioural'
-glmDir = 'glm'
-roiDir = 'ROI'
-rdmDir = 'rdm'
-
-if baseDir is not None:
-    print(f"Base directory found: {baseDir}")
-else:
-    print("No valid base directory found.")
-
-participants = {
-    'efc0': ['subj01',
-             'subj02',
-             'subj03',
-             'subj04',
-             'subj05',
-             'subj06',
-             'subj07',
-             'subj08',
-             'subj09',
-             'subj10',
-             'subj11',
-             'subj10',
-             'subj10',
-             'subj10'],
-    'efc1': [
-        'subj01',
-        'subj02',
-        'subj03',
-        'subj04',
-        'subj05',
-        'subj06',
-        'subj07',
-        'subj08',
-        'subj09',
-        'subj10'
-    ],
-    'efc2': [
-        'subj100',
-        'subj101',
-        'subj102',
-        'subj103',
-        'subj104',
-        # 'subj105',
-        'subj106',
-        'subj107',
-        'subj108',
-        'subj109',
-        'subj110',
-        'subj111',
-        'subj112',
-        'subj113',
-        'subj114'
-    ],
-    'efc3': [
-        'subj100'
-    ],
-    'efc4': [
-        'subj999'
-    ]
-}
-
-days = ['1', '2', '3', '4', '5']
+# days = ['1', '2', '3', '4', '5']
 
 channels = {
     'force': ['thumb',
@@ -116,8 +114,6 @@ channels = {
             'emg_hold_avg_f4',
             'emg_hold_avg_f5'],
     'emgTMS': [
-        # 'ring_ext'  , 'pinkie_ext'  ,'thumb_flex'  ,'pinkie_flex' , 'index_flex' , 'middle_flex' ,  'thumb_ext' ,  'index_ext' , 'EMG 1' ,'EMG 2' , 'thumb_ext' , 'index_ext' , 'thumb_ext' ,  'index_ext',
-
         'ext_D3',
         'ext_D4',
         'ext_D5',
@@ -135,11 +131,11 @@ channels = {
     ]
 }
 
-removeEMG = {
-    'efc3': {
-        'subj100': ['lum1', 'lum2', 'lum3']
-    }
-}
+# removeEMG = {
+#     'efc3': {
+#         'subj100': ['lum1', 'lum2', 'lum3']
+#     }
+# }
 
 rois = {
         'Desikan': [
