@@ -3,6 +3,8 @@ import os
 import warnings
 from itertools import combinations
 
+from  Functional_Fusion.dataset import reliability_within_subj
+
 import pandas as pd
 
 import globals as gl
@@ -205,22 +207,32 @@ def main():
 
         for Hem in ['L', 'R']:
             for roi in gl.rois['ROI']:
-                Y = np.load(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
-                                     f'ROI.{Hem}.{roi}.beta.npy'))
-                res = np.load(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
-                                     f'ROI.{Hem}.{roi}.res.npy'))
-                Y_prewhitened = Y / np.sqrt(res)
-                reginfo = pd.read_csv(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}', f'subj{args.sn}',
-                                     'reginfo.tsv'), sep='\t')
-                partition_vec = reginfo.run
-                cond_vec = reginfo.name
-                v_s, v_se = within_subj_var(Y_prewhitened, partition_vec, cond_vec, subtract_mean=True)
+                Y = np.load(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}',
+                                         f'subj{args.sn}',
+                                         f'ROI.{Hem}.{roi}.beta.npy'))
+                res = np.load(os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}',
+                                           f'subj{args.sn}',
+                                           f'ROI.{Hem}.{roi}.res.npy'))
 
-                snr = v_s / v_se
+                Y = Y.reshape(1, Y.shape[0], Y.shape[1] )
+
+                Y_prewhitened = Y / np.sqrt(res)
+                reginfo = pd.read_csv(
+                    os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'day{args.day}',
+                                 f'subj{args.sn}',
+                                 'reginfo.tsv'), sep='\t')
+                part_vec = reginfo.run
+                cond_vec = reginfo.name
+                # v_s, v_se = within_subj_var(Y_prewhitened, part_vec, cond_vec, subtract_mean=True)
+
+                snr = reliability_within_subj(Y, part_vec, cond_vec,
+                                              voxel_wise=False,
+                                              subtract_mean=True).mean()
+
+                # snr = v_s / v_se
 
                 print(f'subj{args.sn}, Hem: {Hem}, roi: {roi}, glm: {args.glm}, snr: {snr:.2f}')
 
-        pass
 
 if __name__ == '__main__':
     main()
