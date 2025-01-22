@@ -14,6 +14,7 @@ behavDir = 'behavioural'
 glmDir = 'glm'
 roiDir = 'ROI'
 rdmDir = 'rdm'
+wbDir = 'surfaceWB'
 
 if baseDir is not None:
     print(f"Base directory found: {baseDir}")
