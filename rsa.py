@@ -18,6 +18,7 @@ def calc_rdm_roi(experiment=None, sn=None, Hem=None, roi=None, glm=None, day=Non
                      f'ROI.{Hem}.{roi}.beta.npy'))
     res = np.load(
         os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}', f'subj{sn}', f'ROI.{Hem}.{roi}.res.npy'))
+
     betas_prewhitened = betas / np.sqrt(res)
 
     betas_prewhitened = np.array(betas_prewhitened)
