@@ -68,7 +68,7 @@ function varargout = efcl_glm(what, varargin)
                 events.TN = [events.TN; D.TN(D.chordID == chordID)];
                 events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID) + 500];
                 events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID)];
-                events.eventtype = [events.eventtype; repmat({sprintf('chordID:%d', chordID)}, [60, 1])];
+                events.eventtype = [events.eventtype; repmat({sprintf('chordID_%d', chordID)}, [60, 1])];
                 
             end
             

@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import numpy as np
+import matplotlib.pyplot as plt
 
 Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord",
         "/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
@@ -44,60 +45,6 @@ chordID = [29212, 92122, 91211, 22911, 21291, 12129, 12291, 19111]
 #            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
 diffCols = [18, 19, 20, 21, 22]  # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
 
-# participants = {
-#     'efc0': ['subj01',
-#              'subj02',
-#              'subj03',
-#              'subj04',
-#              'subj05',
-#              'subj06',
-#              'subj07',
-#              'subj08',
-#              'subj09',
-#              'subj10',
-#              'subj11',
-#              'subj10',
-#              'subj10',
-#              'subj10'],
-#     'efc1': [
-#         'subj01',
-#         'subj02',
-#         'subj03',
-#         'subj04',
-#         'subj05',
-#         'subj06',
-#         'subj07',
-#         'subj08',
-#         'subj09',
-#         'subj10'
-#     ],
-#     'efc2': [
-#         'subj100',
-#         'subj101',
-#         'subj102',
-#         'subj103',
-#         'subj104',
-#         # 'subj105',
-#         'subj106',
-#         'subj107',
-#         'subj108',
-#         'subj109',
-#         'subj110',
-#         'subj111',
-#         'subj112',
-#         'subj113',
-#         'subj114'
-#     ],
-#     'efc3': [
-#         'subj100'
-#     ],
-#     'efc4': [
-#         'subj999'
-#     ]
-# }
-
-# days = ['1', '2', '3', '4', '5']
-
 channels = {
     'force': ['thumb',
               'index',
@@ -138,19 +85,41 @@ channels = {
 #     }
 # }
 
+# flatmap stuff
+borders = {'L': '/Users/mnlmrc/Documents/GitHub/surfAnalysisPy/standard_mesh/fs_L/fs_LR.32k.L.border',
+           'R': '/Users/mnlmrc/Documents/GitHub/surfAnalysisPy/standard_mesh/fs_R/fs_LR.32k.R.border'}
+
 rois = {
-        'Desikan': [
-            'rostralmiddlefrontal',
-            'caudalmiddlefrontal',
-            'precentral',
-            'postcentral',
-            'superiorparietal',
-            'pericalcarine'
-        ],
-        'BA_handArea': [
-            'ba4a', 'ba4p', 'ba3A', 'ba3B', 'ba1', 'ba2'
-        ],
-        'ROI': [
-            'SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1'
-        ]
-    }
+    'Desikan': [
+        'rostralmiddlefrontal',
+        'caudalmiddlefrontal',
+        'precentral',
+        'postcentral',
+        'superiorparietal',
+        'pericalcarine'
+    ],
+    'BA_handArea': [
+        'ba4a', 'ba4p', 'ba3A', 'ba3B', 'ba1', 'ba2'
+    ],
+    'ROI': [
+        'SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1'
+    ]
+}
+
+### colours ###
+cmap = plt.get_cmap("Set2")
+colors = [cmap(i) for i in np.linspace(0, 1, 8)]
+
+colour_mapping = {'glm1':
+                      {'chordID:12129': colors[0],
+                       'chordID:12291': colors[1],
+                       'chordID:19111': colors[2],
+                       'chordID:21291': colors[3],
+                       'chordID:22911': colors[4],
+                       'chordID:29212': colors[5],
+                       'chordID:91211': colors[6],
+                       'chordID:92122': colors[7],
+                       }
+                  }
+
+###############

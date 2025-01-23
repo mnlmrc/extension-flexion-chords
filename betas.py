@@ -57,11 +57,11 @@ def get_roi_ResMS(experiment=None, sn=None, Hem=None, roi=None, glm=None, day=No
 
 def get_roi_contrasts(experiment=None, sn=None, Hem=None, roi=None, glm=None, day=None):
     reginfo = pd.read_csv(os.path.join(gl.baseDir, experiment, f'{gl.glmDir}{glm}', f'day{day}', f'subj{sn}',
-                                       f'subj{sn}_reginfo.tsv'), sep="\t")
+                                       f'reginfo.tsv'), sep="\t")
 
     regressors = reginfo['name'].unique()
 
-    R = get_roi(experiment, sn, Hem, roi)
+    R = get_roi(experiment=experiment, sn=sn, Hem=Hem, roi=roi, day=day)
 
     contrasts = list()
     for regr, regressor in enumerate(regressors):
