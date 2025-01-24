@@ -13,6 +13,7 @@ function varargout = efcl_glm(what, varargin)
         addpath(genpath('~/Documents/MATLAB/spm12/'))
         addpath(genpath('~/Documents/GitHub/surfAnalysis/'))
         addpath(genpath('~/Documents/GitHub/surfing/surfing'))
+        addpath(genpath('~/Documents/GitHub/region/'))
         
         
     elseif isfolder('/path/to/project/cifs/directory/')
@@ -25,15 +26,17 @@ function varargout = efcl_glm(what, varargin)
     day = [];
     glm = [];
     type = 'spmT';
-    hrf_params = [5 14 1 1 6 0 32];
+    atlas = 'ROI';
+    hrf_params = [4.5 11 1 1 6 0 32];
     derivs = [0, 0];
-    vararginoptions(varargin,{'sn', 'day', 'type', 'glm', 'hrf_params', 'derivs'})
+    vararginoptions(varargin,{'sn', 'day', 'type', 'glm', 'hrf_params', 'atlas','derivs'})
 
     glmEstDir = 'glm';
     behavDir = 'behavioural';
     % anatomicalDir = 'anatomicals';
     imagingDir = 'imaging_data';
     wbDir = 'surfaceWB';
+    regDir = 'ROI';
 
     pinfo = dload(fullfile(baseDir,'participants.tsv'));
 
@@ -473,8 +476,7 @@ function varargout = efcl_glm(what, varargin)
        case 'GLM:all'
             
             spm_get_defaults('cmdline', true);  % Suppress GUI prompts, no request for overwirte
-
-                
+         
             % Check for and delete existing SPM.mat file
             spm_file = fullfile(baseDir, [glmEstDir num2str(glm)], ['subj' num2str(sn)], 'SPM.mat');
             if exist(spm_file, 'file')
@@ -489,7 +491,7 @@ function varargout = efcl_glm(what, varargin)
 %             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'beta')
 %             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'res')
 %             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'con')
-%             efcl_glm('HRF:ROI_hrf_get', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params)
+             efcl_glm('HRF:ROI_hrf_get', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day)
             
        case 'SURF:vol2surf'
             
@@ -563,7 +565,85 @@ function varargout = efcl_glm(what, varargin)
             save(GR, fullfile(baseDir, wbDir, subj_id, [glmEstDir '.' day_id '.' type '.R.func.gii']))
             
             cd(currentDir)
+            
+        case 'HRF:ROI_hrf_get'                   % Extract raw and estimated time series from ROIs
+            
+            currentDir = pwd;
+            
+            glmDir = fullfile(baseDir, [glmEstDir num2str(glm)], day_id);
+            T=[];
+            
+            pre = 6;
+            post = 12;            
 
+            fprintf('%s\n',subj_id);
+
+            % load SPM.mat
+            cd(fullfile(glmDir,subj_id));
+            SPM = load('SPM.mat'); SPM=SPM.SPM;
+            
+            TR = SPM.xY.RT;
+            nScan = SPM.nscan(1);
+
+            % % make (dummy) regressors
+            % hrf = spm_hrf(1, hrf_params);
+            % events = dload(fullfile(baseDir,behavDir,subj_id ,sprintf('glm%d_events.tsv', glm)));
+            % eventtype = unique(events.eventtype);
+            % regr = zeros(2760, length(eventtype));
+            % 
+            % for e = 1:length(eventtype)
+            % 
+            %     onset = events.Onset(strcmp(eventtype(e), events.eventtype));
+            %     block = events.BN(strcmp(eventtype(e), events.eventtype));
+            %     onset = round(onset) + (block - 1) * 276;
+            % 
+            %     regr(onset, e) = 1;
+            %     regrC(:, e) = conv(regr(:, e), hrf);             
+            % end
+            
+            % load ROI definition (R)
+            R = load(fullfile(baseDir, regDir,day_id,subj_id,[subj_id '_' atlas '_region.mat'])); R=R.R;
+            
+            % extract time series data
+            [y_raw, y_adj, y_hat, y_res,B] = region_getts(SPM,R);
+            
+%             D = spmj_get_ons_struct(SPM);
+            Dd = dload(fullfile(baseDir, behavDir, day_id, subj_id, sprintf('efc4_%d.dat', sn)));
+            
+            idx = ismember(Dd.BN, runs);
+            
+            D = [];
+            D.ons = (Dd.startTimeReal(idx) / 1000) / TR;
+            D.ons = D.ons + (Dd.BN(idx) - 1) * nScan;
+            D.BN = Dd.BN(idx);
+            D.chordID = Dd.chordID(idx);     
+%             D.cue = Dd.cue;
+%             D.stimFinger = Dd.stimFinger;
+            
+            for r=1:size(y_raw,2)
+                for i=1:size(D.BN,1)
+                    D.y_adj(i,:)=cut(y_adj(:,r),pre,round(D.ons(i)),post,'padding','nan')';
+                    D.y_hat(i,:)=cut(y_hat(:,r),pre,round(D.ons(i)),post,'padding','nan')';
+                    D.y_res(i,:)=cut(y_res(:,r),pre,round(D.ons(i)),post,'padding','nan')';
+                    D.y_raw(i,:)=cut(y_raw(:,r),pre,round(D.ons(i)),post,'padding','nan')';
+%                     D.regr(i, :, :)=cut(regrC,pre,round(D.ons(i)),post,'padding','nan')';
+                end
+                
+                % Add the event and region information to tje structure. 
+                len = size(D.ons,1);                
+                D.SN        = ones(len,1)*sn;
+                D.region    = ones(len,1)*r;
+                D.name      = repmat({R{r}.name},len,1);
+                D.hem       = repmat({R{r}.hem},len,1);
+%                 D.type      = D.event; 
+                T           = addstruct(T,D);
+            end
+            
+            save(fullfile(baseDir,regDir, day_id, subj_id, sprintf('hrf_glm%d.mat', glm)),'T'); 
+            varargout{1} = T;
+            varargout{2} = y_adj;
+            
+            cd(currentDir)
             
     end
 
