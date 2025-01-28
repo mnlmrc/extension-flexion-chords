@@ -16,6 +16,7 @@ glmDir = 'glm'
 roiDir = 'ROI'
 rdmDir = 'rdm'
 wbDir = 'surfaceWB'
+atlasDir = '/Volumes/diedrichsen_data$/data/Atlas_templates/fs_LR_32'
 
 if baseDir is not None:
     print(f"Base directory found: {baseDir}")
