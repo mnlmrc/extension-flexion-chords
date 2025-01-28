@@ -378,7 +378,7 @@ function varargout = efcl_glm(what, varargin)
                 mkdir(J.dir{1});
             end
             
-            dsave(fullfile(J.dir{1},sprintf('reginfo.tsv', day_id, subj_id)), T);
+            dsave(fullfile(J.dir{1},'reginfo.tsv'), T);
             spm_rwls_run_fmri_spec(J);
 
             cd(currentDir)
