@@ -44,7 +44,13 @@ chordID = [29212, 92122, 91211, 22911, 21291, 12129, 12291, 19111]
 #            'fThumb', 'fIndex', 'fMiddle', 'fRing', 'fPinkie',
 #            'Thumb', 'Index', 'Middle', 'Ring', 'Pinkie',  # 13, 14, 15, 16, 17
 #            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
-diffCols = [18, 19, 20, 21, 22]  # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
+diffCols = {
+    'efc4': [18, 19, 20, 21, 22]
+}   # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
+
+wait_exec = {
+    'efc4': 4
+}
 
 channels = {
     'force': ['thumb',

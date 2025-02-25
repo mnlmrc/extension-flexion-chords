@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 
 experiment = 'efc4'
-sn = 999
+sn = 1001
 day = 1
 
 session = 'testing'
