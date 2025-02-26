@@ -15,7 +15,7 @@ import pandas as pd
 
 import warnings
 
-from util import lowpass_butter
+from util import lowpass_butter, lowpass_fir
 
 
 def calc_md(X):
@@ -109,6 +109,78 @@ def calc_segment(x, hold_time=gl.hold_time, chordID=None):
         endtime = ((len(x) - int(hold_time * gl.fsample['force'])) / gl.fsample['force']) - starttime
 
     return x_s, starttime, endtime
+
+
+def calc_avg_force(experiment=None, sn=None, session=None, blocks=None,):
+    ch_idx = [col in gl.channels['mov'] for col in gl.diffCols[experiment]]
+
+    dat = pd.read_csv(os.path.join(gl.baseDir, experiment, session, f'subj{sn}', f'{experiment}_{sn}.dat'),
+                      sep='\t')
+
+    force_dict = {
+        'subNum': [],
+        'BN': [],
+        'TN': [],
+        'thumb': [],
+        'index': [],
+        'middle': [],
+        'ring': [],
+        'pinkie': [],
+        'trialPoint': [],
+        'RT': [],
+        'ET': [],
+        'MD': []
+    }
+    for bl in blocks:
+
+        dat_tmp = dat[dat['BN'] == int(bl)]
+
+        filename = os.path.join(gl.baseDir, experiment, session, f'subj{sn}', f'{experiment}_{sn}_{int(bl):02d}.mov')
+
+        mov = load_mov(filename)
+        mov = np.concatenate(mov, axis=0)
+
+        mov = mov[mov[:, 1] == gl.wait_exec[experiment]]
+
+        print(f'Processing... subj{sn}, block {bl}, {mov[:, 0].max()} trials found...')
+
+        assert (mov[:, 0].max() == len(dat_tmp))
+
+        for ntrial in range(mov[:, 0].max()):
+            force_tmp = mov[mov[:, 0] == ntrial + 1, ch_idx]
+
+            force_filt = lowpass_fir(force_tmp, n_ord=4, cutoff=10, fsample=gl.fsample['force'], axis=0)
+            force_der1 = np.gradient(force_filt, 1 / gl.fsample['force'], axis=0)
+
+            force_der1_avg = force_der1.mean(axis=0).abs()
+
+            rt_samples = dat_tmp.iloc[ntrial]['RT']
+            et_samples = rt_samples + dat_tmp.iloc[ntrial]['ET']
+            
+            MD = calc_md(force_tmp[rt_samples:et_samples])
+            force_avg = force_tmp[-et_samples:].mean(axis=0)
+
+            force_dict['thumb'].append(force_avg[0])
+            force_dict['index'].append(force_avg[1])
+            force_dict['middle'].append(force_avg[2])
+            force_dict['ring'].append(force_avg[3])
+            force_dict['pinkie'].append(force_avg[4])
+            force_dict['thumb_der'].append(force_der1_avg[0])
+            force_dict['index_der'].append(force_der1_avg[1])
+            force_dict['middle_der'].append(force_der1_avg[2])
+            force_dict['ring_der'].append(force_der1_avg[3])
+            force_dict['pinkie_der'].append(force_der1_avg[4])
+            force_dict['RT'].append(dat_tmp.iloc[ntrial]['RT'])
+            force_dict['ET'].append(dat_tmp.iloc[ntrial]['ET'])
+            force_dict['MD'].append(MD)
+            force_dict['MD_c++'].append(dat_tmp.iloc[ntrial]['MD'])
+            force_dict['BN'].append(dat_tmp.iloc[ntrial]['BN'])
+            force_dict['TN'].append(dat_tmp.iloc[ntrial]['TN'])
+            force_dict['trialPoint'].append(dat_tmp.iloc[ntrial]['trialPoint'])
+
+    force_df = pd.DataFrame(force_dict)
+
+    return force_df
 
 
 def main():
