@@ -16,12 +16,18 @@ glmDir = 'glm'
 roiDir = 'ROI'
 rdmDir = 'rdm'
 wbDir = 'surfaceWB'
-atlasDir = '/Volumes/diedrichsen_data$/data/Atlas_templates/fs_LR_32'
+
+atlasDirs = ['/Volumes/diedrichsen_data$/data/Atlas_templates/fs_LR_32',
+             '/cifs/diedrichsen/data/Atlas_templates/fs_LR_32',]
+
+atlasDir = next((Dir for Dir in atlasDirs if Path(Dir).exists()), None)
 
 if baseDir is not None:
     print(f"Base directory found: {baseDir}")
+    print(f"Atlas directory found: {atlasDir}")
 else:
     print("No valid base directory found.")
+
 
 fthresh = 1.2  # threshold to exit the baseline area
 ftarget = 2
@@ -87,8 +93,14 @@ channels = {
 # }
 
 # flatmap stuff
-borders = {'L': '/Users/mnlmrc/Documents/GitHub/surfAnalysisPy/standard_mesh/fs_L/fs_LR.32k.L.border',
-           'R': '/Users/mnlmrc/Documents/GitHub/surfAnalysisPy/standard_mesh/fs_R/fs_LR.32k.R.border'}
+# flatmap stuff
+borderDirs = ["/Users/mnlmrc/Documents/GitHub/surfAnalysisPy/standard_mesh/",
+        "/home/ROBARTS/memanue5/Documents/GitHub/surfAnalysisPy/standard_mesh/",]
+
+borderDirs = next((Dir for Dir in borderDirs if Path(Dir).exists()), None)
+
+borders = {'L': os.path.join(borderDirs, 'fs_L', 'fs_LR.32k.L.border'),
+           'R': os.path.join(borderDirs, 'fs_L', 'fs_LR.32k.L.border')}
 
 rois = {
     'Desikan': [
