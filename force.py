@@ -158,7 +158,7 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None, 
 
         for ntrial in range(ntrials):
 
-            force_tmp = mov[mov[:, 0] == ntrial + 1][:, ch_idx]
+            force_tmp = mov[mov[:, 0] == ntrial + 1][:, ch_idx] * gl.fGain
 
             force_filt = lowpass_fir(force_tmp, n_ord=4, cutoff=10, fsample=gl.fsample['force'], axis=0)
             force_der1 = np.gradient(force_filt, 1 / gl.fsample['force'], axis=0)

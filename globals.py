@@ -92,11 +92,10 @@ channels = {
     ]
 }
 
-# removeEMG = {
-#     'efc3': {
-#         'subj100': ['lum1', 'lum2', 'lum3']
-#     }
-# }
+trialPoint_mapping = {
+    1: 'success',
+    0: 'unsuccess',
+}
 
 # flatmap stuff
 # flatmap stuff
