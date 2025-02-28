@@ -5,7 +5,7 @@ import numpy as np
 
 experiment = 'efc4'
 sn = 1001
-day = 1
+day = 2
 
 session = 'testing'
 
