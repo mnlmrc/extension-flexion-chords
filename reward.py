@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
 import globals as gl
 import os
+import matplotlib
 
 def exp_func(x, a, b, c):
     return a * np.exp(b * x) + c
@@ -55,7 +56,7 @@ def plot_ref():
     plt.xlabel("Day")
     plt.ylabel("RT + ET (s)")
     plt.title("Performance Progression and Reward Levels")
-    plt.show()
+    # plt.show()
 
 def plot_current(path, day):
 
@@ -107,7 +108,7 @@ if __name__ == '__main__':
         save_reward_data_pred()
     if args.what == 'plot_ref':
         plot_ref()
-        plt.show()
+        # plt.show()
     if args.what == 'plot_current':
         plot_ref()
 
