@@ -54,53 +54,79 @@ def plot_ref():
 
     plt.legend()
     plt.xlabel("Day")
-    plt.ylabel("RT + ET (s)")
+    plt.xticks([1, 5, 10, 20, 24])
+    plt.ylabel("Execution time (% ref subject)")
     plt.title("Performance Progression and Reward Levels")
-    # plt.show()
+
 
 def plot_current(path, day):
 
     data = pd.read_csv(path, sep='\t')
+    data = data[data.trialPoint == 1]
 
-    ET = (data['ET'] + data['RT']).mean() / max_performance
+    ET = (data['ET'] + data['RT']).mean()
+    ET_norm = ET / (max_performance * 1000)
 
-    plt.scatter(day, ET, color='red', s=20)
+    if ET_norm > thresholds[0]:
+        plt.title("Keep trying! Bronze level is not far!")
+    elif (ET_norm > thresholds[1]) & (ET_norm < thresholds[0]):
+        plt.title("Congrats! You reached BRONZE LEVEL!\n"
+                  "Keep trying! Silver level is not far!")
+    elif (ET_norm > thresholds[2]) & (ET_norm < thresholds[1]):
+        plt.title("Congrats! You reached SILVER LEVEL!\n"
+                  "Keep trying! Gold level is not far!")
+    elif (ET_norm > thresholds[3]) & (ET_norm < thresholds[2]):
+        plt.title("Congrats! You reached GOLD LEVEL!\n"
+                  "Keep trying! Platinum level is not far!")
+    elif (ET_norm > thresholds[4]) & (ET_norm < thresholds[3]):
+        plt.title("Congrats! You reached PLATINUM LEVEL!\n"
+                  "Keep trying! Diamond level is not far!")
+    elif (ET_norm > thresholds[5]) & (ET_norm < thresholds[4]):
+        plt.title("Congrats! You reached DIAMOND LEVEL!\n"
+                  "A little more and you'll be an ALIEN!")
+    elif ET_norm < thresholds[6]:
+        plt.title("Honestly! We don't see this every day!\n"
+                  "you are an ALIEN!!!")
 
+    print(f'Execution time: {ET} ms')
 
-# Define performance levels based on yhat max
-max_performance = 3
+    plt.scatter(day, ET_norm, color='red', s=50)
 
-num_levels = 6  # Number of levels
-start = 0.6 #* max_performance  # Initial threshold
-end = 0.2 #* max_performance  # Final threshold
-exponents = np.linspace(0, 1, num_levels)  # Exponential spacing
-decay_rate = 4
-
-hrate = np.linspace(15.5, 17.5, 6)
-
-thresholds = start - (start - end) * (1 - np.exp(-decay_rate * exponents)) / (1 - np.exp(-decay_rate))
-
-# Compute exponentially decreasing thresholds
-# thresholds = start * (end / start) ** exponents #[::-1]  # Reverse order
-
-levels = {
-    f"Bronze (${hrate[0]}/hour)": (thresholds[0] , 'tan'),
-    f"Silver (${hrate[1]}/hour)": (thresholds[1] , 'silver'),
-    f"Gold (${hrate[2]}/hour)": (thresholds[2] , 'gold'),
-    f"Platinum (${hrate[3]}/hour)": (thresholds[3] , 'gainsboro'),
-    f"Diamond (${hrate[4]}/hour)": (thresholds[4] , 'lightsteelblue'),
-    f"Alien (${hrate[5]}/hour)": (thresholds[5] , 'green')
-}
 
 if __name__ == '__main__':
+
+    num_levels = 6  # Number of levels
+    start = 0.6  # * max_performance  # Initial threshold
+    end = 0.2  # * max_performance  # Final threshold
+    exponents = np.linspace(0, 1, num_levels)  # Exponential spacing
+    decay_rate = 4
+
+    hrate = np.linspace(15.5, 17.5, 6)
+
+    thresholds = start - (start - end) * (1 - np.exp(-decay_rate * exponents)) / (1 - np.exp(-decay_rate))
+
+    # Compute exponentially decreasing thresholds
+    # thresholds = start * (end / start) ** exponents #[::-1]  # Reverse order
+
+    levels = {
+        f"Bronze (${hrate[0]}/hour)": (thresholds[0], 'tan'),
+        f"Silver (${hrate[1]}/hour)": (thresholds[1], 'silver'),
+        f"Gold (${hrate[2]}/hour)": (thresholds[2], 'gold'),
+        f"Platinum (${hrate[3]}/hour)": (thresholds[3], 'gainsboro'),
+        f"Diamond (${hrate[4]}/hour)": (thresholds[4], 'lightsteelblue'),
+        f"Alien (${hrate[5]}/hour)": (thresholds[5], 'green')
+    }
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument('what', nargs='?', default=None)
     parser.add_argument('--day', type=int, default=None)
     parser.add_argument('--sn', type=int, default=None)
+    parser.add_argument('--ref', type=float, default=3.0)
 
     args = parser.parse_args()
+
+    max_performance = args.ref
 
     if args.what == 'save_obs':
         save_reward_data_obs()
@@ -112,8 +138,9 @@ if __name__ == '__main__':
     if args.what == 'plot_current':
         plot_ref()
 
-        path = os.path.join(gl.baseDir, 'efc4', 'pilot', f'day{args.day}', f'subj{args.sn}', f'efc4_{args.what}.dat')
+        path = os.path.join(gl.baseDir, 'efc4', 'pilot', f'day{args.day}', f'subj{args.sn}', f'efc4_{args.sn}.dat')
 
         plot_current(path, day=args.day)
 
         plt.show()
+
