@@ -109,12 +109,12 @@ if __name__ == '__main__':
     # thresholds = start * (end / start) ** exponents #[::-1]  # Reverse order
 
     levels = {
-        f"Bronze (${hrate[0]}/hour)": (thresholds[0], 'tan'),
-        f"Silver (${hrate[1]}/hour)": (thresholds[1], 'silver'),
-        f"Gold (${hrate[2]}/hour)": (thresholds[2], 'gold'),
-        f"Platinum (${hrate[3]}/hour)": (thresholds[3], 'gainsboro'),
-        f"Diamond (${hrate[4]}/hour)": (thresholds[4], 'lightsteelblue'),
-        f"Alien (${hrate[5]}/hour)": (thresholds[5], 'green')
+        f"Bronze ($355)": (thresholds[0], 'tan'),
+        f"Silver ($360)": (thresholds[1], 'silver'),
+        f"Gold ($368)": (thresholds[2], 'gold'),
+        f"Platinum ($385)": (thresholds[3], 'gainsboro'),
+        f"Diamond ($400)": (thresholds[4], 'lightsteelblue'),
+        f"Alien ($420)": (thresholds[5], 'green')
     }
 
     parser = argparse.ArgumentParser()
@@ -122,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('what', nargs='?', default=None)
     parser.add_argument('--day', type=int, default=None)
     parser.add_argument('--sn', type=int, default=None)
-    parser.add_argument('--ref', type=float, default=3.0)
+    parser.add_argument('--ref', type=float, default=3.5)
 
     args = parser.parse_args()
 
@@ -134,7 +134,7 @@ if __name__ == '__main__':
         save_reward_data_pred()
     if args.what == 'plot_ref':
         plot_ref()
-        # plt.show()
+        plt.show()
     if args.what == 'plot_current':
         plot_ref()
 
