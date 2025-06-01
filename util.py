@@ -9,6 +9,23 @@ from scipy.special import expit
 import globals as gl
 
 
+
+def load_matlab_hrf(path):
+    mat_contents = scipy.io.loadmat(path)
+    mat_struct = mat_contents['T'][0, 0]  # Assuming 1x1 struct
+    T = {field: mat_struct[field] for field in mat_struct.dtype.names}
+
+    T['day'] = T['day'].flatten()
+    T['block'] = T['block'].flatten()
+    T['ons'] = T['ons'].flatten()
+    T['chordID'] = T['chordID'].flatten()
+    T['SN'] = T['SN'].flatten()
+    T['region'] = T['region'].flatten()
+    T['name'] = T['name'].flatten()
+    T['hem'] = T['hem'].flatten()
+
+    return T
+
 def load_nat_emg(file_path):
     # Load the .mat file
     mat = scipy.io.loadmat(file_path)

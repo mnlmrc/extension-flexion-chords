@@ -53,7 +53,7 @@ function varargout = efcl_anat(what, varargin)
 %             anat_name = subj_row.anat_name{1};
             
             % anatomical file
-            anat_full_path = fullfile(baseDir,bidsDir,subj_id, 'day1', 'anat',sprintf('sub-s%d_acq-MP2RAGE_run-01_T1w.nii.gz', sn));
+            anat_full_path = fullfile(baseDir,bidsDir,'day1',subj_id,  'anat',sprintf('sub-%d_acq-MP2RAGE_run-01_T1w.nii.gz', sn));
             
            % Define output di
             output_folder = fullfile(baseDir,anatomicalDir, subj_id);
@@ -93,7 +93,7 @@ function varargout = efcl_anat(what, varargin)
             spm_write_vol(V,dat);
             display 'Manually retrieve the location of the anterior commissure (x,y,z) before continuing'
         
-        case 'ANAT:center_ac' % recenter to AC (manually retrieve coordinates)
+        case 'ANAT:centre_AC' % recenter to AC (manually retrieve coordinates)
             % Before running this step you need to manually fill in the AC
             % coordinates in the participants.tsv file
             % run spm display to get the AC coordinates
@@ -205,6 +205,11 @@ function varargout = efcl_anat(what, varargin)
         
             % recon all inputs
             fs_dir = fullfile(baseDir,freesurferDir, subj_id);
+
+            if ~exist(fs_dir,"dir")
+                mkdir(fs_dir);
+            end
+
             anatomical_dir = fullfile(baseDir,anatomicalDir);
             anatomical_name = sprintf('%s_T1w.nii', subj_id);
             

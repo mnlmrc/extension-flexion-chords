@@ -27,7 +27,7 @@ function varargout = efcl_glm(what, varargin)
     glm = [];
     type = 'spmT';
     atlas = 'ROI';
-    hrf_params = [4.5 11 1 1 6 0 32];
+    hrf_params = [5 12 1 1 6 0 32];
     derivs = [0, 0];
     vararginoptions(varargin,{'sn', 'day', 'type', 'glm', 'hrf_params', 'atlas','derivs'})
 
@@ -46,106 +46,66 @@ function varargout = efcl_glm(what, varargin)
     % get subj_id
     subj_id = subj_row.participant_id{1};
     
-    % get day_id
-    day_id = sprintf('day%d', day);
+    D = dload(fullfile(baseDir, behavDir, sprintf('day%d', day(1)), sprintf('efc4_%d.dat', sn)));
+    if length(day) > 1
+        for i=2:length(day)
+            D_tmp = dload(fullfile(baseDir, behavDir, sprintf('day%d', day(i)), sprintf('efc4_%d.dat', sn)));
+            fields = fieldnames(D_tmp);
+            for j = 1:numel(fields)
+                fname = fields{j};
+                D.(fname) = [D.(fname); D_tmp.(fname)];
+            end
+        end
+    end
 
-    % get runs (FuncRuns column needs to be in participants.tsv)    
-    runs = spmj_dotstr2array(subj_row.FuncRuns{1});
+    % get runs (FuncRuns column needs to be in participants.tsv)
+    if isscalar(day)
+        if day == 3
+            d = 0;
+        elseif day == 9
+            d =1;
+        elseif day == 23
+            d=2;
+        end
+        day_id = sprintf('day%d', day);
+        runs = spmj_dotstr2array(subj_row.(sprintf('FuncRuns_day%d', day)){1});
+    else
+        runs = [];
+        for i = 1:length(day)
+            if day(i) == 3
+                d = 0;
+            elseif day(i) == 9
+                d =1;
+            elseif day(i) == 23
+                d=2;
+            end
+            % day_id{i} = sprintf('day%d', day{i});
+            runs = [runs spmj_dotstr2array(subj_row.(sprintf('FuncRuns_day%d', day(i))){1}) + 10*d];
+        end
+    end
 
     switch what
         case 'GLM:make_glm1'
 
-            D = dload(fullfile(baseDir, behavDir, day_id, subj_id, sprintf('efc4_%d.dat', sn)));
-
             chords = unique(D.chordID);
             
             events.BN = [];
             events.TN = [];
             events.Onset = [];
             events.Duration = [];
-            events.eventtype = [];
-            
-            for chordID = chords'
-                
-                events.BN = [events.BN; D.BN(D.chordID == chordID)];
-                events.TN = [events.TN; D.TN(D.chordID == chordID)];
-                events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID) + 500];
-                events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID)];
-                events.eventtype = [events.eventtype; repmat({sprintf('chordID_%d', chordID)}, [60, 1])];
-                
-            end
-            
-            events = struct2table(events);
-            events.Onset = events.Onset ./ 1000;
-            events.Duration = events.Duration ./ 1000;
-            
-            varargout{1} = events;
-
-        case 'GLM:make_glm2'
-
-            D = dload(fullfile(baseDir, behavDir, day_id, subj_id, sprintf('efc4_%d.dat', sn)));
-
-            chords = unique(D.chordID);
-            
-            events.BN = [];
-            events.TN = [];
-            events.Onset = [];
-            events.Duration = [];
-            events.eventtype = [];
-            
-            for chordID = chords'
-                
-                events.BN = [events.BN; D.BN(D.chordID == chordID & D.trialPoint == 1)];
-                events.TN = [events.TN; D.TN(D.chordID == chordID & D.trialPoint == 1)];
-                events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.trialPoint == 1) + 500];
-                events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.trialPoint == 1)];
-                events.eventtype = [events.eventtype; D.chordID(D.chordID == chordID & D.trialPoint == 1)];
-                
-            end
-            
-            events = struct2table(events);
-            events.Onset = events.Onset ./ 1000;
-            events.Duration = events.Duration ./ 1000;
-            
-            varargout{1} = events;
-            
-        case 'GLM:make_glm3'
-
-            D = dload(fullfile(baseDir, behavDir, day_id, subj_id, sprintf('efc4_%d.dat', sn)));
-            
-            D.repetition = ones(length(D.TN), 1); % Initialize repetition column with 1
-
-            for i = 1:length(D.TN)
-                if i == 1
-                    D.repetition(i) = 1;
-                else
-                    if D.chordID(i) == D.chordID(i-1)
-                        D.repetition(i) = 2;
-                    end
-                end
-            end
-    
-            events.BN = [];
-            events.TN = [];
-            events.Onset = [];
-            events.Duration = [];
-            events.eventtype = {};
             events.chordID = [];
-            events.repetition = [];
+            events.day = [];
+            events.eventtype = [];
             
-            for rep = unique(D.repetition)'
-                for chordID = unique(D.chordID)'
-
-                    events.BN = [events.BN; D.BN(D.chordID == chordID & D.repetition == rep)];
-                    events.TN = [events.TN; D.TN(D.chordID == chordID & D.repetition == rep)];
-                    events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.repetition == rep) + 500];
-                    events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.repetition == rep)];
-                    events.repetition = [events.repetition; D.repetition(D.chordID == chordID & D.repetition == rep)];
-                    events.chordID = [events.chordID; D.repetition(D.chordID == chordID & D.repetition == rep)];
-                    events.eventtype = [events.eventtype; repmat({sprintf('chordID:%d,repetition:%d', chordID, rep)}, [30, 1])];
-                    
-%                     events.eventtype = repmat({'100%,index'}, [length(index100.BN), 1])
-
+            for d = 1:length(day)
+                for chordID = chords'
+                    events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d)) + 10 * (d - 1)] ;
+                    events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d))];
+                    events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d)) + 500];
+                    events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.day == day(d))];
+                    events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [60, 1])];
+                    events.day = [events.day; repmat({sprintf('%d', day(d))}, [60, 1])];
+                    events.eventtype = [events.eventtype; repmat({sprintf('%d,day%d', chordID, day(d))}, [60, 1])];
                 end
             end
             
@@ -156,13 +116,6 @@ function varargout = efcl_glm(what, varargin)
             varargout{1} = events;
             
         case 'GLM:make_event'
-    
-            % get runs (FuncRuns column needs to be in participants.tsv)    
-            runs = spmj_dotstr2array(subj_row.FuncRuns{1});
-            run_list = {}; % Initialize as an empty cell array
-            for run = runs
-                run_list{end+1} = sprintf('run_%02d', run);
-            end 
             
             operation  = sprintf('GLM:make_glm%d', glm);
             
@@ -170,7 +123,7 @@ function varargout = efcl_glm(what, varargin)
             events = events(ismember(events.BN, runs), :);
             
             %% export
-            output_folder = fullfile(baseDir, behavDir, day_id, subj_id);
+            output_folder = fullfile(baseDir, behavDir, 'day1', subj_id);
             writetable(events, fullfile(output_folder, sprintf('glm%d_events.tsv', glm)), 'FileType', 'text', 'Delimiter','\t')
 
 %             if ~isfolder(fullfile(baseDir, [glmEstDir num2str(glm)] , subj_id))
@@ -180,31 +133,25 @@ function varargout = efcl_glm(what, varargin)
         case 'GLM:design'
 
             % Import globals from spm_defaults 
-            global defaults; 
+            global defaults;
             if (isempty(defaults)) 
                 spm_defaults;
             end 
             
             currentDir = pwd;
 
-            if isempty(sn)
-                error('GLM:design -> ''sn'' must be passed to this function.')
-            end
-
-            if isempty(glm)
-                error('GLM:design -> ''glm'' must be passed to this function.')
-            end
-
             run_list = {}; % Initialize as an empty cell array
             for run = runs
                 run_list{end+1} = sprintf('run_%02d', run);
             end
 
+            chords = unique(D.chordID);
+
             % Load data once, outside of session loop
             % D = dload(fullfile(baseDir,behavDir,subj_id, sprintf('smp2_%d.dat', sn)));
             events_file = sprintf('glm%d_events.tsv', glm);
 
-            Dd = dload(fullfile(baseDir,behavDir, day_id, subj_id, events_file));
+            Dd = dload(fullfile(baseDir,behavDir, 'day1', subj_id, events_file));
             
             regressors = unique(Dd.eventtype);
             nRegr = length(regressors); 
@@ -212,7 +159,7 @@ function varargout = efcl_glm(what, varargin)
             % init J
             J = [];
             T = [];
-            J.dir = {fullfile(baseDir,sprintf('glm%d', glm),day_id, subj_id)};
+            J.dir = {fullfile(baseDir,sprintf('glm%d', glm), subj_id)};
             J.timing.units = 'secs';
             J.timing.RT = 1;
 
@@ -223,60 +170,57 @@ function varargout = efcl_glm(what, varargin)
             % slice number that corresponds to that acquired halfway in
             % each TR
             J.timing.fmri_t0 = 1;
-        
+            
             for run = runs
                 % Setup scans for current session
-                J.sess(run).scans = {fullfile(baseDir, imagingDir, day_id, subj_id, sprintf('u%s_run_%02d.nii', subj_id, run))};
-        
+                J.sess(run).scans = {fullfile(baseDir, imagingDir, subj_id, sprintf('u%s_run_%02d.nii', subj_id, run))};
         
                 % Preallocate memory for conditions
-                J.sess(run).cond = repmat(struct('name', '', 'onset', [], 'duration', []), nRegr, 1);
-                
-                for regr = 1:nRegr
-                    % cue = Dd.cue(regr);
-                    % stimFinger = Dd.stimFinger(regr);
-                    rows = find(Dd.BN == run & strcmp(Dd.eventtype, regressors(regr)));
-                    % cue_id = unique(Dd.cue_id(rows));
-                    % stimFinger_id = unique(Dd.stimFinger_id(rows));
-                    % epoch = unique(Dd.epoch(rows));
-                    % instr = unique(Dd.instruction(rows));
-                    
-                    % Regressor name
-                    J.sess(run).cond(regr).name = regressors{regr};
-                    
-                    % Define durationDuration(regr));
-                    J.sess(run).cond(regr).duration = Dd.Duration(rows); % needs to be in seconds
-                    
-                    % Define onset
-                    J.sess(run).cond(regr).onset  = Dd.Onset(rows);
-                    
-                    % Define time modulator
-                    % Add a regressor that account for modulation of
-                    % betas over time
-                    J.sess(run).cond(regr).tmod = 0;
-                    
-                    % Orthogonalize parametric modulator
-                    % Make the parametric modulator orthogonal to the
-                    % main regressor
-                    J.sess(run).cond(regr).orth = 0;
-                    
-                    % Define parametric modulators
-                    % Add a parametric modulators, like force or
-                    % reaction time. 
-                    J.sess(run).cond(regr).pmod = struct('name', {}, 'param', {}, 'poly', {});
+                J.sess(run).cond = repmat(struct('name', '', 'onset', [], 'duration', []), nRegr/length(day), 1);
 
-                    %
-                    % filling in "reginfo"
-                    TT.sn        = sn;
-                    TT.run       = run;
-                    TT.name      = regressors(regr);
-                    % TT.cue       = cue_id;
-                    % TT.epoch     = epoch;
-                    % TT.stimFinger = stimFinger_id;
-                    % TT.instr = instr;       
+                regr = 1;            
+                for d = 1:length(day)
+                    for chordID = chords'
 
-                    T = addstruct(T, TT);
+                        rows = find(Dd.BN == run & Dd.day == day(d) & Dd.chordID == chordID);
+    
+                        if ~isempty(rows)
+     
+                            % Regressor name
+                            J.sess(run).cond(regr).name = sprintf('%d,%d', day(d), chordID);
+                            
+                            % Define durationDuration(regr));
+                            J.sess(run).cond(regr).duration = Dd.Duration(rows); % needs to be in seconds
+                            
+                            % Define onset
+                            J.sess(run).cond(regr).onset  = Dd.Onset(rows);
+                            
+                            % Define time modulator
+                            % Add a regressor that account for modulation of
+                            % betas over time
+                            J.sess(run).cond(regr).tmod = 0;
+                            
+                            % Orthogonalize parametric modulator
+                            % Make the parametric modulator orthogonal to the
+                            % main regressor
+                            J.sess(run).cond(regr).orth = 0;
+                            
+                            % Define parametric modulators
+                            % Add a parametric modulators, like force or
+                            % reaction time. 
+                            J.sess(run).cond(regr).pmod = struct('name', {}, 'param', {}, 'poly', {});
+        
+                            % filling in "reginfo"
+                            TT.sn        = sn;
+                            TT.run       = mod(run - 1, 10) + 1;
+                            TT.name      = sprintf('%02d,%d', day(d), chordID);      
+        
+                            T = addstruct(T, TT);
 
+                            regr = regr + 1;
+                    
+                        end
+                    end
                 end
 
                 % Specify high pass filter
@@ -338,7 +282,7 @@ function varargout = efcl_glm(what, varargin)
                 J.global = 'None';
 
                 % remove voxels involving non-neural tissue (e.g., skull)
-                J.mask = {fullfile(baseDir, imagingDir, day_id,subj_id,  'rmask_noskull.nii')};
+                J.mask = {fullfile(baseDir, imagingDir,subj_id,  'rmask_noskull.nii')};
                 
                 % Set threshold for brightness threshold for masking 
                 % If supplying explicit mask, set to 0  (default is 0.8)
@@ -346,29 +290,12 @@ function varargout = efcl_glm(what, varargin)
 
                 % Create map where non-sphericity correction must be
                 % applied
-                J.cvi_mask = {fullfile(baseDir, imagingDir, day_id, subj_id,  'rmask_gray.nii')};
+                J.cvi_mask = {fullfile(baseDir, imagingDir, subj_id,  'rmask_gray.nii')};
 
                 % Method for non sphericity correction
                 J.cvi =  'fast';
                 
             end
-
-            % T.cue000 = strcmp(T.cue, 'cue0');
-            % T.cue025 = strcmp(T.cue, 'cue25');
-            % T.cue050 = strcmp(T.cue, 'cue50');
-            % T.cue075 = strcmp(T.cue, 'cue75');
-            % T.cue100 = strcmp(T.cue, 'cue100');
-            % 
-            % T.index = strcmp(T.stimFinger, 'index');
-            % T.ring = strcmp(T.stimFinger, 'ring');
-            % 
-            % T.plan = strcmp(T.epoch, 'plan');
-            % T.exec = strcmp(T.epoch, 'exec');
-            % 
-            % T.go = strcmp(T.instr, 'go');
-            % T.nogo = strcmp(T.instr, 'nogo');
-            % 
-            % T.rest = strcmp(T.name, 'rest');
 
 
             % remove empty rows (e.g., when skipping runs)
@@ -398,14 +325,9 @@ function varargout = efcl_glm(what, varargin)
             end
 
 %             fprintf('- Doing glm%d estimation for subj %s\n', glm, day_id, subj_id);
-            subj_est_dir = fullfile(baseDir, sprintf('glm%d', glm), day_id, subj_id);                
+            subj_est_dir = fullfile(baseDir, sprintf('glm%d', glm), subj_id);                
             SPM = load(fullfile(subj_est_dir,'SPM.mat'));
             SPM.SPM.swd = subj_est_dir;
-
-            iB = SPM.SPM.xX.iB;
-
-            save(fullfile(subj_est_dir, "iB.mat"), "iB");
-
             spm_rwls_spm(SPM.SPM);
 
             cd(currentDir)
@@ -426,7 +348,7 @@ function varargout = efcl_glm(what, varargin)
 
             % get the subject id folder name
             fprintf('Contrasts for participant %s\n', subj_id)
-            glm_dir = fullfile(baseDir, sprintf('glm%d', glm), day_id, subj_id); 
+            glm_dir = fullfile(baseDir, sprintf('glm%d', glm), subj_id); 
 
             % load the SPM.mat file
             SPM = load(fullfile(glm_dir, 'SPM.mat')); SPM=SPM.SPM;
@@ -437,6 +359,7 @@ function varargout = efcl_glm(what, varargin)
 
             T    = dload(fullfile(glm_dir, 'reginfo.tsv'));
             T.name = cellstr(string(T.name));
+            T.name = cellfun(@(a,b) [a ',' b], T.name(:,1), T.name(:,2), 'UniformOutput', false);
             contrasts = unique(T.name);
 
             for c = 1:length(contrasts)
@@ -457,7 +380,7 @@ function varargout = efcl_glm(what, varargin)
                     cname_idx = length(SPM.xCon);
                 end
                 SPM = spm_contrasts(SPM,1:length(SPM.xCon));
-                save('SPM.mat', 'SPM','-v7.3');
+                % save('SPM.mat', 'SPM','-v7.3');
                 % SPM = rmfield(SPM,'xVi'); % 'xVi' take up a lot of space and slows down code!
                 % save(fullfile(glm_dir, 'SPM_light.mat'), 'SPM')
     
@@ -488,10 +411,10 @@ function varargout = efcl_glm(what, varargin)
             efcl_glm('GLM:estimate', 'sn', sn, 'glm', glm, 'day', day)
             efcl_glm('GLM:T_contrasts', 'sn', sn, 'glm', glm, 'day', day)
             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'spmT', 'day', day)
-%             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'beta')
-%             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'res')
-%             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'con')
-             efcl_glm('HRF:ROI_hrf_get', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day)
+            efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'beta', 'day', day)
+            efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'res', 'day', day)
+            efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'con', 'day', day)
+             % efcl_glm('HRF:ROI_hrf_get', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day)
             
        case 'SURF:vol2surf'
             
@@ -505,15 +428,15 @@ function varargout = efcl_glm(what, varargin)
             cols = {};
             if strcmp(type, 'spmT')
 %                 filename = ['spmT_' id '.func.gii'];
-                files = dir(fullfile(baseDir, glmEstDir, day_id, subj_id, 'spmT_*.nii'));
+                files = dir(fullfile(baseDir, glmEstDir, subj_id, 'spmT_*.nii'));
                 for f = 1:length(files)
                     fprintf([files(f).name '\n'])
                     V{f} = fullfile(files(f).folder, files(f).name);
                     cols{f} = files(f).name;
                 end
             elseif strcmp(type, 'beta')
-                SPM = load(fullfile(baseDir, glmEstDir, day_id,subj_id, 'SPM.mat')); SPM=SPM.SPM;
-                files = dir(fullfile(baseDir, glmEstDir, day_id,subj_id, 'beta_*.nii'));
+                SPM = load(fullfile(baseDir, glmEstDir, subj_id, 'SPM.mat')); SPM=SPM.SPM;
+                files = dir(fullfile(baseDir, glmEstDir, subj_id, 'beta_*.nii'));
                 files = files(SPM.xX.iC);
                 for f = 1:length(files)
                     fprintf([files(f).name '\n'])
@@ -521,21 +444,21 @@ function varargout = efcl_glm(what, varargin)
                     cols{f} = files(f).name;
                 end
             elseif strcmp(type, 'psc')
-                files = dir(fullfile(baseDir, glmEstDir, day_id,subj_id, 'psc_*.nii'));
+                files = dir(fullfile(baseDir, glmEstDir, subj_id, 'psc_*.nii'));
                 for f = 1:length(files)
                     fprintf([files(f).name '\n'])
                     V{f} = fullfile(files(f).folder, files(f).name);
                     cols{f} = files(f).name;
                 end
             elseif strcmp(type, 'con')
-                files = dir(fullfile(baseDir, glmEstDir, day_id,subj_id, 'con_*.nii'));
+                files = dir(fullfile(baseDir, glmEstDir, subj_id, 'con_*.nii'));
                 for f = 1:length(files)
                     fprintf([files(f).name '\n'])
                     V{f} = fullfile(files(f).folder, files(f).name);
                     cols{f} = files(f).name;
                 end
             elseif strcmp(type, 'res')
-                V{1} = fullfile(baseDir, glmEstDir,day_id, subj_id, 'ResMS.nii');
+                V{1} = fullfile(baseDir, glmEstDir, subj_id, 'ResMS.nii');
                 cols{1} = 'ResMS';
             end
 
@@ -557,93 +480,69 @@ function varargout = efcl_glm(what, varargin)
             GL = surf_vol2surf(c1L,c2L,V,'anatomicalStruct','CortexLeft', 'exclude_thres', 0.9, 'faces', hemLpial.faces);
             GL = surf_makeFuncGifti(GL.cdata,'anatomicalStruct', 'CortexLeft', 'columnNames', cols);
     
-            save(GL, fullfile(baseDir, wbDir, subj_id, [glmEstDir '.' day_id '.'  type '.L.func.gii']))
+            save(GL, fullfile(baseDir, wbDir, subj_id, [glmEstDir '.'   type '.L.func.gii']))
     
             GR = surf_vol2surf(c1R,c2R,V,'anatomicalStruct','CortexRight', 'exclude_thres', 0.9, 'faces', hemRpial.faces);
             GR = surf_makeFuncGifti(GR.cdata,'anatomicalStruct', 'CortexRight', 'columnNames', cols);
 
-            save(GR, fullfile(baseDir, wbDir, subj_id, [glmEstDir '.' day_id '.' type '.R.func.gii']))
+            save(GR, fullfile(baseDir, wbDir, subj_id, [glmEstDir '.'  type '.R.func.gii']))
             
             cd(currentDir)
             
-        case 'HRF:ROI_hrf_get'                   % Extract raw and estimated time series from ROIs
+        case 'GLM:hrf'
             
-            currentDir = pwd;
+            SPM = load(fullfile(baseDir, [glmEstDir num2str(glm)], subj_id, 'SPM.mat'));
             
-            glmDir = fullfile(baseDir, [glmEstDir num2str(glm)], day_id);
-            T=[];
+            Hem = {'L', 'R'};
+            rois = {'SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1'};
+            R = {};
+            r = 1;
+            for h = 1:length(Hem)
+                for rr = 1:length(rois)
+                    R{r}.hem = Hem{h};
+                    R{r}.name = rois{rr};
+                    R{r}.file = fullfile(baseDir, 'ROI', subj_id, sprintf('%s.%s.%s.nii', atlas, Hem{h}, rois{rr}));
+                    R{r}.value = 1;
+                    R{r}.type = 'image';
+                    R{r}.threshold = .5;
+                    r = r+1;
+                end
+            end
+
+            R = region_calcregions(R);
             
+            [y_raw,y_adj,y_hat,y_res, B, y_filt] = region_getts(SPM, R);
+            
+            TR = 1;
+            nScan = 336;
+            
+            Dd = []; T = [];
+            Dd.ons = (D.startTimeReal(1:2:end) / 1000) / TR;
+            Dd.ons = Dd.ons + (D.BN(1:2:end) - 1) * nScan;
+            Dd.block = D.BN(1:2:end);   
+            Dd.chordID = D.chordID(1:2:end);
+            Dd.day = D.day(1:2:end);
             pre = 6;
-            post = 12;            
-
-            fprintf('%s\n',subj_id);
-
-            % load SPM.mat
-            cd(fullfile(glmDir,subj_id));
-            SPM = load('SPM.mat'); SPM=SPM.SPM;
-            
-            TR = SPM.xY.RT;
-            nScan = SPM.nscan(1);
-
-            % % make (dummy) regressors
-            % hrf = spm_hrf(1, hrf_params);
-            % events = dload(fullfile(baseDir,behavDir,subj_id ,sprintf('glm%d_events.tsv', glm)));
-            % eventtype = unique(events.eventtype);
-            % regr = zeros(2760, length(eventtype));
-            % 
-            % for e = 1:length(eventtype)
-            % 
-            %     onset = events.Onset(strcmp(eventtype(e), events.eventtype));
-            %     block = events.BN(strcmp(eventtype(e), events.eventtype));
-            %     onset = round(onset) + (block - 1) * 276;
-            % 
-            %     regr(onset, e) = 1;
-            %     regrC(:, e) = conv(regr(:, e), hrf);             
-            % end
-            
-            % load ROI definition (R)
-            R = load(fullfile(baseDir, regDir,day_id,subj_id,[subj_id '_' atlas '_region.mat'])); R=R.R;
-            
-            % extract time series data
-            [y_raw, y_adj, y_hat, y_res,B] = region_getts(SPM,R);
-            
-%             D = spmj_get_ons_struct(SPM);
-            Dd = dload(fullfile(baseDir, behavDir, day_id, subj_id, sprintf('efc4_%d.dat', sn)));
-            
-            idx = ismember(Dd.BN, runs);
-            
-            D = [];
-            D.ons = (Dd.startTimeReal(idx) / 1000) / TR;
-            D.ons = D.ons + (Dd.BN(idx) - 1) * nScan;
-            D.BN = Dd.BN(idx);
-            D.chordID = Dd.chordID(idx);     
-%             D.cue = Dd.cue;
-%             D.stimFinger = Dd.stimFinger;
-            
+            post= 18;
             for r=1:size(y_raw,2)
-                for i=1:size(D.BN,1)
-                    D.y_adj(i,:)=cut(y_adj(:,r),pre,round(D.ons(i)),post,'padding','nan')';
-                    D.y_hat(i,:)=cut(y_hat(:,r),pre,round(D.ons(i)),post,'padding','nan')';
-                    D.y_res(i,:)=cut(y_res(:,r),pre,round(D.ons(i)),post,'padding','nan')';
-                    D.y_raw(i,:)=cut(y_raw(:,r),pre,round(D.ons(i)),post,'padding','nan')';
-%                     D.regr(i, :, :)=cut(regrC,pre,round(D.ons(i)),post,'padding','nan')';
+                for i=1:size(Dd.block,1)
+                    Dd.y_adj(i,:)=cut(y_adj(:,r),pre,round(Dd.ons(i)),post,'padding','nan')';
+                    Dd.y_hat(i,:)=cut(y_hat(:,r),pre,round(Dd.ons(i)),post,'padding','nan')';
+                    Dd.y_res(i,:)=cut(y_res(:,r),pre,round(Dd.ons(i)),post,'padding','nan')';
+                    Dd.y_raw(i,:)=cut(y_raw(:,r),pre,round(Dd.ons(i)),post,'padding','nan')';
                 end
                 
                 % Add the event and region information to tje structure. 
-                len = size(D.ons,1);                
-                D.SN        = ones(len,1)*sn;
-                D.region    = ones(len,1)*r;
-                D.name      = repmat({R{r}.name},len,1);
-                D.hem       = repmat({R{r}.hem},len,1);
-%                 D.type      = D.event; 
-                T           = addstruct(T,D);
+                len = size(Dd.ons,1);                
+                Dd.SN        = ones(len,1)*sn;
+                Dd.region    = ones(len,1)*r;
+                Dd.name      = repmat({R{r}.name},len,1);
+                Dd.hem       = repmat({R{r}.hem},len,1);
+                T           = addstruct(T,Dd);
             end
             
-            save(fullfile(baseDir,regDir, day_id, subj_id, sprintf('hrf_glm%d.mat', glm)),'T'); 
-            varargout{1} = T;
-            varargout{2} = y_adj;
-            
-            cd(currentDir)
+            save(fullfile(baseDir, [glmEstDir num2str(glm)], subj_id, 'T.mat'), 'T','-v7');
+        
             
     end
 

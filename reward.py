@@ -84,7 +84,7 @@ def plot_current(path, day):
     elif (ET_norm > thresholds[5]) & (ET_norm < thresholds[4]):
         plt.title("Congrats! You reached DIAMOND LEVEL!\n"
                   "A little more and you'll be an ALIEN!")
-    elif ET_norm < thresholds[6]:
+    elif ET_norm < thresholds[5]:
         plt.title("Honestly! We don't see this every day!\n"
                   "you are an ALIEN!!!")
 

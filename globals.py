@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord",
         "/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
@@ -15,7 +16,7 @@ behavDir = 'behavioural'
 glmDir = 'glm'
 roiDir = 'ROI'
 rdmDir = 'rdm'
-wbDir = 'surfaceWB'
+surfDir = 'surfaceWB'
 
 atlasDirs = ['/Volumes/diedrichsen_data$/data/Atlas_templates/fs_LR_32',
              '/cifs/diedrichsen/data/Atlas_templates/fs_LR_32',]
@@ -101,17 +102,17 @@ trialPoint_mapping = {
 # flatmap stuff
 # flatmap stuff
 borderDirs = ["/Users/mnlmrc/Documents/GitHub/surfAnalysisPy/standard_mesh/",
-        "/home/ROBARTS/memanue5/Documents/GitHub/surfAnalysisPy/standard_mesh/",]
+        "/home/UWO/memanue5/Documents/GitHub/surfAnalysisPy/standard_mesh/",]
 
 borderDirs = next((Dir for Dir in borderDirs if Path(Dir).exists()), None)
 
 borders = {'L': os.path.join(borderDirs, 'fs_L', 'fs_LR.32k.L.border'),
            'R': os.path.join(borderDirs, 'fs_L', 'fs_LR.32k.L.border')}
 
-atlas_dir = ["/home/ROBARTS/memanue5/Documents/GitHub/Functional_Fusion/Functional_Fusion/Atlases/tpl-fs32k/",
-             "/Users/mnlmrc/Documents/GitHub/Functional_Fusion/Functional_Fusion/Atlases/tpl-fs32k/"]
-
-atlas_dir = next((Dir for Dir in atlas_dir if Path(Dir).exists()), None)
+# atlas_dir = ["/home/UWO/memanue5/Documents/GitHub/Functional_Fusion/Functional_Fusion/Atlases/tpl-fs32k/",
+#              "/Users/mnlmrc/Documents/GitHub/Functional_Fusion/Functional_Fusion/Atlases/tpl-fs32k/"]
+#
+# atlas_dir = next((Dir for Dir in atlas_dir if Path(Dir).exists()), None)
 
 rois = {
     'Desikan': [
