@@ -4,9 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time
 
-Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/ExtFlexChord",
+Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/EFC_learningfMRI",
         "/Users/mnlmrc/Library/CloudStorage/GoogleDrive-mnlmrc@unife.it/My Drive/UWO/ExtFlexChord",
-        "/cifs/diedrichsen/data/Chord_exp/ExtFlexChord"]
+        "/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI"]
 
 # natChord_chordDir = "/Users/mnlmrc/Downloads/natChord_chord.tsv"
 baseDir = next((Dir for Dir in Dirs if Path(Dir).exists()), None)
@@ -17,6 +17,7 @@ glmDir = 'glm'
 roiDir = 'ROI'
 rdmDir = 'rdm'
 surfDir = 'surfaceWB'
+pcmDir = 'pcm'
 
 atlasDirs = ['/Volumes/diedrichsen_data$/data/Atlas_templates/fs_LR_32',
              '/cifs/diedrichsen/data/Atlas_templates/fs_LR_32',]
@@ -43,7 +44,7 @@ fsample = {
 nblocks = 8
 
 # chordID = [29212, 92122, 91211, 22911, 21291, 12129, 12291, 19111]
-chordID = ['21911', '92122', '91211', '22911', '21291', '12129', '12291', '11911']
+chordID = np.sort(np.array(['21911', '92122', '91211', '22911', '21291', '12129', '12291', '11911']))
 # trained = [29212, 92122, 91211, 22911]
 # untrained = [21291, 12129, 12291, 19111]
 
