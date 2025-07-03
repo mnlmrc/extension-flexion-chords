@@ -4,8 +4,8 @@ import pandas as pd
 import numpy as np
 import globals as gl
 
-experiment = 'efc4'
-sn = 105
+experiment = 'EFC_learningEMG'
+sn = 100
 # day = 2
 
 pinfo = pd.read_table(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
@@ -47,22 +47,12 @@ for i, row in sess_info.iterrows():
             target_tmp = pd.concat(shuffled_groups).reset_index(drop=True)
             # target_tmp[['startTime', 'endTime']] = preserved_columns
 
+            # Shuffle stimTrigPlan and TrigPlan columns independently
+            target_tmp['stimTrigPlan'] = np.random.permutation(target_tmp['stimTrigPlan'].values)
+            target_tmp['TrigPlan'] = np.random.permutation(target_tmp['TrigPlan'].values)
+
             target = pd.concat([target, target_tmp]).reset_index(drop=True)
 
-        start = 6000
-        step = 6000
-        num = target.shape[0]
-
-        startTime = start + step * np.arange(num)
-        if session == 'scanning':  # add breaks for baseline recordings if it is a scanning session
-            startTime[16:] = startTime[16:] + 16000
-            startTime[32:] = startTime[32:] + 16000
-        endTime = np.zeros_like(startTime)
-        if session == 'scanning':
-            endTime[-1] = startTime[-1] + target[['planTime', 'execMaxTime', 'feedbackTime', 'iti']].iloc[-1].sum() + 10500
-
-        target['startTime'] = startTime
-        target['endTime'] = endTime
 
         target['session'] = session
         target['day'] = day

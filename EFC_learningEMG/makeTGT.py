@@ -4,11 +4,12 @@ import pandas as pd
 import numpy as np
 import globals as gl
 
-experiment = 'efc4'
-sn = 105
-# day = 2
+experiment = 'emg'
+sn = 100
 
-pinfo = pd.read_table(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
+baseDir = '/Volumes/diedrichsen_data$/data/Chord_exp/EFC_learningEMG/'
+
+pinfo = pd.read_table(os.path.join(baseDir, 'participants.tsv'), sep='\t')
 pinfo_row = pinfo[pinfo.sn == sn].reset_index(drop=True)
 trained = np.array(pinfo_row['trained'][0].split('.'), dtype='int')
 
@@ -21,8 +22,6 @@ for i, row in sess_info.iterrows():
     nruns = row['nruns']
     session = row['session']
     miniblocks = row['miniblocks']
-
-    # nruns = 10
 
     file_path = 'target/template.tgt'
     out_path = 'target/'
