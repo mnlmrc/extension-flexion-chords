@@ -5,7 +5,7 @@ import numpy as np
 import globals as gl
 
 experiment = 'emg'
-sn = 100
+sn = 105
 
 baseDir = '/Volumes/diedrichsen_data$/data/Chord_exp/EFC_learningEMG/'
 
