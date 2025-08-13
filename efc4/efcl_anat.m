@@ -2,8 +2,8 @@ function varargout = efcl_anat(what, varargin)
     
     % Use a different baseDir when using your local machine or the cbs
     % server. Add more directory if needed.
-    if isfolder('/cifs/diedrichsen/data/Chord_exp/ExtFlexChord/efc4/')
-        baseDir = '/cifs/diedrichsen/data/Chord_exp/ExtFlexChord/efc4/';
+    if isfolder('/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/')
+        baseDir = '/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/';
         
         addpath(genpath('~/Documents/GitHub/dataframe/'))
         addpath(genpath('~/Documents/GitHub/spmj_tools/'))
@@ -53,11 +53,11 @@ function varargout = efcl_anat(what, varargin)
 %             anat_name = subj_row.anat_name{1};
             
             % anatomical file
-            anat_full_path = fullfile(baseDir,bidsDir,'day1',subj_id,  'anat',sprintf('sub-%d_acq-MP2RAGE_run-01_T1w.nii.gz', sn));
+            anat_full_path = fullfile(baseDir,bidsDir,'day3',subj_id,  'anat',sprintf('sub-%d_acq-MP2RAGE_run-01_T1w.nii.gz', sn));
             
            % Define output di
             output_folder = fullfile(baseDir,anatomicalDir, subj_id);
-%             dircheck(output_folder)
+            %dircheck(output_folder)
             output_file = fullfile(output_folder,sprintf('%s_T1w_raw.nii.gz', subj_id));
             
             % copy file to destination:

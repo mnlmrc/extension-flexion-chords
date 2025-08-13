@@ -3,8 +3,8 @@ function varargout = efcl_func(what, varargin)
     % server. Add more directory if needed. Use single quotes ' and not
     % double quotes " because some spm function raise error with double
     % quotes
-    if isfolder('/cifs/diedrichsen/data/Chord_exp/ExtFlexChord/efc4/')
-        baseDir = '/cifs/diedrichsen/data/Chord_exp/ExtFlexChord/efc4/';
+    if isfolder('/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/')
+        baseDir = '/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/';
         
         addpath(genpath('~/Documents/GitHub/dataframe/'))
         addpath(genpath('~/Documents/GitHub/spmj_tools/'))

@@ -55,6 +55,7 @@ def load_mov(filename):
             A = []
             for line in fid:
                 if line.startswith('Trial'):
+                    print(f'load_mov...reading trial: {trial}')
                     trial_number = int(line.split(' ')[1])
                     trial += 1
                     if trial_number != trial:
@@ -120,10 +121,10 @@ def find_sustained_threshold_crossing(X, channels, threshold, fsample, duration_
 def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,):
     ch_idx = np.array(gl.diffCols[experiment])
 
-    dat = pd.read_csv(os.path.join(gl.baseDir, experiment, session, f'day{day}', f'{experiment}_{sn}.dat'),
+    dat = pd.read_csv(os.path.join(gl.baseDir, session, f'day{day}', f'{experiment}_{sn}.dat'),
                       sep='\t')
 
-    pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
+    pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
     trained = pinfo[pinfo.sn == sn].reset_index()['trained'][0].split('.')
 
     single_trial_metrics = {
@@ -135,6 +136,11 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,)
         'middle': [],
         'ring': [],
         'pinkie': [],
+        'thumb_abs': [],
+        'index_abs': [],
+        'middle_abs': [],
+        'ring_abs': [],
+        'pinkie_abs': [],
         'thumb_der': [],
         'index_der': [],
         'middle_der': [],
@@ -155,7 +161,7 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,)
 
     prefix = f'{experiment}_{sn}'
     ext = '.mov'
-    path = os.path.join(gl.baseDir, experiment, session, f'day{day}')
+    path = os.path.join(gl.baseDir, session, f'day{day}')
     block_files = [f for f in os.listdir(path)
          if f.startswith(prefix) and f.endswith(ext)]
 
@@ -167,7 +173,7 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,)
 
         dat_tmp = dat[dat['BN'] == int(bl)]
 
-        filename = os.path.join(gl.baseDir, experiment, session, f'day{day}',f'{experiment}_{sn}_{int(bl):02d}.mov')
+        filename = os.path.join(gl.baseDir, session, f'day{day}',f'{experiment}_{sn}_{int(bl):02d}.mov')
 
         mov = load_mov(filename)
         mov = np.concatenate(mov, axis=0)
@@ -226,6 +232,11 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,)
             single_trial_metrics['middle'].append(force_avg[2])
             single_trial_metrics['ring'].append(force_avg[3])
             single_trial_metrics['pinkie'].append(force_avg[4])
+            single_trial_metrics['thumb_abs'].append(np.abs(force_avg[0]))
+            single_trial_metrics['index_abs'].append(np.abs(force_avg[1]))
+            single_trial_metrics['middle_abs'].append(np.abs(force_avg[2]))
+            single_trial_metrics['ring_abs'].append(np.abs(force_avg[3]))
+            single_trial_metrics['pinkie_abs'].append(np.abs(force_avg[4]))
             single_trial_metrics['thumb_der'].append(force_der1_avg[0])
             single_trial_metrics['index_der'].append(force_der1_avg[1])
             single_trial_metrics['middle_der'].append(force_der1_avg[2])
@@ -251,7 +262,7 @@ def main(args):
     if args.what == 'single_trial':
 
         single_trial_metrics = calc_single_trial_metrics(args.experiment, args.sn, args.session, args.day,)
-        single_trial_metrics.to_csv(os.path.join(gl.baseDir, args.experiment, args.session, f'day{args.day}',
+        single_trial_metrics.to_csv(os.path.join(gl.baseDir, args.session, f'day{args.day}',
                                         f'{args.experiment}_{args.sn}_single_trial.tsv'), sep='\t', index=False)
 
     if args.what == 'single_trial_days':
@@ -264,6 +275,18 @@ def main(args):
                              blocks=args.blocks,
                              sn=args.sn,)
             main(args)
+    if args.what == 'single_trial_days_all':
+        for sn in args.sns:
+            args = argparse.Namespace(
+                what='single_trial_days',
+                experiment=args.experiment,
+                sn=sn,
+                session=args.session,
+                days=args.days,
+                blocks = args.blocks,
+            )
+            main(args)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -272,6 +295,7 @@ if __name__ == '__main__':
     parser.add_argument('--experiment', type=str, default='efc4')
     parser.add_argument('--session', type=str, default='behavioural')
     parser.add_argument('--sn', type=int, default=None)
+    parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105])
     parser.add_argument('--day', type=int, default=None)
     parser.add_argument('--days', nargs='+', type=int, default=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
     parser.add_argument('--blocks', type=int, default=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
