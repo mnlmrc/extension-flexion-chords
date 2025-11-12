@@ -121,13 +121,12 @@ def plot_behav(fig, ax, days, sns, metric='ET', ylim=[0, 2.5], melt=False, id_va
 
 
 def lineplot_roi_avg(fig, axs, df, metric, hue=None, hue_order=None, color=None, label=None,
-                     H='L', glm=1, rois=['SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1']):
+                     H='L', rois=['SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1']):
     if isinstance(color, list):
         palette=color
     else:
         palette = None
 
-    N = df['sn'].unique().size
     day_map = {
         3: 0,
         9: 1,

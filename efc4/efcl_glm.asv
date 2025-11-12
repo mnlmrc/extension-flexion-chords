@@ -4,8 +4,8 @@ function varargout = efcl_glm(what, varargin)
     % server. Add more directory if needed. Use single quotes ' and not
     % double quotes " because some spm function raise error with double
     % quotes
-    if isfolder('/cifs/diedrichsen/data/Chord_exp/ExtFlexChord/efc4/')
-        baseDir = '/cifs/diedrichsen/data/Chord_exp/ExtFlexChord/efc4/';
+    if isfolder('/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/')
+        baseDir = '/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/';
         
         addpath(genpath('~/Documents/GitHub/dataframe/'))
         addpath(genpath('~/Documents/GitHub/spmj_tools/'))
@@ -37,50 +37,54 @@ function varargout = efcl_glm(what, varargin)
     imagingDir = 'imaging_data';
     wbDir = 'surfaceWB';
     regDir = 'ROI';
-
-    pinfo = dload(fullfile(baseDir,'participants.tsv'));
-
-    % get participant row from participant.tsv
-    subj_row=getrow(pinfo, pinfo.sn== sn);
     
-    % get subj_id
-    subj_id = subj_row.participant_id{1};
+    if isscalar(sn)
+        pinfo = dload(fullfile(baseDir,'participants.tsv'));
     
-    D = dload(fullfile(baseDir, behavDir, sprintf('day%d', day(1)), sprintf('efc4_%d.dat', sn)));
-    if length(day) > 1
-        for i=2:length(day)
-            D_tmp = dload(fullfile(baseDir, behavDir, sprintf('day%d', day(i)), sprintf('efc4_%d.dat', sn)));
-            fields = fieldnames(D_tmp);
-            for j = 1:numel(fields)
-                fname = fields{j};
-                D.(fname) = [D.(fname); D_tmp.(fname)];
+        % get participant row from participant.tsv
+        subj_row=getrow(pinfo, pinfo.sn== sn);
+        
+        % get subj_id
+        subj_id = subj_row.participant_id{1};
+        
+        D = dload(fullfile(baseDir, behavDir, sprintf('day%d', day(1)), sprintf('efc4_%d.dat', sn)));
+        if length(day) > 1
+            for i=2:length(day)
+                D_tmp = dload(fullfile(baseDir, behavDir, sprintf('day%d', day(i)), sprintf('efc4_%d.dat', sn)));
+                fields = fieldnames(D_tmp);
+                for j = 1:numel(fields)
+                    fname = fields{j};
+                    if isfield(D, fname)
+                        D.(fname) = [D.(fname); D_tmp.(fname)];
+                    end
+                end
             end
         end
-    end
-
-    % get runs (FuncRuns column needs to be in participants.tsv)
-    if isscalar(day)
-        if day == 3
-            d = 0;
-        elseif day == 9
-            d =1;
-        elseif day == 23
-            d=2;
-        end
-        day_id = sprintf('day%d', day);
-        runs = spmj_dotstr2array(subj_row.(sprintf('FuncRuns_day%d', day)){1});
-    else
-        runs = [];
-        for i = 1:length(day)
-            if day(i) == 3
+    
+        % get runs (FuncRuns column needs to be in participants.tsv)
+        if isscalar(day)
+            if day == 3
                 d = 0;
-            elseif day(i) == 9
+            elseif day == 9
                 d =1;
-            elseif day(i) == 23
+            elseif day == 23
                 d=2;
             end
-            % day_id{i} = sprintf('day%d', day{i});
-            runs = [runs spmj_dotstr2array(subj_row.(sprintf('FuncRuns_day%d', day(i))){1}) + 10*d];
+            day_id = sprintf('day%d', day);
+            runs = spmj_dotstr2array(subj_row.(sprintf('FuncRuns_day%d', day)){1});
+        else
+            runs = [];
+            for i = 1:length(day)
+                if day(i) == 3
+                    d = 0;
+                elseif day(i) == 9
+                    d =1;
+                elseif day(i) == 23
+                    d=2;
+                end
+                % day_id{i} = sprintf('day%d', day{i});
+                runs = [runs spmj_dotstr2array(subj_row.(sprintf('FuncRuns_day%d', day(i))){1}) + 10*d];
+            end
         end
     end
 
@@ -101,7 +105,38 @@ function varargout = efcl_glm(what, varargin)
                 for chordID = chords'
                     events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d)) + 10 * (d - 1)] ;
                     events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d))];
-                    events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d)) + 500];
+                    events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d)) + 1000];
+                    events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.day == day(d))];
+                    n_rep = length(D.BN(D.chordID == chordID & D.day == day(d)));
+                    events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [n_rep, 1])];
+                    events.day = [events.day; repmat({sprintf('%d', day(d))}, [n_rep, 1])];
+                    events.eventtype = [events.eventtype; repmat({sprintf('%d,day%d', chordID, day(d))}, [n_rep, 1])];
+                end
+            end
+            
+            events = struct2table(events);
+            events.Onset = events.Onset ./ 1000;
+            events.Duration = events.Duration ./ 1000;
+            
+            varargout{1} = events;
+
+        case 'GLM:make_glm2' % ignore day
+
+            chords = unique(D.chordID);
+            
+            events.BN = [];
+            events.TN = [];
+            events.Onset = [];
+            events.Duration = [];
+            events.chordID = [];
+            events.day = [];
+            events.eventtype = [];
+            
+            for d = 1:length(day)
+                for chordID = chords'
+                    events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d)) + 10 * (d - 1)] ;
+                    events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d))];
+                    events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d)) + 1000];
                     events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.day == day(d))];
                     events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [60, 1])];
                     events.day = [events.day; repmat({sprintf('%d', day(d))}, [60, 1])];
@@ -123,8 +158,8 @@ function varargout = efcl_glm(what, varargin)
             events = events(ismember(events.BN, runs), :);
             
             %% export
-            output_folder = fullfile(baseDir, behavDir, 'day1', subj_id);
-            writetable(events, fullfile(output_folder, sprintf('glm%d_events.tsv', glm)), 'FileType', 'text', 'Delimiter','\t')
+            output_folder = fullfile(baseDir, behavDir, 'day3');
+            writetable(events, fullfile(output_folder, sprintf('efc4_%s_glm%d_events.tsv', subj_id, glm)), 'FileType', 'text', 'Delimiter','\t')
 
 %             if ~isfolder(fullfile(baseDir, [glmEstDir num2str(glm)] , subj_id))
 %                 mkdir(fullfile(baseDir, [glmEstDir num2str(glm)], subj_id))
@@ -134,10 +169,11 @@ function varargout = efcl_glm(what, varargin)
 
             % Import globals from spm_defaults 
             global defaults;
-            defaults.mat.format = '-v7.3';
             if (isempty(defaults)) 
                 spm_defaults;
-            end 
+            end
+            defaults.mat.format = '-v7.3';
+            %defaults.stats.maxmem = 1^26;
             
             currentDir = pwd;
 
@@ -150,9 +186,9 @@ function varargout = efcl_glm(what, varargin)
 
             % Load data once, outside of session loop
             % D = dload(fullfile(baseDir,behavDir,subj_id, sprintf('smp2_%d.dat', sn)));
-            events_file = sprintf('glm%d_events.tsv', glm);
+            events_file = sprintf('efc4_%s_glm%d_events.tsv', subj_id, glm);
 
-            Dd = dload(fullfile(baseDir,behavDir, 'day1', subj_id, events_file));
+            Dd = dload(fullfile(baseDir,behavDir, 'day3', events_file));
             
             regressors = unique(Dd.eventtype);
             nRegr = length(regressors); 
@@ -213,7 +249,7 @@ function varargout = efcl_glm(what, varargin)
         
                             % filling in "reginfo"
                             TT.sn        = sn;
-                            TT.run       = mod(run - 1, 10) + 1;
+                            TT.run       = run; %mod(run - 1, 10) + 1;
                             TT.name      = sprintf('%02d,%d', day(d), chordID);      
         
                             T = addstruct(T, TT);
@@ -225,7 +261,7 @@ function varargout = efcl_glm(what, varargin)
                 end
 
                 % Specify high pass filter
-                J.sess(run).hpf = Inf;
+                J.sess(run).hpf = 256;
 
                 % J.sess(run).multi
                 % Purpose: Specifies multiple conditions for a session. Usage: It is used
@@ -315,6 +351,15 @@ function varargout = efcl_glm(what, varargin)
             
        case 'GLM:estimate'      % estimate beta values
 
+            % Import globals from spm_defaults 
+            global defaults;
+            if (isempty(defaults)) 
+                spm_defaults;
+            end 
+
+            defaults.mat.format = '-v7.3';
+            %defaults.stats.maxmem = 1^27;
+
             currentDir = pwd;
 
             if isempty(sn)
@@ -325,7 +370,7 @@ function varargout = efcl_glm(what, varargin)
                 error('GLM:estimate -> ''glm'' must be passed to this function.')
             end
 
-%             fprintf('- Doing glm%d estimation for subj %s\n', glm, day_id, subj_id);
+            % fprintf('- Doing glm%d estimation for subj %s\n', glm, day_id, subj_id);
             subj_est_dir = fullfile(baseDir, sprintf('glm%d', glm), subj_id);                
             SPM = load(fullfile(subj_est_dir,'SPM.mat'));
             SPM.SPM.swd = subj_est_dir;
@@ -381,7 +426,7 @@ function varargout = efcl_glm(what, varargin)
                     cname_idx = length(SPM.xCon);
                 end
                 SPM = spm_contrasts(SPM,1:length(SPM.xCon));
-                save('SPM.mat', 'SPM','-v7');
+                % save('SPM.mat', 'SPM','-v7.3');
                 % SPM = rmfield(SPM,'xVi'); % 'xVi' take up a lot of space and slows down code!
                 % save(fullfile(glm_dir, 'SPM_light.mat'), 'SPM')
     
@@ -397,7 +442,7 @@ function varargout = efcl_glm(what, varargin)
 
             cd(currentDir)
             
-       case 'GLM:all'
+       case 'GLM:within_participant'
             
             spm_get_defaults('cmdline', true);  % Suppress GUI prompts, no request for overwirte
          
@@ -411,11 +456,23 @@ function varargout = efcl_glm(what, varargin)
             efcl_glm('GLM:design', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day, 'derivs', derivs)
             efcl_glm('GLM:estimate', 'sn', sn, 'glm', glm, 'day', day)
             efcl_glm('GLM:T_contrasts', 'sn', sn, 'glm', glm, 'day', day)
-            efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'spmT', 'day', day)
-            efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'beta', 'day', day)
-            efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'res', 'day', day)
+            % efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'spmT', 'day', day)
+            % efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'beta', 'day', day)
+            % efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'res', 'day', day)
             efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'con', 'day', day)
              % efcl_glm('HRF:ROI_hrf_get', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day)
+
+       case 'GLM:across_participants'
+           
+            sn = [];
+            glm = [];
+            derivs = [0, 0];
+            day = [3, 9, 23];
+            vararginoptions(varargin,{'sn', 'glm', 'day','derivs'})
+            
+            for s=sn
+               efcl_glm('GLM:within_participant', 'sn', s, 'glm', glm, 'day', day)
+            end
             
        case 'SURF:vol2surf'
             
@@ -490,7 +547,7 @@ function varargout = efcl_glm(what, varargin)
             
             cd(currentDir)
             
-        case 'GLM:hrf'
+       case 'GLM:hrf'
             
             SPM = load(fullfile(baseDir, [glmEstDir num2str(glm)], subj_id, 'SPM.mat'));
             

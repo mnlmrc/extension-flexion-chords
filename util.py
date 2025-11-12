@@ -9,7 +9,7 @@ from scipy.special import expit
 import globals as gl
 
 
-def get_trained_and_untrained(sn):
+def get_trained_and_untrained(experiment, sn):
     """
     Retrieve which chords where trained and untrained in participant sn.
     Args:
@@ -19,7 +19,7 @@ def get_trained_and_untrained(sn):
         list of chordIDs. First four are trained, last four untrained
     """
 
-    pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
+    pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
     trained = pinfo[pinfo.sn == sn].reset_index()['trained'][0].split('.')
     untrained = pinfo[pinfo.sn == sn].reset_index()['untrained'][0].split('.')
     chords = list()

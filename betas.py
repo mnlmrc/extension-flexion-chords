@@ -17,7 +17,7 @@ import time
 
 def save_spm_as_mat7(glm, sn):
     # Define the path to the SPM.mat file
-    spm_path = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}', 'SPM.mat') #"/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/glm1/subj101/SPM.mat"
+    spm_path = os.path.join(gl.baseDir, args.experiment, f'glm{glm}', f'subj{sn}', 'SPM.mat') #"/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/glm1/subj101/SPM.mat"
     backup_path = spm_path + ".backup"
 
     # Step 1: Backup the original file
@@ -35,8 +35,11 @@ def save_spm_as_mat7(glm, sn):
     print(f"Processed {spm_path} with MATLAB")
 
 def main(args):
+    nSess = 3
     Hem = ['L', 'R']
     struct = ['CortexLeft', 'CortexRight']
+    path_glm = os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'subj{args.sn}')
+    path_rois = os.path.join(gl.baseDir, args.experiment, gl.roiDir, f'subj{args.sn}')
     if args.what=='spm2mat7':
         save_spm_as_mat7(args.glm, args.sn)
     if args.what == 'spm2mat7_all':
@@ -44,23 +47,47 @@ def main(args):
             print(f'doing participant {sn}')
             args = argparse.Namespace(
                 what='spm2mat7',
+                experiment=args.experiment,
                 sn=sn,
                 glm=args.glm
             )
             main(args)
     if args.what == 'make_betas_cifti':
-        path_glm = os.path.join(gl.baseDir, f'{gl.glmDir}{args.glm}', f'subj{args.sn}')
-        path_rois = os.path.join(gl.baseDir, gl.roiDir, f'subj{args.sn}')
         masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in Hem]
         reginfo = pd.read_csv(os.path.join(path_glm, 'reginfo.tsv'), sep='\t')
         row_axis = nb.cifti2.ScalarAxis(reginfo['name'] + '.' + reginfo['run'].astype(str))
-        cifti = bt.make_cifti_betas(path_glm, masks, struct, row_axis=row_axis,)
+        cifti = bt.make_cifti_betas(masks, struct, path_glm=path_glm, row_axis=row_axis,)
         nb.save(cifti, path_glm + '/' + 'beta.dscalar.nii')
     if args.what == 'make_betas_cifti_all':
         for sn in args.sns:
             print(f'doing participant {sn}')
             args = argparse.Namespace(
                 what='make_betas_cifti',
+                experiment=args.experiment,
+                sn=sn,
+                glm=args.glm
+            )
+            main(args)
+    if args.what == 'make_intercept_cifti':
+        reginfo = pd.read_csv(os.path.join(path_glm, 'reginfo.tsv'), sep='\t')
+        day = reginfo.name.str.split(',', n=1, expand=True)[0]
+        nRuns = [reginfo[day == d].run.nunique() for d in day.unique()]
+        nRegressors = reginfo.shape[0]
+        intercept = []
+        for sess in range(nSess):
+            for run in range(nRuns[sess]):
+                intercept.append(os.path.join(path_glm, f'beta_0{nRegressors + run + 1 + sess * nRuns[0]}.nii'))
+        masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in Hem]
+        cond_vec = np.sort(np.array([f'{sess},{run}' for run in range(nRuns[sess]) for sess in range(nSess)]) )
+        row_axis = nb.cifti2.ScalarAxis(cond_vec)
+        cifti = bt.make_cifti_betas(masks, struct, intercept, row_axis=row_axis, )
+        nb.save(cifti, path_glm + '/' + 'intercept.dscalar.nii')
+    if args.what == 'make_intercept_cifti_all':
+        for sn in args.sns:
+            print(f'doing participant {sn}')
+            args = argparse.Namespace(
+                what='make_intercept_cifti',
+                experiment=args.experiment,
                 sn=sn,
                 glm=args.glm
             )
@@ -129,7 +156,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('what', nargs='?', default=None)
-    # parser.add_argument('--experiment', type=str, default=None)
+    parser.add_argument('--experiment', type=str, default='EFC_learningfMRI')
     parser.add_argument('--sn', type=int, default=None)
     parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105])
     parser.add_argument('--glm', type=int, default=1)
