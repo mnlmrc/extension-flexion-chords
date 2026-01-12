@@ -89,7 +89,7 @@ function varargout = efcl_glm(what, varargin)
     end
 
     switch what
-        case 'GLM:make_glm1'
+       case 'GLM:make_glm1'
 
             chords = unique(D.chordID);
             
@@ -120,7 +120,7 @@ function varargout = efcl_glm(what, varargin)
             
             varargout{1} = events;
 
-        case 'GLM:make_glm2' % ignore day
+       case 'GLM:make_glm2' % ignore day
 
             chords = unique(D.chordID);
             
@@ -150,7 +150,7 @@ function varargout = efcl_glm(what, varargin)
             
             varargout{1} = events;
             
-        case 'GLM:make_event'
+       case 'GLM:make_event'
             
             operation  = sprintf('GLM:make_glm%d', glm);
             
@@ -165,7 +165,7 @@ function varargout = efcl_glm(what, varargin)
 %                 mkdir(fullfile(baseDir, [glmEstDir num2str(glm)], subj_id))
 %             end
             
-        case 'GLM:design'
+       case 'GLM:design'
 
             % Import globals from spm_defaults 
             global defaults;
@@ -173,7 +173,7 @@ function varargout = efcl_glm(what, varargin)
                 spm_defaults;
             end
             defaults.mat.format = '-v7.3';
-            defaults.stats.maxmem = 2^26;
+            %defaults.stats.maxmem = 2^26;
             
             currentDir = pwd;
 
@@ -357,7 +357,7 @@ function varargout = efcl_glm(what, varargin)
             end 
 
             defaults.mat.format = '-v7.3';
-            defaults.stats.maxmem = 2^26;
+            %defaults.stats.maxmem = 2^26;
 
             currentDir = pwd;
 

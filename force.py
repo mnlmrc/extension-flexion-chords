@@ -118,18 +118,20 @@ def find_sustained_threshold_crossing(X, channels, threshold, fsample, duration_
         return -1
 
 
-def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,):
+def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,experiment_code=None):
+    experiment_code = experiment_code if experiment_code is not None else experiment_code
     ch_idx = np.array(gl.diffCols[experiment])
 
-    dat = pd.read_csv(os.path.join(gl.baseDir, session, f'day{day}', f'{experiment}_{sn}.dat'),
+    dat = pd.read_csv(os.path.join(gl.baseDir, experiment, session, f'day{day}', f'{experiment_code}_{sn}.dat'),
                       sep='\t')
 
-    pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
+    pinfo = pd.read_csv(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
     trained = pinfo[pinfo.sn == sn].reset_index()['trained'][0].split('.')
 
     single_trial_metrics = {
         'subNum': [],
         'BN': [],
+        'Repetition': [],
         'TN': [],
         'thumb': [],
         'index': [],
@@ -159,9 +161,9 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,)
 
     }
 
-    prefix = f'{experiment}_{sn}'
+    prefix = f'{experiment_code}_{sn}'
     ext = '.mov'
-    path = os.path.join(gl.baseDir, session, f'day{day}')
+    path = os.path.join(gl.baseDir, experiment, session, f'day{day}')
     block_files = [f for f in os.listdir(path)
          if f.startswith(prefix) and f.endswith(ext)]
 
@@ -173,35 +175,36 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,)
 
         dat_tmp = dat[dat['BN'] == int(bl)]
 
-        filename = os.path.join(gl.baseDir, session, f'day{day}',f'{experiment}_{sn}_{int(bl):02d}.mov')
+        filename = os.path.join(gl.baseDir, experiment, session, f'day{day}',f'{prefix}_{int(bl):02d}.mov')
 
         mov = load_mov(filename)
         mov = np.concatenate(mov, axis=0)
 
         mov = mov[mov[:, 1] == gl.wait_exec[experiment]]
 
-        ntrials = int(mov[:, 0].max())
+        #ntrials = int(mov[:, 0].max())
+        TN = np.unique(mov[:, 0])
 
-        print(f'Processing... subj{sn}, day{day}, block {bl}, {ntrials} trials found...')
+        print(f'Processing... subj{sn}, day{day}, block {bl}, {TN.size} trials found...')
 
-        assert (mov[:, 0].max() == len(dat_tmp))
+        assert (TN.size == len(dat_tmp))
 
-        for ntrial in range(ntrials):
+        for ntrial in TN: #range(ntrials):
 
-            force_tmp = mov[mov[:, 0] == ntrial + 1][:, ch_idx] * gl.fGain
-
+            force_tmp = mov[mov[:, 0] == ntrial][:, ch_idx] * gl.fGain
+            dat_row = dat_tmp[dat_tmp.TN == ntrial].reset_index()
             force_filt = lowpass_fir(force_tmp, n_ord=4, cutoff=10, fsample=gl.fsample['force'], axis=0)
             force_der1 = np.gradient(force_filt, 1 / gl.fsample['force'], axis=0)
 
             force_der1_avg = np.abs(force_der1.mean(axis=0))
 
-            chordID = dat_tmp.iloc[ntrial]['chordID']
+            chordID = dat_row['chordID'][0]
             channels = [i for i, c in enumerate(str(chordID)) if c in ('1', '2')]
 
             et_samples = find_sustained_threshold_crossing(np.abs(force_filt), channels, gl.ftarget, fsample=gl.fsample['force'])
 
             if et_samples > 0: #dat_tmp.iloc[ntrial].trialPoint == 1:
-                rt = dat_tmp.iloc[ntrial]['RT'] / 1000
+                rt = dat_row['RT'][0] / 1000
                 # et = dat_tmp.ilooc[ntrial]['ET'] / 1000
                 rt_samples = int(rt * gl.fsample['force'])
                 trialPoint = 1
@@ -219,12 +222,18 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,)
             MD, _ = calc_md(force_tmp[rt_samples:et_samples])
             force_avg = force_tmp[-et_samples:].mean(axis=0)
 
-            if dat_tmp.iloc[ntrial]['chordID'].astype(str) in trained:
+            if dat_row['chordID'][0].astype(str) in trained:
                 chord = 'trained'
             else:
                 chord = 'untrained'
 
-            single_trial_metrics['subNum'].append(dat_tmp.iloc[ntrial]['subNum'])
+            if (ntrial>1):
+                prevChordID = dat_tmp[dat_tmp.TN == ntrial - 1].reset_index()['chordID'][0]
+                Rep = 2 if prevChordID == chordID else 1
+            else:
+                Rep = 1
+
+            single_trial_metrics['subNum'].append(dat_row['subNum'][0])
             single_trial_metrics['chordID'].append(chordID)
             single_trial_metrics['chord'].append(chord)
             single_trial_metrics['thumb'].append(force_avg[0])
@@ -242,15 +251,15 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,)
             single_trial_metrics['middle_der'].append(force_der1_avg[2])
             single_trial_metrics['ring_der'].append(force_der1_avg[3])
             single_trial_metrics['pinkie_der'].append(force_der1_avg[4])
-            single_trial_metrics['day'].append(dat_tmp.iloc[ntrial]['day'])
-            single_trial_metrics['week'].append(dat_tmp.iloc[ntrial]['week'])
-            single_trial_metrics['session'].append(dat_tmp.iloc[ntrial]['session'])
-            single_trial_metrics['RT'].append(dat_tmp.iloc[ntrial]['RT'])
+            single_trial_metrics['day'].append(dat_row['day'][0])
+            single_trial_metrics['week'].append(dat_row['week'][0])
+            single_trial_metrics['session'].append(dat_row['session'][0])
+            single_trial_metrics['RT'].append(dat_row['RT'][0])
             single_trial_metrics['ET'].append(et_samples / gl.fsample['force'])
             single_trial_metrics['MD'].append(MD)
-            # single_trial_metrics['MD_c++'].appendppend(dat_tmp.iloc[ntrial]['MD'])
-            single_trial_metrics['BN'].append(dat_tmp.iloc[ntrial]['BN'])
-            single_trial_metrics['TN'].append(dat_tmp.iloc[ntrial]['TN'])
+            single_trial_metrics['Repetition'].append(Rep)
+            single_trial_metrics['BN'].append(dat_row['BN'][0])
+            single_trial_metrics['TN'].append(dat_row['TN'][0])
             single_trial_metrics['trialPoint'].append(trialPoint)
 
     single_trial_metrics = pd.DataFrame(single_trial_metrics)
@@ -260,16 +269,17 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,)
 
 def main(args):
     if args.what == 'single_trial':
-
-        single_trial_metrics = calc_single_trial_metrics(args.experiment, args.sn, args.session, args.day,)
-        single_trial_metrics.to_csv(os.path.join(gl.baseDir, args.session, f'day{args.day}',
-                                        f'{args.experiment}_{args.sn}_single_trial.tsv'), sep='\t', index=False)
+        single_trial_metrics = calc_single_trial_metrics(args.experiment, args.sn, args.session, args.day,
+                                                         args.experiment_code)
+        single_trial_metrics.to_csv(os.path.join(gl.baseDir, args.experiment, args.session, f'day{args.day}',
+                                        f'{args.experiment_code}_{args.sn}_single_trial.tsv'), sep='\t', index=False)
 
     if args.what == 'single_trial_days':
         for day in args.days:
             args = argparse.Namespace(
                             what='single_trial',
                             experiment=args.experiment,
+                            experiment_code=args.experiment_code,
                              session=args.session,
                              day=day,
                              blocks=args.blocks,
@@ -280,6 +290,7 @@ def main(args):
             args = argparse.Namespace(
                 what='single_trial_days',
                 experiment=args.experiment,
+                experiment_code=args.experiment_code,
                 sn=sn,
                 session=args.session,
                 days=args.days,
@@ -292,7 +303,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('what', nargs='?', default=None)
-    parser.add_argument('--experiment', type=str, default='efc4')
+    parser.add_argument('--experiment', type=str, default='EFC_learningfMRI')
+    parser.add_argument('--experiment_code', type=str, default='efc4')
     parser.add_argument('--session', type=str, default='behavioural')
     parser.add_argument('--sn', type=int, default=None)
     parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105])

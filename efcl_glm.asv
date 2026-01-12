@@ -173,7 +173,7 @@ function varargout = efcl_glm(what, varargin)
                 spm_defaults;
             end
             defaults.mat.format = '-v7.3';
-            %defaults.stats.maxmem = 1^26;
+            %defaults.stats.maxmem = 2^26;
             
             currentDir = pwd;
 
@@ -261,7 +261,7 @@ function varargout = efcl_glm(what, varargin)
                 end
 
                 % Specify high pass filter
-                J.sess(run).hpf = 256;
+                J.sess(run).hpf = 128; %256;
 
                 % J.sess(run).multi
                 % Purpose: Specifies multiple conditions for a session. Usage: It is used
@@ -334,7 +334,6 @@ function varargout = efcl_glm(what, varargin)
                 
             end
 
-
             % remove empty rows (e.g., when skipping runs)
             J.sess = J.sess(~arrayfun(@(x) all(structfun(@isempty, x)), J.sess));
             
@@ -358,17 +357,9 @@ function varargout = efcl_glm(what, varargin)
             end 
 
             defaults.mat.format = '-v7.3';
-            %defaults.stats.maxmem = 1^27;
+            defaults.stats.maxmem = 2^26;
 
             currentDir = pwd;
-
-            if isempty(sn)
-                error('GLM:estimate -> ''sn'' must be passed to this function.')
-            end
-
-            if isempty(glm)
-                error('GLM:estimate -> ''glm'' must be passed to this function.')
-            end
 
             % fprintf('- Doing glm%d estimation for subj %s\n', glm, day_id, subj_id);
             subj_est_dir = fullfile(baseDir, sprintf('glm%d', glm), subj_id);                

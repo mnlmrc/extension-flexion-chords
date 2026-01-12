@@ -120,6 +120,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('what', nargs='?', default=None)
+    parser.add_argument('--experiment', type=str, default='EFC_learningfMRI')
     parser.add_argument('--day', type=int, default=None)
     parser.add_argument('--sn', type=int, default=None)
     parser.add_argument('--ref', type=float, default=3.5)
@@ -138,7 +139,7 @@ if __name__ == '__main__':
     if args.what == 'plot_current':
         plot_ref()
 
-        path = os.path.join(gl.baseDir, 'behavioural', f'day{args.day}', f'efc4_{args.sn}.dat')
+        path = os.path.join(gl.baseDir, args.experiment, 'behavioural', f'day{args.day}', f'efc4_{args.sn}.dat')
 
         plot_current(path, day=args.day)
 

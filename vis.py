@@ -11,7 +11,8 @@ from operator import itemgetter
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_rel
 
-def plot_behav(fig, ax, days, sns, metric='ET', ylim=[0, 2.5], melt=False, id_vars=None, value_vars=None, var_name=None, success_only=True):
+def plot_behav(fig, ax, days, sns, metric='ET', ylim=[0, 2.5], melt=False, id_vars=None, value_vars=None, var_name=None,
+               success_only=True, ylabel=None, title=None):
     """
     Plot behavioural metrics assessed trial by trial
     Args:
@@ -30,7 +31,7 @@ def plot_behav(fig, ax, days, sns, metric='ET', ylim=[0, 2.5], melt=False, id_va
     for day in days:
         dat = pd.DataFrame()
         for sn in sns:
-            path = os.path.join(gl.baseDir, 'behavioural', f'day{day}', f'efc4_{sn}_single_trial.tsv')
+            path = os.path.join(gl.baseDir, 'EFC_learningfMRI', 'behavioural', f'day{day}', f'efc4_{sn}_single_trial.tsv')
             dat_tmp = pd.read_csv(path, sep='\t')
             dat_tmp['day'] = day  # <--- Add day column
             dat_tmp = dat_tmp[dat_tmp['trialPoint'] == 1] if success_only else dat_tmp
@@ -97,23 +98,23 @@ def plot_behav(fig, ax, days, sns, metric='ET', ylim=[0, 2.5], melt=False, id_va
         if day == 1:
             sb.lineplot(data=dat_bn, ax=ax, x='BN', y=metric, hue='chord', errorbar='se', lw=1,
                          palette=['red', 'blue'], err_kws={'linewidth': 0}, legend=True)
-            # inset.set_ylabel(ylabel, fontsize=8)
+            inset.set_ylabel(ylabel, fontsize=8)
         else:
             sb.lineplot(data=dat_bn, ax=ax, x='BN', y=metric, hue='chord', errorbar='se', lw=1,
                          palette=['red', 'blue'], err_kws={'linewidth': 0}, legend=False)
             inset.spines[['left']].set_visible(False)
             inset.set_yticks([])
             inset.set_ylabel('', fontsize=8)
-
+        inset.set_ylim(ylim)
         inset_list.append(inset)
 
     ax.set_ylim(ylim)
     ax.set_xlim([-10, max_bn])
     ax.spines['left'].set_bounds(ylim)
     ax.text(max_bn / 2, ylim[0] - .05 * (ylim[1] - ylim[0]), '# day', ha='center', va='top', fontsize=10)
-    # ax.set_ylabel(ylabel)
+    ax.set_ylabel(ylabel)
     ax.legend(loc='upper right', bbox_to_anchor=(1, -.01), ncol=2, frameon=False)
-    # ax.set_title(title)
+    ax.set_title(title)
 
     print("\n".join(lines))
 

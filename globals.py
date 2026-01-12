@@ -52,11 +52,11 @@ chordID = np.sort(np.array(['21911', '92122', '91211', '22911', '21291', '12129'
 #            'Thumb', 'Index', 'Middle', 'Ring', 'Pinkie',  # 13, 14, 15, 16, 17
 #            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
 diffCols = {
-    'efc4': [18, 19, 20, 21, 22]
+    'EFC_learningfMRI': [18, 19, 20, 21, 22]
 }   # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
 
 wait_exec = {
-    'efc4': 4
+    'EFC_learningfMRI': 4
 }
 
 channels = {
