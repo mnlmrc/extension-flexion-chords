@@ -227,7 +227,7 @@ def calc_single_trial_metrics(experiment=None, sn=None, session=None, day=None,e
             else:
                 chord = 'untrained'
 
-            if (ntrial>1):
+            if ntrial>TN.min():
                 prevChordID = dat_tmp[dat_tmp.TN == ntrial - 1].reset_index()['chordID'][0]
                 Rep = 2 if prevChordID == chordID else 1
             else:
@@ -298,6 +298,16 @@ def main(args):
             )
             main(args)
 
+    if args.what == 'pool_behaviour':
+        data_pooled = pd.DataFrame()
+        for sn in args.sns:
+            for day in range(24):
+                data = pd.read_csv(os.path.join(gl.baseDir, args.experiment, args.session, f'day{day+1}',
+                             f'{args.experiment_code}_{sn}_single_trial.tsv'), sep = '\t',)
+                data_pooled = pd.concat([data_pooled, data])
+        data_pooled.to_csv(os.path.join(gl.baseDir, args.experiment, args.session, f'single_trial_behaviour.tsv',),
+                           sep = '\t', index=False)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -307,7 +317,7 @@ if __name__ == '__main__':
     parser.add_argument('--experiment_code', type=str, default='efc4')
     parser.add_argument('--session', type=str, default='behavioural')
     parser.add_argument('--sn', type=int, default=None)
-    parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105])
+    parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105,])
     parser.add_argument('--day', type=int, default=None)
     parser.add_argument('--days', nargs='+', type=int, default=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
     parser.add_argument('--blocks', type=int, default=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10])

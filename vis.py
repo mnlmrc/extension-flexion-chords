@@ -11,8 +11,8 @@ from operator import itemgetter
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_rel
 
-def plot_behav(fig, ax, days, sns, metric='ET', ylim=[0, 2.5], melt=False, id_vars=None, value_vars=None, var_name=None,
-               success_only=True, ylabel=None, title=None):
+def plot_behav(fig, ax, df, metric='ET', ylim=[0, 2.5], melt=False, id_vars=None, value_vars=None, var_name=None,
+               ylabel=None, title=None):
     """
     Plot behavioural metrics assessed trial by trial
     Args:
@@ -28,45 +28,26 @@ def plot_behav(fig, ax, days, sns, metric='ET', ylim=[0, 2.5], melt=False, id_va
     inset_list = []
     lines = []
 
-    for day in days:
-        dat = pd.DataFrame()
-        for sn in sns:
-            path = os.path.join(gl.baseDir, 'EFC_learningfMRI', 'behavioural', f'day{day}', f'efc4_{sn}_single_trial.tsv')
-            dat_tmp = pd.read_csv(path, sep='\t')
-            dat_tmp['day'] = day  # <--- Add day column
-            dat_tmp = dat_tmp[dat_tmp['trialPoint'] == 1] if success_only else dat_tmp
-            if melt:
-                dat_tmp = dat_tmp.melt(id_vars=id_vars, value_vars=value_vars, var_name=var_name, value_name=metric)
-            dat = pd.concat([dat, dat_tmp], ignore_index=True)
+    for day in df.day.unique():
+        dat_tmp = df[df['day'] == day]
+        if melt:
+            dat_tmp = dat_tmp.melt(id_vars=id_vars, value_vars=value_vars, var_name=var_name, value_name=metric)
 
-        dat['BN'] = dat['BN'] + max_bn
-        max_bn = dat.BN.max()
-        min_bn = dat.BN.min()
+        dat_tmp['BN'] = dat_tmp['BN'] + max_bn
+        max_bn = dat_tmp.BN.max()
+        min_bn = dat_tmp.BN.min()
         ax.text((max_bn + min_bn) / 2, ylim[0], f'{day}', ha='center', va='center', fontsize=8)
         ax.axvline(max_bn + .5, color='k', linestyle='-', lw=.8)
         ax.tick_params('x', bottom=False, labelbottom=False)
         ax.spines[['bottom', 'top', 'right']].set_visible(False)
-        dat_bn = dat.groupby(['subNum', 'day', 'chord', 'BN']).mean(numeric_only=True).reset_index()
+        dat_bn = dat_tmp.groupby(['subNum', 'day', 'chord', 'BN']).mean(numeric_only=True).reset_index()
 
-        dat_d = dat.groupby(['subNum', 'day', 'chord']).mean(numeric_only=True).reset_index()
+        dat_d = dat_tmp.groupby(['subNum', 'day', 'chord']).mean(numeric_only=True).reset_index()
 
-        if len(dat.chord.unique()) == 1:
+        if len(dat_tmp.chord.unique()) == 1:
             fixed_width = 2.5
         else:
             fixed_width = 5
-
-            # do t-test
-            a, b = dat_d[dat_d['chord']=='trained'][metric], dat_d[dat_d['chord']=='untrained'][metric]
-            tval, pval = ttest_rel(a, b)
-            lines.append(f'trained vs. untrained, day{day}: tval={tval:.3f}, pval={pval:.3f}')
-            if pval < 0.001:
-                stars = '***'
-            elif pval < 0.01:
-                stars = '**'
-            elif pval < 0.05:
-                stars = '*'
-            else:
-                stars = None
 
         center = (min_bn + max_bn) / 2
         x0 = center - fixed_width / 2
@@ -77,23 +58,31 @@ def plot_behav(fig, ax, days, sns, metric='ET', ylim=[0, 2.5], melt=False, id_va
                     hue_order=['trained', 'untrained'], errorbar='se')
         inset.spines[['top', 'right', 'bottom']].set_visible(False)
         inset.set_xticks([])
-        # inset.set_ylim(ylim)
-        # inset.set_yticks(ylim, labels=ylim, fontsize=8)
 
         # add sig bars
-        if len(dat.chord.unique()) > 1:
+        if len(dat_tmp.chord.unique()) > 1:
+            # do t-test
+            a, b = dat_d[dat_d['chord'] == 'trained'][metric], dat_d[dat_d['chord'] == 'untrained'][metric]
+            tval, pval = ttest_rel(a, b)
+            lines.append(f'trained vs. untrained, day{day}: tval={tval:.3f}, pval={pval:.3f}')
+            if pval < 0.001:
+                stars = '***'
+            elif pval < 0.01:
+                stars = '**'
+            elif pval < 0.05:
+                stars = '*'
+            else:
+                stars = None
             ab = np.c_[a, b]
             bars = inset.patches
-            x1 = bars[0].get_x() + bars[0].get_width() / 2
-            x2 = bars[1].get_x() + bars[1].get_width() / 2
+            # x1 = bars[0].get_x() + bars[0].get_width() / 2
+            # x2 = bars[1].get_x() + bars[1].get_width() / 2
             if stars:
-                offset = .05 * inset.get_ylim()[1]
+                # offset = .05 * inset.get_ylim()[1]
                 y_max = ab.mean(axis=1).max()
                 y_argmax = ab.mean(axis=1).argmax()
                 se = ab[y_argmax].std() / np.sqrt(ab.shape[1])
                 y_max += se
-                # inset.plot([x1, x2], [y_max + offset, y_max + offset], lw=1.5, c='k')
-                # inset.text((x1 + x2)/2, y_max + .8 * offset, stars, ha='center', va='bottom', fontsize=10)
 
         if day == 1:
             sb.lineplot(data=dat_bn, ax=ax, x='BN', y=metric, hue='chord', errorbar='se', lw=1,
@@ -120,6 +109,33 @@ def plot_behav(fig, ax, days, sns, metric='ET', ylim=[0, 2.5], melt=False, id_va
 
     return fig, ax, inset_list
 
+def plot_rep(fig, ax, df, metric='ET', ylim=[0, 2.5], ylabel=None, title=None):
+    offset_rep = 0
+    for day in df.day.unique():
+        dat_tmp = df[df['day'] == day]
+        dat_tmp.Repetition = dat_tmp.Repetition + offset_rep
+        max_rep = dat_tmp.Repetition.max()
+        min_rep = dat_tmp.Repetition.min()
+        offset_rep += 2
+        ax.tick_params('x', bottom=False, labelbottom=False)
+        ax.spines[['bottom', 'top', 'right']].set_visible(False)
+
+        dat_d = dat_tmp.groupby(['subNum', 'day', 'chord', 'Repetition']).mean(numeric_only=True).reset_index()
+
+        sb.lineplot(data=dat_d, ax=ax, x='Repetition', y=metric, hue='chord', errorbar='se', lw=1, marker='s',
+                    markeredgecolor=None, ms=3, palette=['red', 'blue'], err_kws={'linewidth': 0},
+                    legend=True if day == 1 else False)
+        ax.text((max_rep + min_rep) / 2, ylim[0], f'{day}', ha='center', va='center', fontsize=8)
+        ax.axvline(max_rep + .5, color='k', linestyle='-', lw=.8)
+
+    ax.set_ylim(ylim)
+    ax.spines['left'].set_bounds(ylim)
+    ax.set_ylabel(ylabel)
+    ax.text(max_rep / 2, ylim[0] - .05 * (ylim[1] - ylim[0]), '# day', ha='center', va='top', fontsize=10)
+    ax.legend(loc='upper right', bbox_to_anchor=(1, -.01), ncol=2, frameon=False)
+    ax.set_title(title)
+
+    return fig, ax
 
 def lineplot_roi_avg(fig, axs, df, metric, hue=None, hue_order=None, color=None, label=None,
                      H='L', rois=['SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1']):
