@@ -5,10 +5,10 @@ import numpy as np
 import globals as gl
 
 experiment = 'efc4'
-sn = 105
+sn = 106
 # day = 2
 
-pinfo = pd.read_table(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
+pinfo = pd.read_table(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
 pinfo_row = pinfo[pinfo.sn == sn].reset_index(drop=True)
 trained = np.array(pinfo_row['trained'][0].split('.'), dtype='int')
 
