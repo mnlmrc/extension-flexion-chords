@@ -317,7 +317,7 @@ if __name__ == '__main__':
     parser.add_argument('--experiment_code', type=str, default='efc4')
     parser.add_argument('--session', type=str, default='behavioural')
     parser.add_argument('--sn', type=int, default=None)
-    parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105,])
+    parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105, 106, 107])
     parser.add_argument('--day', type=int, default=None)
     parser.add_argument('--days', nargs='+', type=int, default=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
     parser.add_argument('--blocks', type=int, default=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10])

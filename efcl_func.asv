@@ -288,7 +288,7 @@ function varargout = efcl_func(what, varargin)
                 V = spm_vol(path);
                 nvol = size(V, 1);
                 for vol =1:nvol
-                    run_list{end+1} = [run_list, spm_read_vols(V(nvol))];
+                    run_list{end+1} = [run_list; sprintf('')];
                 end
             end
 

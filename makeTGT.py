@@ -4,15 +4,15 @@ import pandas as pd
 import numpy as np
 import globals as gl
 
-experiment = 'efc4'
-sn = 106
+experiment = 'EFC_learningfMRI'
+sn = 109
 # day = 2
 
-pinfo = pd.read_table(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
+pinfo = pd.read_table(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
 pinfo_row = pinfo[pinfo.sn == sn].reset_index(drop=True)
 trained = np.array(pinfo_row['trained'][0].split('.'), dtype='int')
 
-sess_info = pd.read_csv('target/sess_info.tgt', delimiter='\t')
+sess_info = pd.read_csv(os.path.join(gl.baseDir, experiment, 'target', 'sess_info.tgt'), delimiter='\t')
 
 for i, row in sess_info.iterrows():
 
@@ -24,9 +24,9 @@ for i, row in sess_info.iterrows():
 
     # nruns = 10
 
-    file_path = 'target/template.tgt'
+    #file_path = 'target/template.tgt'
     out_path = 'target/'
-    target_template = pd.read_csv(file_path, delimiter='\t')
+    target_template = pd.read_csv(os.path.join(gl.baseDir, experiment, 'target', 'template.tgt'), delimiter='\t')
 
     for n in range(nruns):
 
@@ -70,7 +70,7 @@ for i, row in sess_info.iterrows():
 
         target['subNum'] = sn
 
-        target.to_csv(os.path.join(out_path, f'{experiment}_{session}_{sn}_day{day}_run{n+1}.tgt'), index=False, sep='\t')
+        target.to_csv(os.path.join(out_path, f'efc4_{session}_{sn}_day{day}_run{n+1}.tgt'), index=False, sep='\t')
 
 
 
