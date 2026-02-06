@@ -139,7 +139,7 @@ if __name__ == '__main__':
     if args.what == 'plot_current':
         plot_ref()
 
-        path = os.path.join(gl.baseDir, args.experiment, 'behavioural', f'day{args.day}', f'efc4_{args.sn}.dat')
+        path = os.path.join(gl.baseDir, 'behavioural', f'day{args.day}', f'efc4_{args.sn}.dat')
 
         plot_current(path, day=args.day)
 

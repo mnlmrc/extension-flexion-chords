@@ -100,7 +100,7 @@ def plot_behav(fig, ax, df, metric='ET', ylim=[0, 2.5], melt=False, id_vars=None
     ax.set_ylim(ylim)
     ax.set_xlim([-10, max_bn])
     ax.spines['left'].set_bounds(ylim)
-    ax.text(max_bn / 2, ylim[0] - .05 * (ylim[1] - ylim[0]), '# day', ha='center', va='top', fontsize=10)
+    ax.text(max_bn / 2, ylim[0] - .05 * (ylim[1] - ylim[0]), '# session', ha='center', va='top', fontsize=10)
     ax.set_ylabel(ylabel)
     ax.legend(loc='upper right', bbox_to_anchor=(1, -.01), ncol=2, frameon=False)
     ax.set_title(title)
@@ -144,18 +144,18 @@ def lineplot_roi_avg(fig, axs, df, metric, hue=None, hue_order=None, color=None,
     else:
         palette = None
 
-    day_map = {
+    sess_map = {
         3: 0,
         9: 1,
         23: 2
     }
-    df['day'] = df['day'].map(day_map)
+    df['session'] = df['session'].map(sess_map)
     for r, roi in enumerate(rois):
         ax = axs[r]
         sb.lineplot(df[(df['roi'] == roi) & (df['Hem'] == H)],
                      ax=ax,
                      y=metric,
-                     x='day',
+                     x='session',
                      hue=hue,
                      palette=None if hue is None else palette,
                      color=None if isinstance(color, list) else color,

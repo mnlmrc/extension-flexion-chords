@@ -3,9 +3,13 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+import sys
 
-Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp",
-        "/cifs/diedrichsen/data/Chord_exp"]
+ROOT =  str(Path().resolve().parent)+ '/extension-flexion-chords/'
+sys.path.append(ROOT)
+
+Dirs = ["/Volumes/diedrichsen_data$/data/Chord_exp/EFC_learningfMRI",
+        "/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI"]
 
 # natChord_chordDir = "/Users/mnlmrc/Downloads/natChord_chord.tsv"
 baseDir = next((Dir for Dir in Dirs if Path(Dir).exists()), None)
@@ -20,10 +24,7 @@ rdmDir = 'rdm'
 surfDir = 'surfaceWB'
 pcmDir = 'pcm'
 
-atlasDirs = ['/Volumes/diedrichsen_data$/data/Atlas_templates/fs_LR_32',
-             '/cifs/diedrichsen/data/Atlas_templates/fs_LR_32',]
-
-atlasDir = next((Dir for Dir in atlasDirs if Path(Dir).exists()), None)
+atlasDir = os.path.join(ROOT, 'atlases') #next((Dir for Dir in atlasDirs if Path(Dir).exists()), None)
 
 if baseDir is not None:
     print(f"Base directory found: {baseDir}")
@@ -45,63 +46,15 @@ fsample = {
 nblocks = 8
 
 chordID = np.sort(np.array(['21911', '92122', '91211', '22911', '21291', '12129', '12291', '11911']))
-# trained = [29212, 92122, 91211, 22911]
-# untrained = [21291, 12129, 12291, 19111]
+diffCols = [18, 19, 20, 21, 22]
+wait_exec = 4
 
-# movCols = ['state', 'timeReal', 'time',
-#            'eThumb', 'eIndex', 'eMiddle', 'eRing', 'ePinkie',
-#            'fThumb', 'fIndex', 'fMiddle', 'fRing', 'fPinkie',
-#            'Thumb', 'Index', 'Middle', 'Ring', 'Pinkie',  # 13, 14, 15, 16, 17
-#            'vThumb', 'vIndex', 'vMiddle', 'vRing', 'vPinkie']
-diffCols = {
-    'EFC_learningfMRI': [18, 19, 20, 21, 22]
-}   # [13, 14, 15, 16, 17]  # [14, 15, 16, 17, 18] #
-
-wait_exec = {
-    'EFC_learningfMRI': 4
-}
-
-channels = {
-    'force': ['thumb',
-              'index',
-              'middle',
-              'ring',
-              'pinkie'],
-    'emg': ['emg_hold_avg_e1',
-            'emg_hold_avg_e2',
-            'emg_hold_avg_e3',
-            'emg_hold_avg_e4',
-            'emg_hold_avg_e5',
-            'emg_hold_avg_f1',
-            'emg_hold_avg_f2',
-            'emg_hold_avg_f3',
-            'emg_hold_avg_f4',
-            'emg_hold_avg_f5'],
-    'emgTMS': [
-        'ext_D3',
-        'ext_D4',
-        'ext_D5',
-        'ext_D1',
-        'ext_D2',
-        'flx_D3',
-        'flx_D4',
-        'flx_D2',
-        'flx_D1',
-        'flx_D5',
-        'FDI',
-        'lum1',
-        'lum2',
-        'lum3',
-    ]
-}
 
 trialPoint_mapping = {
     1: 'success',
     0: 'unsuccess',
 }
 
-# flatmap stuff
-# flatmap stuff
 borderDirs = ["/Users/mnlmrc/Documents/GitHub/surfAnalysisPy/standard_mesh/",
         "/home/UWO/memanue5/Documents/GitHub/surfAnalysisPy/standard_mesh/",]
 

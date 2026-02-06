@@ -5,14 +5,14 @@ import numpy as np
 import globals as gl
 
 experiment = 'EFC_learningfMRI'
-sn = 109
+sn = 110
 # day = 2
 
-pinfo = pd.read_table(os.path.join(gl.baseDir, experiment, 'participants.tsv'), sep='\t')
+pinfo = pd.read_table(os.path.join(gl.baseDir,  'participants.tsv'), sep='\t')
 pinfo_row = pinfo[pinfo.sn == sn].reset_index(drop=True)
 trained = np.array(pinfo_row['trained'][0].split('.'), dtype='int')
 
-sess_info = pd.read_csv(os.path.join(gl.baseDir, experiment, 'target', 'sess_info.tgt'), delimiter='\t')
+sess_info = pd.read_csv(os.path.join(gl.baseDir,  'target', 'sess_info.tgt'), delimiter='\t')
 
 for i, row in sess_info.iterrows():
 
@@ -26,7 +26,7 @@ for i, row in sess_info.iterrows():
 
     #file_path = 'target/template.tgt'
     out_path = 'target/'
-    target_template = pd.read_csv(os.path.join(gl.baseDir, experiment, 'target', 'template.tgt'), delimiter='\t')
+    target_template = pd.read_csv(os.path.join(gl.baseDir, 'target', 'template.tgt'), delimiter='\t')
 
     for n in range(nruns):
 

@@ -17,7 +17,7 @@ import time
 
 def save_spm_as_mat7(glm, sn):
     # Define the path to the SPM.mat file
-    spm_path = os.path.join(gl.baseDir, args.experiment, f'glm{glm}', f'subj{sn}', 'SPM.mat') #"/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/glm1/subj101/SPM.mat"
+    spm_path = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}', 'SPM.mat') #"/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/glm1/subj101/SPM.mat"
     backup_path = spm_path + ".backup"
 
     # Step 1: Backup the original file
@@ -38,8 +38,8 @@ def main(args):
     nSess = 3
     Hem = ['L', 'R']
     struct = ['CortexLeft', 'CortexRight']
-    path_glm = os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'subj{args.sn}')
-    path_rois = os.path.join(gl.baseDir, args.experiment, gl.roiDir, f'subj{args.sn}')
+    path_glm = os.path.join(gl.baseDir, f'{gl.glmDir}{args.glm}', f'subj{args.sn}')
+    path_rois = os.path.join(gl.baseDir, gl.roiDir, f'subj{args.sn}')
     if args.what=='spm2mat7':
         save_spm_as_mat7(args.glm, args.sn)
     if args.what == 'spm2mat7_all':
@@ -82,6 +82,21 @@ def main(args):
         row_axis = nb.cifti2.ScalarAxis(cond_vec)
         cifti = bt.make_cifti_betas(masks, struct, intercept, row_axis=row_axis, )
         nb.save(cifti, path_glm + '/' + 'intercept.dscalar.nii')
+    if args.what == 'make_intercept_cifti_sml':
+        nSess = 4
+        nRun = 8
+        sns = [5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+        path = os.path.join(gl.baseDir, 'EFC_learningfMRI', 'SML',)
+        for sn in sns:
+            intercept = []
+            for sess in range(nSess):
+                for run in range(nRun):
+                    intercept.append(os.path.join(path, f'glmSess{sess+1}', f's{sn:02d}', f'beta_{run+97:04d}.nii'))
+            masks = [os.path.join(path, f'glmSess{sess+1}', f's{sn:02d}', f'Hem.{H}.nii') for H in Hem]
+            cond_vec = np.sort(np.array([f'{sess},{run}' for run in range(nRun) for sess in range(nSess)]) )
+            row_axis = nb.cifti2.ScalarAxis(cond_vec)
+            cifti = bt.make_cifti_betas(masks, struct, intercept, row_axis=row_axis, )
+            nb.save(cifti, os.path.join(path, f'glmSess1', f's{sn:02d}', 'intercept.dscalar.nii'))
     if args.what == 'make_intercept_cifti_all':
         for sn in args.sns:
             print(f'doing participant {sn}')
@@ -108,7 +123,7 @@ def main(args):
                 glm=args.glm
             )
             main(args)
-    if args.what == 'avg_roi_contrasts':
+    if args.what == 'roi_contrasts':
         rois = ['SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1']
         con_dict = {
             'con': [],
@@ -158,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument('what', nargs='?', default=None)
     parser.add_argument('--experiment', type=str, default='EFC_learningfMRI')
     parser.add_argument('--sn', type=int, default=None)
-    parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105])
+    parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105, 106, 107])
     parser.add_argument('--glm', type=int, default=1)
 
     args = parser.parse_args()

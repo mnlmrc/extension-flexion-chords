@@ -26,6 +26,20 @@ def main(args):
         Rois = rois.SurfRois(atlas_name, white, pial, mask, atlas_dir, rois_dir)
         Rois.make_hemispheres()
         Rois.make_rois(exclude=exclude[atlas_name])
+    if args.what=='make_hem_rois_sml':
+        sns = [5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]
+        nSess = 4
+        for sn in sns:
+            for sess in range(nSess):
+                print(f'doing participant s{sn:02d}')
+                path_surf = os.path.join(gl.baseDir, 'EFC_learningfMRI', 'SML', gl.surfDir, f's{sn:02d}')
+                white = [os.path.join(path_surf, f's{sn:02d}.{H}.white.32k.surf.gii') for H in ['L', 'R']]
+                pial = [os.path.join(path_surf, f's{sn:02d}.{H}.pial.32k.surf.gii') for H in ['L', 'R']]
+                mask = os.path.join(gl.baseDir,'EFC_learningfMRI', 'SML', f'glmSess{sess+1}', f's{sn:02d}', 'mask.nii')
+                atlas_name = 'ROI'
+                rois_dir = os.path.join(gl.baseDir,'EFC_learningfMRI', 'SML', f'glmSess{sess+1}', f's{sn:02d}')
+                Rois = rois.SurfRois(atlas_name, white, pial, mask, gl.atlasDir, rois_dir)
+                Rois.make_hemispheres(exclude_overlapping=True)
     if args.what == 'make_cortical_rois_all':
         for sn in args.sns:
             args = argparse.Namespace(

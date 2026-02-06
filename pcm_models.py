@@ -56,28 +56,10 @@ def make_models():
 
 
 def main(args):
-    if args.what == "corr":
-        # nsteps = 20
-        # M = []
-        # for r in np.linspace(0, 1, nsteps):
-        #     M.append(pcm.CorrelationModel(f"{r:0.2f}", num_items=4, corr=r, cond_effect=True))
+    if args.what == "correlation_across_sessions":
         Mflex = pcm.CorrelationModel("flex", num_items=4, corr=None, cond_effect=True)
-        # M.append(Mflex)
         f = open(os.path.join(gl.baseDir, gl.pcmDir, f'M.corr.p'), "wb")
         pickle.dump(Mflex, f)
-    if args.what == "corr_chord":
-        # nsteps = 50
-        # M = []
-        # for r in np.linspace(0, 1, nsteps):
-        #     M.append(pcm.CorrelationModel(f"{r:0.2f}", num_items=1, corr=r, cond_effect=False))
-        Mflex = pcm.CorrelationModel("flex", num_items=1, corr=None, cond_effect=False)
-        # M.append(Mflex)
-        f = open(os.path.join(gl.baseDir, gl.pcmDir, f'M.corr_chord.p'), "wb")
-        pickle.dump(Mflex, f)
-    if args.what == "across_sessions":
-        M = make_models()
-        f = open(os.path.join(gl.baseDir, gl.pcmDir, f'M.across_sessions.p'), "wb")
-        pickle.dump(M, f)
 
 if __name__ == '__main__':
     start = time.time()
