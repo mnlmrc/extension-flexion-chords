@@ -35,7 +35,8 @@ def save_spm_as_mat7(glm, sn):
     print(f"Processed {spm_path} with MATLAB")
 
 def main(args):
-    nSess = 3
+    sessions = [3, 9, 23]
+    nSess = len(sessions)
     Hem = ['L', 'R']
     struct = ['CortexLeft', 'CortexRight']
     path_glm = os.path.join(gl.baseDir, f'{gl.glmDir}{args.glm}', f'subj{args.sn}')
@@ -68,6 +69,19 @@ def main(args):
                 glm=args.glm
             )
             main(args)
+    if args.what == 'make_residuals_cifti':
+        masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in Hem]
+        residuals = bt.make_cifti_residuals(path_glm=path_glm, masks=masks, struct=struct)
+        nb.save(residuals, path_glm + '/' + 'residual.dtseries.nii')
+    if args.what == 'make_residuals_cifti_all':
+        for sn in args.sns:
+            print(f'Processing subj{sn}...')
+            arg = argparse.Namespace(
+                what='make_residuals_cifti',
+                sn=sn,
+                glm=args.glm
+            )
+            main(arg)
     if args.what == 'make_intercept_cifti':
         reginfo = pd.read_csv(os.path.join(path_glm, 'reginfo.tsv'), sep='\t')
         day = reginfo.name.str.split(',', n=1, expand=True)[0]
@@ -111,8 +125,7 @@ def main(args):
         path_glm = os.path.join(gl.baseDir, f'{gl.glmDir}{args.glm}', f'subj{args.sn}')
         path_rois = os.path.join(gl.baseDir, gl.roiDir, f'subj{args.sn}')
         masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in Hem]
-        days = [3, 9, 23]
-        regressors = pd.Series([f'{day},{chordID}' for day in days for chordID in gl.chordID])
+        regressors = pd.Series([f'{chordID},sess{sess:02d}' for sess in sessions for chordID in gl.chordID])
         cifti = bt.make_cifti_contrasts(path_glm, masks, struct, regressors)
         nb.save(cifti, path_glm + '/' + 'contrast.dscalar.nii')
     if args.what == 'make_contrasts_cifti_all':
@@ -128,7 +141,7 @@ def main(args):
         con_dict = {
             'con': [],
             'chordID': [],
-            'day': [],
+            'session': [],
             'chord': [],
             'sn': [],
             'roi': [],
@@ -156,7 +169,7 @@ def main(args):
                         con_dict['con'].append(c)
                         con_dict['chordID'].append(chordID)
                         con_dict['chord'].append(chord)
-                        con_dict['day'].append(day)
+                        con_dict['session'].append(day)
                         con_dict['sn'].append(sn)
                         con_dict['roi'].append(roi)
                         con_dict['Hem'].append(H)
@@ -174,7 +187,7 @@ if __name__ == "__main__":
     parser.add_argument('--experiment', type=str, default='EFC_learningfMRI')
     parser.add_argument('--sn', type=int, default=None)
     parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105, 106, 107])
-    parser.add_argument('--glm', type=int, default=1)
+    parser.add_argument('--glm', type=int, default=3)
 
     args = parser.parse_args()
     main(args)

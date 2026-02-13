@@ -8,13 +8,13 @@ from util import get_trained_and_untrained
 
 def main(args):
     Hem = ['L', 'R']
-    if args.what == 'gifti2cifti':
+    if args.what == 'gifti2cifti_betas':
         print(f'Processing participant {args.sn}')
         path = os.path.join(gl.baseDir, gl.surfDir, f'subj{args.sn}')
         giftis = [path + '/' + f'glm{args.glm}.{args.dtype}.{H}.func.gii' for H in Hem]
         cifti_img = nt.join_giftis_to_cifti(giftis)
         nb.save(cifti_img, path + '/' + f'glm{args.glm}.{args.dtype}.dscalar.nii')
-    if args.what=='smooth_cifti':
+    if args.what=='smooth_cifti_betas':
         data, dataDiff = [], []
         for sn in args.snS:
             print(f'Processing participant {sn}')

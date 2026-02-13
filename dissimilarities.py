@@ -4,6 +4,7 @@ import os
 import argparse
 import pandas as pd
 import numpy as np
+import imaging_pipelines.model as md
 from imaging_pipelines.model import calc_prewhitened_betas
 import nibabel as nb
 import nitools as nt
@@ -11,7 +12,45 @@ import xarray as xr
 import time
 from util import get_trained_and_untrained
 
-def calc_G_chord_set(sn, H, roi, path_glm, path_roi, type='set', n_sess=None):
+def searchlight_encoding(args):
+    Hem = ['L', 'R']
+    structnames = ['CortexLeft', 'CortexRight']
+    glm_path = os.path.join(gl.baseDir, f'{gl.glmDir}{args.glm}')
+    cifti_img_name = 'beta.dscalar.nii'
+    res_img_name = 'ResMS.nii'
+    searchlight_path = os.path.join(gl.baseDir, gl.roiDir)
+    surf_path = os.path.join(gl.baseDir, gl.surfDir)
+    regressor_mapping = {
+        f"{sess:02d},{chordID}": i
+        for i, (sess, chordID) in enumerate(
+            ((s, c) for s in gl.sessions for c in gl.chordID)
+        )
+    }
+    for h, H in enumerate(Hem):
+        SL = md.PcmSearchlight(
+            cifti_img=[os.path.join(glm_path, f'subj{sn}', cifti_img_name) for sn in args.sns],
+            res_img=[os.path.join(glm_path, f'subj{sn}', res_img_name) for sn in args.sns],
+            searchlight_list=[os.path.join(searchlight_path, f'subj{sn}', f'searchlight.{H}.h5') for sn in args.sns],
+            structnames=structnames[h],
+            regressor_mapping=regressor_mapping,
+            regr_interest=[0, 1, 2, 3, 4, 5, 6, 7],
+            #n_jobs=args.n_jobs
+        )
+        #SL.n_centre = 2
+        n_centre = SL.n_centre
+        distance = np.full((n_centre, SL.N), np.nan)
+        #SL._run_searchlight(0)
+        G_obs = SL.run_seachlight_parallel()
+        for c in range(SL.n_centre):
+            G = G_obs[c]
+            distance[c] = np.array([pcm.G_to_dist(G[s]).mean() for s in range(SL.N)])
+
+        # distance to gifti
+        data = distance
+        gifti = nt.make_func_gifti(data, anatomical_struct=structnames[h], column_names=args.sns)
+        nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding.session3.{H}.func.gii'))
+
+def calc_G(sn, H, roi, path_glm, path_roi, type='set', n_sess=None):
     # get trained chords
     trained_untrained = np.array(get_trained_and_untrained(sn)).astype(int)
     label = ['trained'] * 4 + ['untrained'] * 4
@@ -62,20 +101,20 @@ def main(args):
                 G = []
                 for s, sn in enumerate(args.sns):
                     print(f'doing participant {sn}...')
-                    G_tmp = calc_G_chord_set(sn, H, roi, path_glm, path_roi, type='set')
+                    G_tmp = calc_G(sn, H, roi, path_glm, path_roi, type='set')
                     G.append(G_tmp)
                 G = np.array(G)
-                np.save(os.path.join(path_pcm, f'G_obs.trained-untrained.{H}.{roi}.npy'), G)
-    if args.what=='calc_G_chord':
-        for h, H in enumerate(Hem):
-            for r, roi in enumerate(rois):
-                G = []
-                for s, sn in enumerate(args.sns):
-                    print(f'doing participant {sn}...')
-                    G_tmp = calc_G_chord_set(sn, H, roi, path_glm, path_roi, type='chord')
-                    G.append(G_tmp)
-                G = np.array(G)
-                np.save(os.path.join(path_pcm, f'G_obs.chord-session.{H}.{roi}.npy'), G)
+                np.save(os.path.join(path_pcm, f'G_obs.trained-untrained.glm{args.glm}.{H}.{roi}.npy'), G)
+    # if args.what=='calc_G_chord':
+    #     for h, H in enumerate(Hem):
+    #         for r, roi in enumerate(rois):
+    #             G = []
+    #             for s, sn in enumerate(args.sns):
+    #                 print(f'doing participant {sn}...')
+    #                 G_tmp = calc_G_chord_set(sn, H, roi, path_glm, path_roi, type='chord')
+    #                 G.append(G_tmp)
+    #             G = np.array(G)
+    #             np.save(os.path.join(path_pcm, f'G_obs.chord-session.{H}.{roi}.npy'), G)
     if args.what=='calc_G_pattern':
         for sess in [3, 9, 23]:
             for h, H in enumerate(Hem):
@@ -83,11 +122,12 @@ def main(args):
                     G = []
                     for s, sn in enumerate(args.sns):
                         print(f'doing participant {sn}, {H}, {roi}...')
-                        G_tmp = calc_G_chord_set(sn, H, roi, path_glm, path_roi, type='chord', n_sess=sess)
+                        G_tmp = calc_G(sn, H, roi, path_glm, path_roi, type='chord', n_sess=sess)
                         G.append(G_tmp)
                     G = np.array(G)
-                    np.save(os.path.join(path_pcm, f'G_obs.chord.{sess}.{H}.{roi}.npy'), G)
-
+                    np.save(os.path.join(path_pcm, f'G_obs.chord.glm{args.glm}.{sess}.{H}.{roi}.npy'), G)
+    if args.what=='searchlight_encoding':
+        searchlight_encoding(args)
     if args.what=='representation_stability':
         repr_dict = {
             'sn': [],

@@ -89,7 +89,7 @@ function varargout = efcl_glm(what, varargin)
     end
 
     switch what
-        case 'GLM:make_glm1'
+       case 'GLM:make_glm1'
 
             chords = unique(D.chordID);
             
@@ -120,7 +120,43 @@ function varargout = efcl_glm(what, varargin)
             
             varargout{1} = events;
 
-        case 'GLM:make_glm2' % ignore day
+       case 'GLM:make_glm2' % ignore day
+
+            chords = unique(D.chordID);
+            D.repetition = mod(D.TN - 1, 2) + 1;
+            
+            events.BN = [];
+            events.TN = [];
+            events.Onset = [];
+            events.Duration = [];
+            events.chordID = [];
+            events.day = [];
+            events.repetition = [];
+            events.eventtype = [];
+            
+            for rep = 1:2
+                for d = 1:length(day)
+                    for chordID = chords'
+                        events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d) & D.repetition == rep) + 10 * (d - 1)] ;
+                        events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d) & D.repetition == rep)];
+                        events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d) & D.repetition == rep) + 1000];
+                        n_rep = length(D.BN(D.chordID == chordID & D.day == day(d) & D.repetition == rep));
+                        events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [n_rep, 1])];
+                        events.day = [events.day; repmat({sprintf('%d', day(d))}, [n_rep, 1])];
+                        events.repetition = [events.repetition; repmat({sprintf('%d', rep)}, [n_rep, 1])];
+                        events.eventtype = [events.eventtype; repmat({sprintf('%d,sess%02d,%d', chordID, day(d), rep)}, [n_rep, 1])];
+                    end
+                end
+            end
+            
+            events.Duration = zeros(length(events.BN), 1);
+            events = struct2table(events);
+            events.Onset = events.Onset ./ 1000;
+            events.Duration = events.Duration ./ 1000;
+            
+            varargout{1} = events;
+
+       case 'GLM:make_glm3'
 
             chords = unique(D.chordID);
             
@@ -137,20 +173,19 @@ function varargout = efcl_glm(what, varargin)
                     events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d)) + 10 * (d - 1)] ;
                     events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d))];
                     events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d)) + 1000];
-                    events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.day == day(d))];
-                    events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [60, 1])];
-                    events.day = [events.day; repmat({sprintf('%d', day(d))}, [60, 1])];
-                    events.eventtype = [events.eventtype; repmat({sprintf('%d,day%d', chordID, day(d))}, [60, 1])];
+                    n_rep = length(D.BN(D.chordID == chordID & D.day == day(d)));
+                    events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [n_rep, 1])];
+                    events.day = [events.day; repmat({sprintf('%d', day(d))}, [n_rep, 1])];
+                    events.eventtype = [events.eventtype; repmat({sprintf('%d,sess%02d', chordID, day(d))}, [n_rep, 1])];
                 end
             end
             
+            events.Duration = zeros(length(events.BN), 1);
             events = struct2table(events);
             events.Onset = events.Onset ./ 1000;
-            events.Duration = events.Duration ./ 1000;
             
             varargout{1} = events;
-            
-        case 'GLM:make_event'
+       case 'GLM:make_event'
             
             operation  = sprintf('GLM:make_glm%d', glm);
             
@@ -165,7 +200,7 @@ function varargout = efcl_glm(what, varargin)
 %                 mkdir(fullfile(baseDir, [glmEstDir num2str(glm)], subj_id))
 %             end
             
-        case 'GLM:design'
+       case 'GLM:design'
 
             % Import globals from spm_defaults 
             global defaults;
@@ -182,13 +217,12 @@ function varargout = efcl_glm(what, varargin)
                 run_list{end+1} = sprintf('run_%02d', run);
             end
 
-            chords = unique(D.chordID);
-
             % Load data once, outside of session loop
             % D = dload(fullfile(baseDir,behavDir,subj_id, sprintf('smp2_%d.dat', sn)));
             events_file = sprintf('efc4_%s_glm%d_events.tsv', subj_id, glm);
 
             Dd = dload(fullfile(baseDir,behavDir, 'day3', events_file));
+            %eventtype = unique(Dd.eventtype);
             
             regressors = unique(Dd.eventtype);
             nRegr = length(regressors); 
@@ -215,16 +249,18 @@ function varargout = efcl_glm(what, varargin)
                 % Preallocate memory for conditions
                 J.sess(run).cond = repmat(struct('name', '', 'onset', [], 'duration', []), nRegr/length(day), 1);
 
-                regr = 1;            
-                for d = 1:length(day)
-                    for chordID = chords'
-
-                        rows = find(Dd.BN == run & Dd.day == day(d) & Dd.chordID == chordID);
+                regr = 1;
+                for regressor = regressors'
+                %for d = 1:length(day)
+                    %for chordID = chords'
+                        rows = find(Dd.BN == run & strcmp(Dd.eventtype, regressor{1}));
+                        %rows = find(Dd.BN == run & Dd.day == day(d) & Dd.chordID == chordID);
     
                         if ~isempty(rows)
      
                             % Regressor name
-                            J.sess(run).cond(regr).name = sprintf('%d,%d', day(d), chordID);
+                            %J.sess(run).cond(regr).name = sprintf('%d,%d', day(d), chordID);
+                            J.sess(run).cond(regr).name = regressor{1};
                             
                             % Define durationDuration(regr));
                             J.sess(run).cond(regr).duration = Dd.Duration(rows); % needs to be in seconds
@@ -250,18 +286,18 @@ function varargout = efcl_glm(what, varargin)
                             % filling in "reginfo"
                             TT.sn        = sn;
                             TT.run       = run; %mod(run - 1, 10) + 1;
-                            TT.name      = sprintf('%02d,%d', day(d), chordID);      
+                            TT.name      = regressor{1}; % sprintf('%02d,%d', day(d), chordID);      
         
                             T = addstruct(T, TT);
 
                             regr = regr + 1;
                     
                         end
-                    end
+                    %end
                 end
 
                 % Specify high pass filter
-                J.sess(run).hpf = 128; %256;
+                J.sess(run).hpf = 128; % 128; %256;
 
                 % J.sess(run).multi
                 % Purpose: Specifies multiple conditions for a session. Usage: It is used
@@ -357,7 +393,8 @@ function varargout = efcl_glm(what, varargin)
             end 
 
             defaults.mat.format = '-v7.3';
-            defaults.stats.maxmem = 2^26;
+            spm_get_defaults('stats.maxmem', 16*1024^3);  % 16 GB
+            %defaults.stats.maxmem = 16*1024^3;
 
             currentDir = pwd;
 
@@ -396,7 +433,7 @@ function varargout = efcl_glm(what, varargin)
 
             T    = dload(fullfile(glm_dir, 'reginfo.tsv'));
             T.name = cellstr(string(T.name));
-            T.name = cellfun(@(a,b) [a ',' b], T.name(:,1), T.name(:,2), 'UniformOutput', false);
+            %T.name = cellfun(@(a,b) [a ',' b], T.name(:,1), T.name(:,2), 'UniformOutput', false);
             contrasts = unique(T.name);
 
             for c = 1:length(contrasts)

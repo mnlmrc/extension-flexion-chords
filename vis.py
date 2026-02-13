@@ -11,6 +11,11 @@ from operator import itemgetter
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_rel
 
+
+def plot_behav_lite(fig, ax, df):
+    pass
+
+
 def plot_behav(fig, ax, df, metric='ET', ylim=[0, 2.5], melt=False, id_vars=None, value_vars=None, var_name=None,
                ylabel=None, title=None):
     """

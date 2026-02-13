@@ -46,6 +46,7 @@ fsample = {
 nblocks = 8
 
 chordID = np.sort(np.array(['21911', '92122', '91211', '22911', '21291', '12129', '12291', '11911']))
+sessions = [3, 9, 23]
 diffCols = [18, 19, 20, 21, 22]
 wait_exec = 4
 
