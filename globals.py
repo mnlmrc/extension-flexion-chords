@@ -61,8 +61,8 @@ borderDirs = ["/Users/mnlmrc/Documents/GitHub/surfAnalysisPy/standard_mesh/",
 
 borderDirs = next((Dir for Dir in borderDirs if Path(Dir).exists()), None)
 
-borders = {'L': os.path.join(borderDirs, 'fs_L', 'fs_LR.32k.L.border'),
-           'R': os.path.join(borderDirs, 'fs_L', 'fs_LR.32k.L.border')}
+# borders = {'L': os.path.join(borderDirs, 'fs_L', 'fs_LR.32k.L.border'),
+#            'R': os.path.join(borderDirs, 'fs_L', 'fs_LR.32k.L.border')}
 
 rois = {
     'Desikan': [
