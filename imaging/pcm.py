@@ -3,53 +3,52 @@ import PcmPy as pcm
 import pickle
 import os
 import nibabel as nb
-import globals as gl
+import globals.path as pth
 import nitools as nt
 import time
 import pandas as pd
 import argparse
-from util import get_trained_and_untrained
+from util.util import get_trained_and_untrained
+import globals.imaging as im
 from imaging_pipelines.util import extract_mle_corr
 import imaging_pipelines.model as md
 
-def main(args):
-    if args.what == 'correlation_across_sessions':
-        glm_path = os.path.join(gl.baseDir, f'{gl.glmDir}{args.glm}')
-        roi_path = os.path.join(gl.baseDir, gl.roiDir)
-        pcm_path = os.path.join(gl.baseDir, gl.pcmDir)
-        Hem = ['L', 'R']
-        rois = gl.rois['ROI']
-        f = open(os.path.join(gl.baseDir, gl.pcmDir, f'M.corr.p'), "rb")
+def correlation(sns, glm, rois):
+        glm_path = os.path.join(pth.baseDir, f'{pth.glmDir}{glm}')
+        roi_path = os.path.join(pth.baseDir, pth.roiDir)
+        pcm_path = os.path.join(pth.baseDir, pth.pcmDir)
+        f = open(os.path.join(pth.baseDir, pth.pcmDir, f'M.corr.p'), "rb")
         Mflex = pickle.load(f)
         chords = ['trained', 'untrained']
-        corrs = [['03', '09'], ['03', '23'], ['09', '23']]
+        corrs = [['sess03', 'sess09'], ['sess03', 'sess23'], ['sess09', 'sess23']]
         cond_vec_mapping = {
-            '03,0.0': 0,
-            '03,1.0': 1,
-            '03,2.0': 2,
-            '03,3.0': 3,
-            '09,0.0': 4,
-            '09,1.0': 5,
-            '09,2.0': 6,
-            '09,3.0': 7,
-            '23,0.0': 8,
-            '23,1.0': 9,
-            '23,2.0': 10,
-            '23,3.0': 11,
+            'sess03,0.0': 0,
+            'sess03,1.0': 1,
+            'sess03,2.0': 2,
+            'sess03,3.0': 3,
+            'sess09,0.0': 4,
+            'sess09,1.0': 5,
+            'sess09,2.0': 6,
+            'sess09,3.0': 7,
+            'sess23,0.0': 8,
+            'sess23,1.0': 9,
+            'sess23,2.0': 10,
+            'sess23,3.0': 11,
         }
         df = pd.DataFrame()
         for corr in corrs:
             for chord in chords:
-                for H in Hem:
+                for H in im.Hem:
                     for roi in rois:
-                        N = len(args.sns)
+                        N = len(sns)
                         Y = list()
                         G_obs = np.zeros((N, 8, 8))
-                        for s, sn in enumerate(args.sns):
+                        for s, sn in enumerate(sns):
                             # load data + masks
-                            print(f'doing...participant {sn}, {H}, {roi}, sess {int(corr[0])} vs. {int(corr[1])}, {chord} chords')
+                            print(f'doing...participant {sn}, {H}, {roi}, sess {int(corr[0][-2:])} vs. '
+                                  f'{int(corr[1][-2:])}, {chord} chords')
                             betas = nb.load(os.path.join(glm_path, f'subj{sn}', 'beta.dscalar.nii'))
-                            residuals = nb.load(os.path.join(glm_path, f'subj{sn}', 'ResMS.nii'))
+                            residuals = nb.load(os.path.join(glm_path, f'subj{sn}', 'residual.dtseries.nii'))
                             mask = nb.load(os.path.join(roi_path, f'subj{sn}', f'ROI.{H}.{roi}.nii'))
 
                             # covert cifti betas to volums
@@ -64,8 +63,8 @@ def main(args):
 
                             # get regressor and partition info
                             reginfo = pd.read_csv(os.path.join(glm_path, f'subj{sn}', 'reginfo.tsv'), sep='\t')
-                            sess = reginfo.name.str.split(',', n=1, expand=True)[0]
-                            chordID = reginfo.name.str.split(',', n=1, expand=True)[1]
+                            sess = reginfo.name.str.split(',', n=1, expand=True).loc[:, 1]
+                            chordID = reginfo.name.str.split(',', n=1, expand=True).loc[:, 0]
                             part_vec = (reginfo.run % 10).to_numpy()
 
                             # make booleans for chordID and session
@@ -98,41 +97,23 @@ def main(args):
                                                              X=pcm.indicator(part_vec),)
 
                         # save G
-                        np.save(os.path.join(pcm_path, f'G_obs.corr_across_sess.glm{args.glm}.{int(corr[0])}-{int(corr[0])}.{chord}.glm{args.glm}.{H}.{roi}.npy'), G_obs)
+                        np.save(os.path.join(pcm_path, f'G_obs.corr_across_sess.glm{glm}.{int(corr[0][-2:])}-'
+                                                       f'{int(corr[1][-2:])}.{chord}.glm{glm}.{H}.{roi}.npy'), G_obs)
 
                         # estimate correlation
                         _, theta = pcm.fit_model_individ(Y, Mflex, fixed_effect='block', fit_scale=False, verbose=False)
                         _, theta_gr = pcm.fit_model_group(Y, Mflex, fixed_effect='block', fit_scale=True, verbose=False)
                         r_indiv, r_group, SNR = extract_mle_corr(Mflex, theta[0], theta_gr[0], cond_effect=True)
                         df_tmp = pd.DataFrame()
-                        df_tmp['participant_id'] = args.sns
+                        df_tmp['participant_id'] = sns
                         df_tmp['r_indiv'] = r_indiv
                         df_tmp['r_group'] = r_group
                         df_tmp['SNR'] = SNR
                         df_tmp['chord'] = chord
-                        df_tmp['corr'] = f'sess {int(corr[0])} vs. {int(corr[1])}'
+                        df_tmp['corr'] = f'sess {int(corr[0][-2:])} vs. {int(corr[1][-2:])}'
                         df_tmp['roi'] = roi
                         df_tmp['Hem'] = H
                         df = pd.concat([df, df_tmp])
 
         # save dataframe
-        df.to_csv(os.path.join(pcm_path, f'correlation_across_sessions.glm{args.glm}.BOLD.tsv'), sep='\t', index=False)
-
-if __name__ == '__main__':
-    start = time.time()
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('what', nargs='?', default=None)
-    parser.add_argument('--sn', type=int, default=None)
-    parser.add_argument('--sns', nargs='+', type=int,
-                        default=[101, 102, 103, 104, 105, 106, 107])
-    parser.add_argument('--atlas', type=str, default='ROI')
-    parser.add_argument('--glm', type=int, default=1)
-    parser.add_argument('--n_jobs', type=int, default=16)
-
-    args = parser.parse_args()
-
-    main(args)
-    finish = time.time()
-    print(f'Elapsed time: {finish - start} seconds')
+        df.to_csv(os.path.join(pcm_path, f'correlation_across_sessions.glm{glm}.BOLD.tsv'), sep='\t', index=False)
