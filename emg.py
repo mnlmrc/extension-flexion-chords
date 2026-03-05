@@ -1,16 +1,13 @@
-import numpy as np
 import os
 import pandas as pd
 import xarray as xr
-import globals as gl
+from analysis import globals as gl
 import PcmPy as pcm
 import argparse
 from util import get_trained_and_untrained
-from scipy.signal import butter, filtfilt, hilbert
 from scipy.signal import resample
-from sigproc.filter_hilbert import FilterHilbert
-from sigproc.util import resample_to_fs, hp_filter
-from sigproc.coherence import plv_between_channels, plv_between_channels_shuffle, calc_plv_z, demodulate, calc_plv_aligned, calc_mscohere
+from sigproc.util import hp_filter
+from sigproc.coherence import calc_mscohere
 
 exclude_blocks = {
     'day1': {

@@ -4,9 +4,9 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
-import globals as gl
+from analysis import globals as gl
 import os
-import matplotlib
+
 
 def exp_func(x, a, b, c):
     return a * np.exp(b * x) + c

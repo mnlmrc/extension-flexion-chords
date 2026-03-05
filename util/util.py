@@ -6,7 +6,9 @@ import scipy
 from scipy.optimize import least_squares
 from scipy.signal import butter, filtfilt, firwin
 from scipy.special import expit
-import globals as gl
+import globals.path as pth
+from scipy.stats import linregress, t
+#import EFC_learningfMRI.globals as gl
 
 
 def get_trained_and_untrained(sn):
@@ -19,7 +21,7 @@ def get_trained_and_untrained(sn):
         list of chordIDs. First four are trained, last four untrained
     """
 
-    pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
+    pinfo = pd.read_csv(os.path.join(pth.baseDir, 'participants.tsv'), sep='\t')
     trained = pinfo[pinfo.sn == sn].reset_index()['trained'][0].split('.')
     untrained = pinfo[pinfo.sn == sn].reset_index()['untrained'][0].split('.')
     chords = list()
@@ -27,6 +29,48 @@ def get_trained_and_untrained(sn):
     chords.extend(untrained)
 
     return chords
+
+
+def linear_fit(x, y, alternative_slope='two-sided', alternative_intercept='greater'):
+    slope, intercept, r_value, p_slope, std_err = linregress(x, y, alternative=alternative_slope)
+
+    R2 = r_value ** 2
+
+    x_fit = np.linspace(np.min(x), np.max(x), 100)
+    y_fit = slope * x_fit + intercept
+
+    # Compute confidence intervals
+    n = len(x)
+    y_pred = slope * x + intercept
+    residuals = y - y_pred
+    dof = n - 2
+    t_val = t.ppf(0.975, dof)
+
+    se_line = np.sqrt(
+        np.sum(residuals ** 2) / dof * (1 / n + (x_fit - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))
+    )
+    ci = t_val * se_line
+
+    # Check confidence interval at x = 0
+    ix_0 = np.argmin(np.abs(x_fit - 0))
+    lower_bound = y_fit[ix_0] - ci[ix_0]
+    upper_bound = y_fit[ix_0] + ci[ix_0]
+
+    MSE = np.sum(residuals ** 2) / dof
+    SE_intercept = np.sqrt(MSE * (1 / n + np.mean(x) ** 2 / np.sum((x - np.mean(x)) ** 2)))
+    t_intercept = intercept / SE_intercept
+    if alternative_intercept == 'two-sided':
+        p_intercept = 2 * (1 - t.cdf(t_intercept, df=dof))
+    elif alternative_intercept == 'greater':
+        p_intercept = 1 - t.cdf(t_intercept, df=dof)
+    elif alternative_intercept == 'less':
+        p_intercept = t.cdf(t_intercept, df=dof)
+
+    print(f'slope: {slope}, p = {p_slope:.3f}')
+    print(f'intercept: {intercept}, p_intercept = {p_intercept:.3f}')
+    print(f'R2 = {R2:.3f}')
+
+    return x_fit, y_fit, ci, slope, p_slope, intercept, p_intercept
 
 
 def load_matlab_hrf(path):
@@ -281,20 +325,20 @@ def fit_sigmoids(F, t, N):
     return result
 
 
-def calc_planTime(experiment, p, session, day):
-    from force import load_mov
-    sn = int(''.join([c for c in p if c.isdigit()]))
-    path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
-
-    len_planTime = []
-    for block in range(7):
-
-        filename = os.path.join(path, f'{experiment}_{sn}_{block + 1:02d}.mov')
-
-        mov = load_mov(filename)
-
-        for tr in range(len(mov)):
-
-            len_planTime.append(np.sum(mov[tr][:, 1] == 3) / gl.fsample['force'])
-
-    return np.array(len_planTime)
+# def calc_planTime(experiment, p, session, day):
+#     from force import load_mov
+#     sn = int(''.join([c for c in p if c.isdigit()]))
+#     path = os.path.join(gl.baseDir, experiment, session, f"day{day}")
+#
+#     len_planTime = []
+#     for block in range(7):
+#
+#         filename = os.path.join(path, f'{experiment}_{sn}_{block + 1:02d}.mov')
+#
+#         mov = load_mov(filename)
+#
+#         for tr in range(len(mov)):
+#
+#             len_planTime.append(np.sum(mov[tr][:, 1] == 3) / gl.fsample['force'])
+#
+#     return np.array(len_planTime)

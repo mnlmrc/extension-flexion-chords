@@ -64,7 +64,7 @@ def calc_G(sns, glm, rois, type='chord-session', sessions=None):
                 reginfo = pd.read_csv(os.path.join(path_glm, f'subj{sn}', 'reginfo.tsv'), sep='\t')
                 betas = nb.load(os.path.join(path_glm, f'subj{sn}', 'beta.dscalar.nii'))
                 betas = nt.volume_from_cifti(betas)
-                residuals = nb.load(os.path.join(path_glm, f'subj{sn}', f'residual.dtseries.nii'))
+                residuals = nb.load(os.path.join(path_glm, f'subj{sn}', f'ResMS.nii'))
                 mask = nb.load(os.path.join(path_rois, f'subj{sn}', f'ROI.{H}.{roi}.nii'))
                 G_tmp = _calc_G_participant(betas, residuals, mask, reginfo, type=type, sessions=sessions)
                 G.append(G_tmp)

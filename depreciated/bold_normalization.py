@@ -1,9 +1,7 @@
 import os
 import ants
-import globals as gl
-import subprocess
+from analysis import globals as gl
 import numpy as np
-import nibabel as nb
 
 # ----- paths (edit) -----
 sn = 101

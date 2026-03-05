@@ -1,19 +1,37 @@
 import numpy as np
-import matplotlib.pyplot as plt
-import pandas as pd
 import PcmPy as pcm
-import os
-import globals as gl
 import seaborn as sb
 from matplotlib.lines import Line2D
-from itertools import groupby
-from operator import itemgetter
-import matplotlib.pyplot as plt
 from scipy.stats import ttest_rel
 
 
-def plot_behav_lite(fig, ax, df):
-    pass
+def plot_behav_sess(fig, ax, df, x='session', y=None, hue=None, hue_order=None, palette=None, decor=True):
+    sb.pointplot(ax=ax, x=x, y=y, hue=hue, dodge=.2, data=df, errorbar='se', palette=palette, hue_order=hue_order, lw=2)
+    ax.set_xlabel('')
+    if decor:
+        vlines = np.array([4.5, 9.5, 14.5, 19.5])
+        for vline in vlines:
+            ax.axvline(vline, color='k', lw=.8, ls=':')
+        ax.set_xticks([])
+        ax.set_xticklabels([])
+        ax.spines[['top', 'right', 'bottom']].set_visible(False)
+        ax.axvspan(1.5, 2.5, facecolor='lightgrey')
+        ax.axvspan(7.5, 8.5, facecolor='lightgrey')
+        ax.axvspan(21.5, 22.5, facecolor='lightgrey')
+        ylim0, ylim1 = ax.get_ylim()[0], ax.get_ylim()[1]
+        ydiff = (ylim1 - ylim0)
+        xticks = ylim0 - (.025 * ydiff)
+        xlabel = ylim0 - (.1 * ydiff)
+        ax.text(2, ylim0 + .05 * ydiff, 'fMRI', rotation=90, ha='center', va='bottom')
+        ax.text(8, ylim0 + .05 * ydiff, 'fMRI', rotation=90, ha='center', va='bottom')
+        ax.text(22, ylim0 + .05 * ydiff, 'fMRI', rotation=90, ha='center', va='bottom')
+        ax.text(2, xticks, '1', ha='center', va='top', transform=ax.transData)
+        ax.text(7, xticks, '2', ha='center', va='top', transform=ax.transData)
+        ax.text(12, xticks, '3', ha='center', va='top', transform=ax.transData)
+        ax.text(12, xlabel, 'week', ha='center', va='top', transform=ax.transData)
+        ax.text(17, xticks, '4', ha='center', va='top', transform=ax.transData)
+        ax.text(21.5, xticks, '5', ha='center', va='top', transform=ax.transData)
+        ax.legend(frameon=False,)
 
 
 def plot_behav(fig, ax, df, metric='ET', ylim=[0, 2.5], melt=False, id_vars=None, value_vars=None, var_name=None,
@@ -143,7 +161,8 @@ def plot_rep(fig, ax, df, metric='ET', ylim=[0, 2.5], ylabel=None, title=None):
     return fig, ax
 
 def lineplot_roi_avg(fig, axs, df, metric, hue=None, hue_order=None, color=None, label=None,
-                     H='L', rois=['SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1']):
+                     H='L', rois=['SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1'], ls='-',
+                     bbox_to_anchor=(1, .5)):
     if isinstance(color, list):
         palette=color
     else:
@@ -154,21 +173,22 @@ def lineplot_roi_avg(fig, axs, df, metric, hue=None, hue_order=None, color=None,
         9: 1,
         23: 2
     }
-    df['session'] = df['session'].map(sess_map)
+    df.loc[:, 'session'] = df.loc[:, 'session'].map(sess_map)
     for r, roi in enumerate(rois):
         ax = axs[r]
         sb.lineplot(df[(df['roi'] == roi) & (df['Hem'] == H)],
-                     ax=ax,
-                     y=metric,
-                     x='session',
-                     hue=hue,
-                     palette=None if hue is None else palette,
-                     color=None if isinstance(color, list) else color,
-                     hue_order=hue_order,
-                     errorbar='se',
-                     legend=False,
-                     err_kws={'linewidth': 0}
-                     )
+                        ax=ax,
+                        y=metric,
+                        x='session',
+                        hue=hue,
+                        palette=None if hue is None else palette,
+                        color=None if isinstance(color, list) else color,
+                        hue_order=hue_order,
+                        errorbar='se',
+                        legend=False,
+                        err_kws={'linewidth': 0},
+                        ls=ls
+                        )
         ax.axhline(0, ls='-', color='k', lw=.8)
         ax.set_title(roi)
         ax.set_ylabel('')
@@ -186,10 +206,10 @@ def lineplot_roi_avg(fig, axs, df, metric, hue=None, hue_order=None, color=None,
     # fig.supylabel('activation (a.u.)')
     # fig.suptitle(f'Average activity in ROIs, hemisphere:{H}, N={N}')
     if label is not None:
-        legend_handles = [Line2D([0], [0], color=col, label=lab) for col, lab in zip(color, label)]
+        legend_handles = [Line2D([0], [0], color=col, label=lab, ls=ls) for col, lab in zip(color, label)]
         fig.legend(handles=legend_handles,
                    loc='center left',
-                   bbox_to_anchor=(1, .5),
+                   bbox_to_anchor=bbox_to_anchor,
                    frameon=False,
                    ncol=1,
                    fontsize=10)
@@ -216,7 +236,6 @@ def add_significance_bars(ax, tAx, sig, color='black', position='bottom', height
     """
     from itertools import groupby
     from operator import itemgetter
-    import matplotlib.pyplot as plt
     import matplotlib.lines as mlines
 
     # Initialize storage for stacking info

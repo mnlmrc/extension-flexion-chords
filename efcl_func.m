@@ -240,7 +240,7 @@ function varargout = efcl_func(what, varargin)
             
             epi_files = {}; % Initialize as an empty cell array
             for run = runs
-                epi_files{end+1} = sprintf('%s_sbref_run_%02d.nii', subj_id, run + 10 * d);
+                epi_files{end+1} = sprintf('%s_run_%02d.nii', subj_id, run + 10 * d);
             end
 
             [et1, et2, tert] = spmj_et1_et2_tert(fullfile(baseDir, bidsDir, day_id,subj_id,  'fmap'),...

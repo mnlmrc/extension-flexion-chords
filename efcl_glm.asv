@@ -110,7 +110,7 @@ function varargout = efcl_glm(what, varargin)
                     n_rep = length(D.BN(D.chordID == chordID & D.day == day(d)));
                     events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [n_rep, 1])];
                     events.day = [events.day; repmat({sprintf('%d', day(d))}, [n_rep, 1])];
-                    events.eventtype = [events.eventtype; repmat({sprintf('%d,day%d', chordID, day(d))}, [n_rep, 1])];
+                    events.eventtype = [events.eventtype; repmat({sprintf('%d,sess%02d', chordID, day(d))}, [n_rep, 1])];
                 end
             end
             
@@ -140,6 +140,7 @@ function varargout = efcl_glm(what, varargin)
                         events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d) & D.repetition == rep) + 10 * (d - 1)] ;
                         events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d) & D.repetition == rep)];
                         events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d) & D.repetition == rep) + 1000];
+                        events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.day == day(d) & D.repetition == rep)];
                         n_rep = length(D.BN(D.chordID == chordID & D.day == day(d) & D.repetition == rep));
                         events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [n_rep, 1])];
                         events.day = [events.day; repmat({sprintf('%d', day(d))}, [n_rep, 1])];
@@ -149,7 +150,7 @@ function varargout = efcl_glm(what, varargin)
                 end
             end
             
-            events.Duration = zeros(length(events.BN), 1);
+            %events.Duration = zeros(length(events.BN), 1);
             events = struct2table(events);
             events.Onset = events.Onset ./ 1000;
             events.Duration = events.Duration ./ 1000;
@@ -393,7 +394,8 @@ function varargout = efcl_glm(what, varargin)
             end 
 
             defaults.mat.format = '-v7.3';
-            spm_get_defaults('stats.maxmem', 16*1024^3);  % 16 GB
+            gib = 8;
+            spm_get_defaults('stats.maxmem', gib*1024^3);  % 16 GB
             %defaults.stats.maxmem = 16*1024^3;
 
             currentDir = pwd;

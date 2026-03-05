@@ -14,9 +14,9 @@ def main(args):
     atlas = 'Hem'
     Hem = ['L', 'R']
     #struct = ['CortexLeft', 'CortexRight']
-    path_glm = os.path.join(gl.baseDir, args.experiment, f'{gl.glmDir}{args.glm}', f'subj{args.sn}')
-    path_rois = os.path.join(gl.baseDir, args.experiment, gl.roiDir, f'subj{args.sn}')
-    path_alignment = os.path.join(gl.baseDir, args.experiment, 'alignment', f'subj{args.sn}')
+    path_glm = os.path.join(gl.baseDir, f'{gl.glmDir}{args.glm}', f'subj{args.sn}')
+    path_rois = os.path.join(gl.baseDir, gl.roiDir, f'subj{args.sn}')
+    path_alignment = os.path.join(gl.baseDir, 'alignment', f'subj{args.sn}')
     os.makedirs(path_alignment, exist_ok=True)
     if args.what=='intercept':
         cifti = nb.load(os.path.join(path_glm, 'intercept.dscalar.nii'))

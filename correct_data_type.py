@@ -2,7 +2,7 @@ import os.path
 
 import nitools as nt
 
-import globals
+from analysis import globals
 
 sn = 104
 BN = 1

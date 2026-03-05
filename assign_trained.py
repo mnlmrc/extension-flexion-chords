@@ -1,7 +1,7 @@
 import pandas as pd
 import os
 import random
-import globals as gl
+from analysis import globals as gl
 
 # Load the data
 pinfo = pd.read_csv(os.path.join(gl.baseDir, 'efc4', 'participants.tsv'), sep='\t')

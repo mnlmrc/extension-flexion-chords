@@ -1,13 +1,12 @@
 import argparse
 import os
 import warnings
-from itertools import combinations
 
 from  Functional_Fusion.dataset import reliability_within_subj
 
 import pandas as pd
 
-import globals as gl
+from analysis import globals as gl
 
 import numpy as np
 
