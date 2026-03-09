@@ -394,7 +394,7 @@ function varargout = efcl_glm(what, varargin)
             end 
 
             defaults.mat.format = '-v7.3';
-            gib = 8;
+            gib = 12;
             spm_get_defaults('stats.maxmem', gib*1024^3);  % 16 GB
             %defaults.stats.maxmem = 16*1024^3;
 

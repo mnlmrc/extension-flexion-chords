@@ -77,19 +77,27 @@ def save_spm_as_mat7(sn, glm):
     spm_path = os.path.join(path_glm, 'SPM.mat') #"/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/glm1/subj101/SPM.mat"
     backup_path = spm_path + ".backup"
 
-    # Step 1: Backup the original file
-    shutil.copy(spm_path, backup_path)
-    print(f"Backed up {spm_path} to {backup_path}")
+    if os.path.exists(backup_path):
+        print(f'Participant {sn}: check the glm folder, SPM.mat probably already converted...')
+    else:
 
-    # Step 2: Run MATLAB command
-    matlab_cmd = (
+        # Step 1: Backup the original file
+        shutil.copy(spm_path, backup_path)
+        print(f"Backed up {spm_path} to {backup_path}")
+
+        # Step 2: Run MATLAB command
+        matlab_cmd = (
         f"matlab -nodesktop -nosplash -r "
-        f"\"load('{spm_path}'); save('{spm_path}', '-struct', 'SPM', '-v7'); exit\""
-    )
+        f"\"load('{spm_path}'); save('{spm_path}', 'SPM', '-v7'); exit\""
+        )
+        # matlab_cmd = (
+        #     f"matlab -nodesktop -nosplash -r "
+        #     f"\"load('{spm_path}'); save('{spm_path}', '-struct', 'SPM', '-v7'); exit\""
+        # )
 
-    # Execute the command
-    subprocess.run(matlab_cmd, shell=True, check=True)
-    print(f"Processed {spm_path} with MATLAB")
+        # Execute the command
+        subprocess.run(matlab_cmd, shell=True, check=True)
+        print(f"Processed {spm_path} with MATLAB")
 
 
 def make_cifti(sn, glm=None, type='beta'):
@@ -102,6 +110,21 @@ def make_cifti(sn, glm=None, type='beta'):
     if type == 'beta':
         cifti = bt.make_cifti_betas(masks, im.struct, path_glm=path_glm, row_axis=row_axis, )
         nb.save(cifti, path_glm + '/' + 'beta.dscalar.nii')
+    elif type == 'repetition_suppression':
+        cifti = nb.load(path_glm + '/' + 'beta.dscalar.nii')
+        brain_axis = cifti.header.get_axis(1)
+        data = cifti.get_fdata()
+        rep1 = data[::2]
+        rep2 = data[1::2]
+        suppr = rep2 - rep1
+        reginfo = reginfo[::2].reset_index()
+        chord_sess_rep = reginfo.name.str.split(',', expand=True)
+        run = reginfo.run
+        row_axis = chord_sess_rep.astype(str)[0] + ',' + chord_sess_rep[1] + '.' + run.astype(str)
+        row_axis = nb.cifti2.ScalarAxis(row_axis)
+        header = nb.Cifti2Header.from_axes((row_axis, brain_axis))
+        cifti_suppr = nb.Cifti2Image(dataobj=suppr,  header=header)
+        nb.save(cifti_suppr, path_glm + '/' + 'beta.dscalar.nii')
     elif type == 'residual':
         residuals = bt.make_cifti_residuals(path_glm=path_glm, masks=masks, struct=im.struct)
         nb.save(residuals, path_glm + '/' + 'residual.dtseries.nii')

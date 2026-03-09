@@ -1,0 +1,31 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "make cifti rep suppr",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "args": [
+                "make_cifti_repetition_suppression",
+                "--glm",
+                "2"
+            ]
+        },
+        {
+            "name": "correlation rep suppr",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/makeTSV_hrf.py",
+            "python": "${workspaceFolder}/venv/bin/python",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "args": [
+                "correlaton_between_sessions_rep_suppr",
+                "--glm",
+                "2"
+            ]
+        }
+    ]
+}

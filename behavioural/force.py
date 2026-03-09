@@ -52,7 +52,7 @@ def load_mov(filename):
             A = []
             for line in fid:
                 if line.startswith('Trial'):
-                    print(f'load_mov...reading trial: {trial}')
+                    #print(f'load_mov...reading trial: {trial}')
                     trial_number = int(line.split(' ')[1])
                     trial += 1
                     if trial_number != trial:
@@ -185,7 +185,7 @@ def calc_behaviour(sn=None, session=None):
 
     for bl in blocks:
 
-        dat_tmp = dat[dat['BN'] == int(bl)]
+        dat_tmp = dat[dat['BN'] == bl]
 
         filename = os.path.join(pth.baseDir, 'behavioural', f'day{session}',f'efc4_{sn}_{int(bl):02d}.mov')
 

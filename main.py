@@ -13,11 +13,11 @@ def main(args):
     elif args.what == "save_BOLD":
         for sn in args.sns:
             hrf.save_BOLD(sn=sn, glm=args.glm,)
-    # elif args.what == "save_BOLD_cut":
-    #     hrf.save_BOLD_cut(sns=args.sns, glm=args.glm)
     elif args.what == "optimise_hrf":
         for sn in args.sns:
             hrf.optimise_hrf(sn=sn, glm=args.glm)
+    elif args.what == "calc_R2_adj_hat":
+        hrf.calc_R2_adj_hat(sns=args.sns, glm=args.glm, atlas_name=args.atlas_name)
     elif args.what == "spm_as_mat7":
         for sn in args.sns:
             betas.save_spm_as_mat7(sn=sn, glm=args.glm)
@@ -31,6 +31,9 @@ def main(args):
     elif args.what == "make_cifti_beta":
         for sn in args.sns:
             betas.make_cifti(sn=sn, glm=args.glm, type='beta')
+    elif args.what == "make_cifti_repetition_suppression":
+        for sn in args.sns:
+            betas.make_cifti(sn=sn, glm=args.glm, type='repetition_suppression')
     elif args.what == "make_cifti_residual":
         for sn in args.sns:
             betas.make_cifti(sn=sn, glm=args.glm, type='residual')
@@ -53,9 +56,14 @@ def main(args):
     elif args.what == "G_trained_untrained":
         geometry.calc_G(sns=args.sns, glm=args.glm, rois=im.rois[args.atlas_name], type='trained-untrained')
     elif args.what == "G_chord_session":
-        geometry.calc_G(sns=args.sns, glm=args.glm, rois=im.rois[args.atlas_name], type='chord-session', sessions=dn.sessions)
+        geometry.calc_G(sns=args.sns, glm=args.glm, rois=im.rois[args.atlas_name], type='chord-session',
+                        sessions=dn.sessions)
+    elif args.what == "searchlight_session":
+        pcm.pcm_searchlight_sess(sns=args.sns, glm=args.glm)
     elif args.what == "correlation_between_sessions":
         pcm.correlation(sns=args.sns, glm=args.glm, rois=im.rois[args.atlas_name], atlas_name=args.atlas_name)
+    elif args.what == "correlation_between_sessions_rep_suppr":
+        pcm.correlation_rep_suppr(sns=args.sns, glm=args.glm, rois=im.rois[args.atlas_name], atlas_name=args.atlas_name)
     else:
         raise ValueError(f"Unknown command: {args.what}")
 

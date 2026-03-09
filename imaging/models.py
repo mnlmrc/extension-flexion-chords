@@ -20,7 +20,6 @@ def make_models_sess():
     trained_untrained_bt = C @ np.array([1, 1, 1, 1, -1, -1, -1, -1])
 
     G_trained_untrained_bt = np.outer(trained_untrained_bt, trained_untrained_bt)
-    G_trained_untrained_wt = 1 - G_trained_untrained_bt
     G_I = np.eye(8)
     G_component = np.array([G_trained_untrained_bt / np.trace(G_trained_untrained_bt),
                             G_trained_untrained_wt / np.trace(G_trained_untrained_wt),

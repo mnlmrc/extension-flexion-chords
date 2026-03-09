@@ -7,6 +7,7 @@ from nitools import spm
 import nibabel as nb
 import nitools as nt
 from imaging_pipelines import hrf
+from util.util import calc_R2
 
 
 def optimise_hrf(sn, glm, H='L', rois=['M1'], atlas_name='ROI'):
@@ -55,37 +56,23 @@ def save_BOLD(sn, glm, atlas_name='ROI'):
             np.save(os.path.join(path_hrf, f'y_hat.{atlas_name}.{H}.{roi}.npy'), y_hat)
             np.save(os.path.join(path_hrf, f'y_filt.{atlas_name}.{H}.{roi}.npy'), y_filt)
 
-# def save_BOLD_cut(sns, glm, H='L', roi='M1', atlas_name='ROI', TR=1, nTR=336):
-#     pinfo = pd.read_csv(os.path.join(pth.baseDir, 'participants.tsv'), sep='\t')
-#     y_cut_filt, y_cut_adj, y_cut_hat = [], [], []
-#     for sn in sns:
-#         print(f'doing participant {sn}')
-#         func_runs = pinfo.loc[pinfo.participant_id == f"subj{sn}", "FuncRuns_day3"].iloc[0].split('.')
-#         P = np.array(pinfo.loc[pinfo.participant_id == f"subj{sn}", "P"].iloc[0].split(','), dtype=float)
-#         func_runs = np.array(func_runs, dtype=int)
-#         func_runs = np.array([func_runs + func_runs.size * i for i in range(3)]).flatten()
-#         path_glm = os.path.join(pth.baseDir, f'glm{glm}', f'subj{sn}')
-#         path_hrf = os.path.join(pth.baseDir, 'hrf', f'subj{sn}')
-#         events = pd.read_csv(os.path.join(pth.baseDir, pth.behavDir, 'day3', f'efc4_subj{sn}_glm{glm}_events.tsv'),
-#                              sep='\t')
-#         events = events[events.BN.isin(func_runs)]
-#         BN = events.BN.to_numpy() - 1
-#         onset_b = events.Onset.to_numpy()
-#         onset = (np.round(onset_b * TR) + BN * nTR).astype(int)
-#         onset = np.sort(onset)
-#         SPM = spm.SpmGlm(path_glm)
-#         SPM.get_info_from_spm_mat()
-#         y_raw = np.load(os.path.join(path_hrf, f'BOLD.ROI.{H}.{roi}.npy'))
-#         y_scl = y_raw * SPM.gSF[:, None]  # rescale y_raw
-#         _, info, data_filt, data_hat, data_adj, _ = SPM.rerun_glm(y_scl)
-#         y_cut_filt.append(spm.cut(data_filt, pre=6, at=onset, post=12, padding='last').mean(axis=(0, -1)))
-#         y_cut_adj.append(spm.cut(data_adj, pre=6, at=onset, post=12, padding='last').mean(axis=(0, -1)))
-#         y_cut_hat.append(spm.cut(data_hat, pre=6, at=onset, post=12, padding='last').mean(axis=(0, -1)))
-#
-#     y_cut_filt = np.vstack(y_cut_filt)
-#     y_cut_adj = np.vstack(y_cut_adj)
-#     y_cut_hat = np.vstack(y_cut_hat)
-#
-#     np.save(os.path.join(pth.baseDir, f'glm{glm}',  f'y_filt.{roi}.npy'), y_cut_filt)
-#     np.save(os.path.join(pth.baseDir, f'glm{glm}', f'y_adj.{roi}.npy'), y_cut_adj)
-#     np.save(os.path.join(pth.baseDir, f'glm{glm}', f'y_hat.{roi}.npy'), y_cut_hat)
+
+def calc_R2_adj_hat(sns, glm, atlas_name='ROI'):
+    r2 = {'R2': [], 'glm': [], 'Hem': [], 'roi': [], 'sn': []}
+    for glm in [1, 3]:
+        for H in im.Hem:
+            for roi in im.rois[atlas_name]:
+                for sn in sns:
+                    print(f'doing participant {sn}, {H}, {roi}, glm{glm}...')
+                    y_adj = np.load(os.path.join(pth.baseDir, 'hrf', f'subj{sn}', f'y_adj.glm{glm}.ROI.{H}.{roi}.npy'))
+                    y_hat = np.load(os.path.join(pth.baseDir, 'hrf', f'subj{sn}', f'y_hat.glm{glm}.ROI.{H}.{roi}.npy'))
+                    R2 = calc_R2(y_adj, y_hat)
+                    r2['R2'].append(R2)
+                    r2['glm'].append(glm)
+                    r2['Hem'].append(H)
+                    r2['roi'].append(roi)
+                    r2['sn'].append(sn)
+    df_r2 = pd.DataFrame(r2)
+    df_r2.to_csv(os.path.join(pth.baseDir, 'hrf', f'R2.{atlas_name}.tsv'), sep='\t', index=False)
+
+

@@ -4,6 +4,67 @@ import seaborn as sb
 from matplotlib.lines import Line2D
 from scipy.stats import ttest_rel
 
+def plot_hrf_cut(fig, axs, df, rois):
+    for r, roi in enumerate(rois):
+        ax = axs[r]
+        sb.lineplot(data=df_hrfH[df_hrfH.roi==roi], ax=ax, x='time', y='hrf', hue='type', errorbar='se', 
+        err_kws={'linewidth': 0}, color='darkorange', palette=['darkorange', 'purple'], legend=False if r<len(rois)-1 else True)
+        ax.set_title(roi)
+        ax.set_ylabel('activation (a.u.)')
+        ax.set_xlabel('time (s)')
+        ax.axvline(0, color='k', lw=.8, ls=':')
+        ax.axvline(6, color='k', lw=.8, ls='--')
+        ax.axvline(12, color='k', lw=.8, ls='-.')
+        ax.axhline(0, color='k', lw=.8, ls=':')
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.legend('', frameon=False)
+        if r>0:
+            ax.set_xlabel(None)
+            ax.set_ylabel(None)
+            ax.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
+            ax.tick_params(left=False, bottom=False, labelbottom=False)
+    fig.legend(loc='lower center', frameon=False, ncol=2)
+
+def plot_pcm_corr(fig, axs, df, corr, rois):
+    chords = ['trained', 'untrained']
+    xmin, xmax = .02, .25
+    xminP, xmaxP = xmin / (xmax - xmin), .2 / (xmax - xmin)
+    for chord in chords:
+        for r, roi in enumerate(rois):
+            ax = axs[r]
+            df_tmp = df[(df['roi'] == roi) & (df['corr'] == corr) & (df['chord'] == chord)]
+            r_indiv = df_tmp.r_indiv.to_numpy()
+            SNR = df_tmp.SNR.to_numpy()
+            r_group = df_tmp.r_group.to_numpy()[0]
+            #ci_lo, ci_hi = df_corr_tmp.ci_lo.to_numpy()[0], df_corr_tmp.ci_hi.to_numpy()[0]
+            #print(f'{roi}: r={r_group}, 95% [{ci_lo}, {ci_hi}]')
+            ax.scatter(SNR, r_indiv, color='r' if chord=='trained' else 'b')
+            ax.axhline(r_group, xmin=xminP, xmax=xmaxP, color='r' if chord=='trained' else 'b', ls='--')
+            ax.axhline(0, xmin=xminP, xmax=xmaxP, color='k', linestyle='-', lw=.8)
+            #ax.axhspan(ci_lo, ci_hi, lw=0, color='lightgrey', zorder=0)
+            ax.set_xlim(-.02, .25)
+            ax.set_ylim(-1.2, 1.2)
+            ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
+            ax.tick_params(left=False, bottom=False, labelbottom=False)
+            if r == 0:
+                ax.spines['left'].set_visible(True)
+                ax.spines['left'].set_bounds(-1, 1)
+                ax.tick_params(left=True)
+
+
+def plot_im_sess(fig, axs, df, rois, x='session', y=None, hue=None, dodge=.2, hue_order=None, palette=None, color=None, add_zero=False):
+    for r, roi in enumerate(rois):
+        ax = axs[r]
+        sb.pointplot(data=df[df.roi==roi], ax=ax, x=x, y=y, hue=hue, hue_order=hue_order, palette=palette, color=color, dodge=dodge, lw=2, 
+        legend=False if r<len(rois)-1 else True, errorbar='se')
+        ax.set_xlabel(None)
+        ax.spines[['top', 'right']].set_visible(False)
+        ax.spines[['left', 'bottom']].set_visible(False) if r>0 else None
+        ax.tick_params(left=False, bottom=False, labelbottom=False) if r>0 else None
+        ax.set_title(roi)
+        if add_zero:
+            ax.axhline(0, lw=.8, color='k', ls=':')
+
 
 def plot_behav_sess(fig, ax, df, x='session', y=None, hue=None, hue_order=None, palette=None, decor=True):
     sb.pointplot(ax=ax, x=x, y=y, hue=hue, dodge=.2, data=df, errorbar='se', palette=palette, hue_order=hue_order, lw=2)
@@ -28,7 +89,8 @@ def plot_behav_sess(fig, ax, df, x='session', y=None, hue=None, hue_order=None, 
         ax.text(2, xticks, '1', ha='center', va='top', transform=ax.transData)
         ax.text(7, xticks, '2', ha='center', va='top', transform=ax.transData)
         ax.text(12, xticks, '3', ha='center', va='top', transform=ax.transData)
-        ax.text(12, xlabel, 'week', ha='center', va='top', transform=ax.transData)
+        #ax.text(12, xlabel, 'week', ha='center', va='top', transform=ax.transData)
+        ax.text(.5, 0.075, 'week', ha='center', va='top', transform=fig.transFigure)
         ax.text(17, xticks, '4', ha='center', va='top', transform=ax.transData)
         ax.text(21.5, xticks, '5', ha='center', va='top', transform=ax.transData)
         ax.legend(frameon=False,)
@@ -269,41 +331,6 @@ def add_significance_bars(ax, tAx, sig, color='black', position='bottom', height
 
     # Increment stacking counter
     ax._sig_bar_counts[position] += 1
-
-
-def plot_pcm_corr(fig, axs, panel, Mflex, theta, theta_g, r_bootstrap=None):
-    ax = axs[panel]
-
-    N = theta.shape[1]
-
-    sigma2_1 = np.exp(theta[0])
-    sigma2_2 = np.exp(theta[1])
-    r_indiv = Mflex.get_correlation(theta)
-    sigma2_e = np.exp(theta[3])
-    SNR = np.sqrt(sigma2_1 * sigma2_2) / sigma2_e
-    ax.scatter(SNR, r_indiv, color='k')
-
-    theta_g, _ = pcm.group_to_individ_param(theta_g, Mflex, N)
-    r_group = Mflex.get_correlation(theta_g)
-    ax.axhline(r_group[0], color='r', linestyle='--')
-    ax.axhline(0, color='k', linestyle='-', lw=.8)
-
-    ax.set_ylim(-1.2, 1.2)
-    # ax.set_xlim(-.05, .5)
-
-    ax.spines[['top', 'right', 'left']].set_visible(False)
-
-    if panel == 0:
-        ax.spines[['left']].set_visible(True)
-    else:
-        ax.set_yticks([])
-
-    if r_bootstrap is not None:
-        (ci_lo, ci_hi), _, _ = bootstrap_summary(r_bootstrap, alpha=0.05)
-        print(f"group estimate:{r_group[0]} central 90% CI for r: [{ci_lo:.3f}, {ci_hi:.3f}]")
-        ax.axhspan(ci_lo, ci_hi, lw=0, color='lightgrey', zorder=0)
-
-    return fig, axs
 
 
 def add_grid_legend(fig, anchor=(0.05, 0.1, 0.1, 0.18),
