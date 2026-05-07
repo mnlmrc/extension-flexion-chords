@@ -27,7 +27,7 @@ function varargout = efcl_glm(what, varargin)
     glm = [];
     type = 'spmT';
     atlas = 'ROI';
-    hrf_params = [5 12 1 1 6 0 32];
+    % hrf_params = [5 12 1 1 6 0 32];
     derivs = [0, 0];
     vararginoptions(varargin,{'sn', 'day', 'type', 'glm', 'hrf_params', 'atlas','derivs'})
 
@@ -40,7 +40,7 @@ function varargout = efcl_glm(what, varargin)
     
     if isscalar(sn)
         pinfo = dload(fullfile(baseDir,'participants.tsv'));
-    
+
         % get participant row from participant.tsv
         subj_row=getrow(pinfo, pinfo.sn== sn);
         
@@ -481,14 +481,19 @@ function varargout = efcl_glm(what, varargin)
             if exist(spm_file, 'file')
                 delete(spm_file);
             end
+
+            P = dload(fullfile(baseDir, sprintf('glm%d', glm), 'hrf_params.tsv'));
+            hrf_params = P.P(P.sn==sn, :);
+            disp('Using P:')
+            disp(hrf_params)
             
-            if glm==1
-                hrf_params = pinfo.P1(pinfo.sn==sn, :);
-            elseif glm==2
-                hrf_params = pinfo.P2(pinfo.sn==sn, :);
-            elseif glm==3
-                hrf_params = pinfo.P3(pinfo.sn==sn, :);
-            end
+            % if glm==1
+            %     
+            % elseif glm==2
+            %     hrf_params = pinfo.P2(pinfo.sn==sn, :);
+            % elseif glm==3
+            %     hrf_params = pinfo.P3(pinfo.sn==sn, :);
+            % end
 
             efcl_glm('GLM:make_event', 'sn', sn, 'glm', glm, 'day', day)
             efcl_glm('GLM:design', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day, 'derivs', derivs)

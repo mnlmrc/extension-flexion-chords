@@ -9,47 +9,79 @@ import nibabel as nb
 import nitools as nt
 import time
 from util.util import get_trained_and_untrained
+import AnatSearchlight.searchlight as sl
 import globals.path as pth
 import globals.imaging as im
 import globals.design as dn
 
-def searchlight_encoding(args):
-    Hem = ['L', 'R']
-    structnames = ['CortexLeft', 'CortexRight']
-    glm_path = os.path.join(gl.baseDir, f'{gl.glmDir}{args.glm}')
-    cifti_img_name = 'beta.dscalar.nii'
-    res_img_name = 'ResMS.nii'
-    searchlight_path = os.path.join(gl.baseDir, gl.roiDir)
-    surf_path = os.path.join(gl.baseDir, gl.surfDir)
-    regressor_mapping = {
-        f"sess{sess:02d},{chordID}": i
-        for i, (sess, chordID) in enumerate(
-            ((s, c) for s in gl.sessions for c in gl.chordID)
-        )
-    }
-    for h, H in enumerate(Hem):
-        SL = md.PcmSearchlight(
-            cifti_img=[os.path.join(glm_path, f'subj{sn}', cifti_img_name) for sn in args.sns],
-            res_img=[os.path.join(glm_path, f'subj{sn}', res_img_name) for sn in args.sns],
-            searchlight_list=[os.path.join(searchlight_path, f'subj{sn}', f'searchlight.{H}.h5') for sn in args.sns],
-            structnames=structnames[h],
-            regressor_mapping=regressor_mapping,
-            regr_interest=[0, 1, 2, 3, 4, 5, 6, 7],
-            #n_jobs=args.n_jobs
-        )
-        #SL.n_centre = 2
-        n_centre = SL.n_centre
-        distance = np.full((n_centre, SL.N), np.nan)
-        #SL._run_searchlight(0)
-        G_obs = SL.run_seachlight_parallel()
-        for c in range(SL.n_centre):
-            G = G_obs[c]
-            distance[c] = np.array([pcm.G_to_dist(G[s]).mean() for s in range(SL.N)])
 
-        # distance to gifti
-        data = distance
-        gifti = nt.make_func_gifti(data, anatomical_struct=structnames[h], column_names=args.sns)
-        nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding.session3.{H}.func.gii'))
+def searchlight_encoding(sns, glm):
+
+    def _calc_D_searchlight(data, cond_vec=None, part_vec=None):
+        data = data[:, ~np.isnan(data).any(axis=0)]
+        G, _ = pcm.est_G_crossval(data, cond_vec, part_vec, X=pcm.indicator(part_vec))
+        D = pcm.G_to_dist(G)
+        D_trained = D[:4, :4]
+        D_untrained = D[4:, 4:]
+        return D.mean(), D_trained.mean(), D_untrained.mean()
+
+    surf_path = os.path.join(pth.baseDir, pth.surfDir)
+    n_session = 3
+    for H in im.Hem:
+        for n_sess in range(n_session):
+            D, D_trained, D_untrained = [], [], []
+            for sn in sns:
+                print(f'starting participant {sn}, session {n_sess + 1}/{n_session}...')
+                glm_path = os.path.join(pth.baseDir, f'glm{glm}', f'subj{sn}')
+                roi_path = os.path.join(pth.baseDir, pth.roiDir, f'subj{sn}')
+
+                # load searchlight
+                print('loading searchlight...')
+                SL = sl.load(os.path.join(roi_path, f'searchlight.{H}.h5'))
+                    
+                # load betas residuals
+                print('loading and prewhitening betas...')
+                beta_cifti = nb.load(os.path.join(glm_path, 'beta.dscalar.nii'))
+                beta_vol = nt.volume_from_cifti(beta_cifti)
+                res_vol = nb.load(os.path.join(glm_path, 'ResMS.nii'))
+                beta_pw = beta_vol.get_fdata() / np.sqrt(res_vol.get_fdata()[:, :, :, None])
+
+                # map regressors to integer for consistent order
+                trained_untrained = get_trained_and_untrained(sn)
+                regressor_mapping = {
+                    f"{chordID},sess{sess:02d}": i
+                    for i, (chordID, sess) in enumerate(
+                        ((c, s) for s in dn.sessions for c in trained_untrained))}
+
+                # load reginfo and select regressors for session
+                reginfo = pd.read_csv(os.path.join(glm_path, 'reginfo.tsv'), sep='\t')
+                cond_vec = reginfo.name.map(regressor_mapping).to_numpy()
+                part_vec = reginfo.run.to_numpy()
+                regr_interest = np.arange(n_sess * part_vec.size // 3, (n_sess + 1) * part_vec.size // 3)
+                obs_des = {'cond_vec': cond_vec[regr_interest], 'part_vec': part_vec[regr_interest]}
+
+                # run searchlight in parallel
+                beta_pw_vol = nb.Nifti2Image(beta_pw[:, :, :, regr_interest], affine=beta_vol.affine, header=beta_vol.header)
+                results = SL.run_parallel(beta_pw_vol, _calc_D_searchlight, obs_des, nargout=3)
+
+                # store results
+                D_tmp, D_trained_tmp, D_untrained_tmp = results[:, 0], results[:, 1], results[:, 2]
+                D.append(D_tmp)
+                D_trained.append(D_trained_tmp)
+                D_untrained.append(D_untrained_tmp)
+
+            # distance trained to gifti
+            gifti = nt.make_func_gifti(np.array(D).T, anatomical_struct=SL.structure, column_names=sns)
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding.session{dn.sessions[n_sess]}.{H}.func.gii'))
+
+            # distance trained to gifti
+            gifti = nt.make_func_gifti(np.array(D_trained).T, anatomical_struct=SL.structure, column_names=sns)
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-trained.session{dn.sessions[n_sess]}.{H}.func.gii'))
+
+            # distance untrained to gifti
+            gifti = nt.make_func_gifti(np.array(D_untrained).T, anatomical_struct=SL.structure, column_names=sns)
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-untrained.session{dn.sessions[n_sess]}.{H}.func.gii'))
+
 
 
 def calc_G(sns, glm, rois, type='chord-session', sessions=None):

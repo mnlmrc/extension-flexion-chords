@@ -7,7 +7,7 @@ from scipy.stats import ttest_rel
 def plot_hrf_cut(fig, axs, df, rois):
     for r, roi in enumerate(rois):
         ax = axs[r]
-        sb.lineplot(data=df_hrfH[df_hrfH.roi==roi], ax=ax, x='time', y='hrf', hue='type', errorbar='se', 
+        sb.lineplot(data=df[df.roi==roi], ax=ax, x='time', y='hrf', hue='type', errorbar='se', 
         err_kws={'linewidth': 0}, color='darkorange', palette=['darkorange', 'purple'], legend=False if r<len(rois)-1 else True)
         ax.set_title(roi)
         ax.set_ylabel('activation (a.u.)')
@@ -24,6 +24,7 @@ def plot_hrf_cut(fig, axs, df, rois):
             ax.spines[['top', 'right', 'bottom', 'left']].set_visible(False)
             ax.tick_params(left=False, bottom=False, labelbottom=False)
     fig.legend(loc='lower center', frameon=False, ncol=2)
+    
 
 def plot_pcm_corr(fig, axs, df, corr, rois):
     chords = ['trained', 'untrained']

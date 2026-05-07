@@ -49,7 +49,7 @@ def roi_contrasts(sns, atlas_name='ROI', glm=3):
                 # psc = nt.sample_image(psc_vol, coords[0], coords[1], coords[2], 0)
                 # psc = np.nanmean(psc, axis=0)
                 for i, c in enumerate(con):
-                    if glm == 2:
+                    if glm == 2: # repetition suppression
                         chordID, sess, rep = regr[i].split(',')
                     elif (glm == 1) | (glm == 3):
                         chordID, sess = regr[i].split(',')
@@ -71,33 +71,45 @@ def roi_contrasts(sns, atlas_name='ROI', glm=3):
     con_df = pd.DataFrame(con_dict)
     con_df.to_csv(os.path.join(pth.baseDir, f'glm{glm}', f'{atlas_name}.con.avg.tsv'), sep='\t', index=False)
 
+    if glm==2:
+        df_1 = con_df[con_df['rep']=='1'].reset_index(drop=True)
+        df_2 = con_df[con_df['rep']=='2'].reset_index(drop=True)
+        df_rep = df_1.copy()
+        df_rep['con'] = df_2['con'] - df_1['con']
+        df_rep.to_csv(os.path.join(pth.baseDir, f'glm{glm}', f'{atlas_name}.repetition_suppression.tsv'), sep='\t', index=False)
+
 
 def save_spm_as_mat7(sn, glm):
     path_glm = os.path.join(pth.baseDir, f'glm{glm}', f'subj{sn}')
-    spm_path = os.path.join(path_glm, 'SPM.mat') #"/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI/glm1/subj101/SPM.mat"
+    spm_path = os.path.join(path_glm, 'SPM.mat')
     backup_path = spm_path + ".backup"
 
     if os.path.exists(backup_path):
-        print(f'Participant {sn}: check the glm folder, SPM.mat probably already converted...')
-    else:
+        resp = input(
+            f"Backup already exists for participant {sn}.\n"
+            f"This will overwrite SPM.mat using the backup.\n"
+            f"Continue? [y/N]: "
+        ).strip().lower()
 
+        if resp not in ["y", "yes"]:
+            print("Skipping conversion.")
+            return
+        else:
+            print("Proceeding with replacement.")
+
+    else:
         # Step 1: Backup the original file
         shutil.copy(spm_path, backup_path)
         print(f"Backed up {spm_path} to {backup_path}")
 
-        # Step 2: Run MATLAB command
-        matlab_cmd = (
+    # Step 2: Run MATLAB command
+    matlab_cmd = (
         f"matlab -nodesktop -nosplash -r "
-        f"\"load('{spm_path}'); save('{spm_path}', 'SPM', '-v7'); exit\""
-        )
-        # matlab_cmd = (
-        #     f"matlab -nodesktop -nosplash -r "
-        #     f"\"load('{spm_path}'); save('{spm_path}', '-struct', 'SPM', '-v7'); exit\""
-        # )
+        f"\"load('{spm_path}'); save('{spm_path}', '-struct', 'SPM', '-v7'); exit\""
+    )
 
-        # Execute the command
-        subprocess.run(matlab_cmd, shell=True, check=True)
-        print(f"Processed {spm_path} with MATLAB")
+    subprocess.run(matlab_cmd, shell=True, check=True)
+    print(f"Processed {spm_path} with MATLAB")
 
 
 def make_cifti(sn, glm=None, type='beta'):

@@ -15,7 +15,8 @@ def main(args):
             hrf.save_BOLD(sn=sn, glm=args.glm,)
     elif args.what == "optimise_hrf":
         for sn in args.sns:
-            hrf.optimise_hrf(sn=sn, glm=args.glm)
+            HRF = hrf.Optimise_HRF(sn=sn, glm=args.glm)
+            HRF.powell()
     elif args.what == "calc_R2_adj_hat":
         hrf.calc_R2_adj_hat(sns=args.sns, glm=args.glm, atlas_name=args.atlas_name)
     elif args.what == "spm_as_mat7":
@@ -56,10 +57,9 @@ def main(args):
     elif args.what == "G_trained_untrained":
         geometry.calc_G(sns=args.sns, glm=args.glm, rois=im.rois[args.atlas_name], type='trained-untrained')
     elif args.what == "G_chord_session":
-        geometry.calc_G(sns=args.sns, glm=args.glm, rois=im.rois[args.atlas_name], type='chord-session',
-                        sessions=dn.sessions)
-    elif args.what == "searchlight_session":
-        pcm.pcm_searchlight_sess(sns=args.sns, glm=args.glm)
+        geometry.calc_G(sns=args.sns, glm=args.glm, rois=im.rois[args.atlas_name], type='chord-session', sessions=dn.sessions)
+    elif args.what == "searchlight_encoding_session":
+        geometry.searchlight_encoding(sns=args.sns, glm=args.glm)
     elif args.what == "correlation_between_sessions":
         pcm.correlation(sns=args.sns, glm=args.glm, rois=im.rois[args.atlas_name], atlas_name=args.atlas_name)
     elif args.what == "correlation_between_sessions_rep_suppr":
@@ -71,7 +71,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('what', nargs='?', default=None)
-    parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105, 106, 107, 108])
+    parser.add_argument('--sns', nargs='+', type=int, default=[101, 102, 103, 104, 105, 106, 107, 108, 110])
     parser.add_argument('--session', nargs='+', type=int, default=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
                                                                    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
     parser.add_argument('--atlas_name', type=str, default='ROI')

@@ -5,7 +5,7 @@ import numpy as np
 import globals.path as pth
 
 experiment = 'EFC_learningfMRI'
-sn = 112
+sn = 114
 # day = 2
 
 pinfo = pd.read_table(os.path.join(pth.baseDir,  'participants.tsv'), sep='\t')

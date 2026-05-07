@@ -7,6 +7,7 @@ from scipy.optimize import least_squares
 from scipy.signal import butter, filtfilt, firwin
 from scipy.special import expit
 import globals.path as pth
+import globals.imaging as im
 from scipy.stats import linregress, t
 #import EFC_learningfMRI.globals as gl
 
@@ -104,8 +105,6 @@ def load_nat_emg(file_path):
     return emg_nat_list
 
 
-
-
 def lowpass_butter(signal=None, cutoff=None, fsample=None, order=5, axis=-1):
     """
     Apply a low-pass filter to a 5-by-t signal array.
@@ -148,7 +147,23 @@ def lowpass_fir(data, n_ord=None, cutoff=None, fsample=None, padlen=None, axis=-
 
 
 def calc_R2(Y, Yhat):
-    ss_res = np.sum((Y - Yhat) ** 2)
-    ss_tot = np.sum((Y - np.mean(Y)) ** 2)
+    ss_res = np.nansum((Y - Yhat) ** 2)
+    ss_tot = np.nansum((Y - np.nanmean(Y)) ** 2)
 
     return 1 - ss_res / ss_tot
+
+
+
+def load_glm_onset(sn, glm):
+    pinfo = pd.read_csv(os.path.join(pth.baseDir, 'participants.tsv'), sep='\t')
+    func_runs = pinfo.loc[pinfo.participant_id == f"subj{sn}", "FuncRuns_day3"].iloc[0].split('.')
+    func_runs = np.array(func_runs, dtype=int)
+    func_runs = np.array([func_runs + func_runs.size * i for i in range(3)]).flatten()
+    events = pd.read_csv(os.path.join(pth.baseDir, pth.behavDir, 'day3', f'efc4_subj{sn}_glm{glm}_events.tsv'), sep='\t')
+    events = events[events.BN.isin(func_runs)]
+    BN = events.BN.to_numpy() - 1
+    onset_b = events.Onset.to_numpy()
+    onset = (np.round(onset_b * im.TR) + BN * im.nTR).astype(int)
+    onset = np.sort(onset)
+    return onset
+

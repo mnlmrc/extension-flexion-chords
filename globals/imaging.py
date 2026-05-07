@@ -1,6 +1,9 @@
 import os
 from globals.path import atlasDir
 
+TR = 1
+nTR = 336
+
 borders = {'L': os.path.join(atlasDir, 'fs_LR.32k.L.border'),
            'R': os.path.join(atlasDir, 'fs_LR.32k.L.border')}
 

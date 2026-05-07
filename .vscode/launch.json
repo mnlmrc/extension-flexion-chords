@@ -2,29 +2,32 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "make cifti rep suppr",
+            "name": "searchlight encoding",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
+            "python": "${workspaceFolder}/venv/bin/python",
             "args": [
-                "make_cifti_repetition_suppression",
+                "searchlight_encoding_session",
                 "--glm",
-                "2"
+                "1",
+                "--sns",
+                "101",
+                "102"
             ]
         },
         {
-            "name": "correlation rep suppr",
+            "name": "make searchlight",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/makeTSV_hrf.py",
-            "python": "${workspaceFolder}/venv/bin/python",
-            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
+            "python": "${workspaceFolder}/venv/bin/python",
             "args": [
-                "correlaton_between_sessions_rep_suppr",
-                "--glm",
-                "2"
+                "make_searchlight",
+                "--sns",
+                "101"
             ]
         }
     ]

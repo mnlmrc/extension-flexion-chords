@@ -11,7 +11,6 @@ if __name__=='__main__':
     TR = 1
     nTR = 336   
     records = []
-
     for glm in [1, 3]:
         for H in im.Hem:
             for roi in im.rois[atlas]:
