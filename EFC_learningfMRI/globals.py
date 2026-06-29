@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 import numpy as np
-import matplotlib.pyplot as plt
 import time
 import sys
 
@@ -41,6 +40,8 @@ fsample = {
 }
 
 nblocks = 8
+
+participants = [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112,]
 
 chordID = np.sort(np.array([21911, 92122, 91211, 22911, 21291, 12129, 12291, 11911]))
 sessions = [3, 9, 23]
@@ -86,3 +87,5 @@ rois = {
         'premotor', 'M1-S1', 'parietal', 'V1'
     ]
 }
+
+hrf_params = ['delay_response', 'delay_undershoot', 'dispersion_response', 'dispersion_undershoot', 'ratio', 'onset', 'length',]

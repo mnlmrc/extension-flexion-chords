@@ -6,8 +6,7 @@ import scipy
 from scipy.optimize import least_squares
 from scipy.signal import butter, filtfilt, firwin
 from scipy.special import expit
-import globals.path as pth
-import globals.imaging as im
+import EFC_learningfMRI.globals as gl
 from scipy.stats import linregress, t
 #import EFC_learningfMRI.globals as gl
 
@@ -22,7 +21,7 @@ def get_trained_and_untrained(sn):
         list of chordIDs. First four are trained, last four untrained
     """
 
-    pinfo = pd.read_csv(os.path.join(pth.baseDir, 'participants.tsv'), sep='\t')
+    pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
     trained = pinfo[pinfo.sn == sn].reset_index()['trained'][0].split('.')
     untrained = pinfo[pinfo.sn == sn].reset_index()['untrained'][0].split('.')
     chords = list()
@@ -74,21 +73,6 @@ def linear_fit(x, y, alternative_slope='two-sided', alternative_intercept='great
     return x_fit, y_fit, ci, slope, p_slope, intercept, p_intercept, R2
 
 
-def load_matlab_hrf(path):
-    mat_contents = scipy.io.loadmat(path)
-    mat_struct = mat_contents['T'][0, 0]  # Assuming 1x1 struct
-    T = {field: mat_struct[field] for field in mat_struct.dtype.names}
-
-    T['day'] = T['day'].flatten()
-    T['block'] = T['block'].flatten()
-    T['ons'] = T['ons'].flatten()
-    T['chordID'] = T['chordID'].flatten()
-    T['SN'] = T['SN'].flatten()
-    T['region'] = T['region'].flatten()
-    T['name'] = T['name'].flatten()
-    T['hem'] = T['hem'].flatten()
-
-    return T
 
 def load_nat_emg(file_path):
     # Load the .mat file
@@ -155,15 +139,15 @@ def calc_R2(Y, Yhat):
 
 
 def load_glm_onset(sn, glm):
-    pinfo = pd.read_csv(os.path.join(pth.baseDir, 'participants.tsv'), sep='\t')
+    pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
     func_runs = pinfo.loc[pinfo.participant_id == f"subj{sn}", "FuncRuns_day3"].iloc[0].split('.')
     func_runs = np.array(func_runs, dtype=int)
     func_runs = np.array([func_runs + func_runs.size * i for i in range(3)]).flatten()
-    events = pd.read_csv(os.path.join(pth.baseDir, pth.behavDir, 'day3', f'efc4_subj{sn}_glm{glm}_events.tsv'), sep='\t')
+    events = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, 'day3', f'efc4_subj{sn}_glm{glm}_events.tsv'), sep='\t')
     events = events[events.BN.isin(func_runs)]
     BN = events.BN.to_numpy() - 1
     onset_b = events.Onset.to_numpy()
-    onset = (np.round(onset_b * im.TR) + BN * im.nTR).astype(int)
+    onset = (np.round(onset_b * gl.TR) + BN * gl.nTR).astype(int)
     onset = np.sort(onset)
     return onset
 

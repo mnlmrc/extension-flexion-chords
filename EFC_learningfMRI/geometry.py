@@ -8,11 +8,9 @@ from imaging_pipelines.model import calc_prewhitened_betas
 import nibabel as nb
 import nitools as nt
 import time
-from util.util import get_trained_and_untrained
+from EFC_learningfMRI.util import get_trained_and_untrained
 import AnatSearchlight.searchlight as sl
-import globals.path as pth
-import globals.imaging as im
-import globals.design as dn
+import EFC_learningfMRI.globals as gl
 
 
 def searchlight_encoding(sns, glm):
@@ -25,15 +23,15 @@ def searchlight_encoding(sns, glm):
         D_untrained = D[4:, 4:]
         return D.mean(), D_trained.mean(), D_untrained.mean()
 
-    surf_path = os.path.join(pth.baseDir, pth.surfDir)
+    surf_path = os.path.join(gl.baseDir, gl.surfDir)
     n_session = 3
-    for H in im.Hem:
+    for H in gl.Hem:
         for n_sess in range(n_session):
             D, D_trained, D_untrained = [], [], []
             for sn in sns:
                 print(f'starting participant {sn}, session {n_sess + 1}/{n_session}...')
-                glm_path = os.path.join(pth.baseDir, f'glm{glm}', f'subj{sn}')
-                roi_path = os.path.join(pth.baseDir, pth.roiDir, f'subj{sn}')
+                glm_path = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
+                roi_path = os.path.join(gl.baseDir, gl.roiDir, f'subj{sn}')
 
                 # load searchlight
                 print('loading searchlight...')
@@ -51,7 +49,7 @@ def searchlight_encoding(sns, glm):
                 regressor_mapping = {
                     f"{chordID},sess{sess:02d}": i
                     for i, (chordID, sess) in enumerate(
-                        ((c, s) for s in dn.sessions for c in trained_untrained))}
+                        ((c, s) for s in gl.sessions for c in trained_untrained))}
 
                 # load reginfo and select regressors for session
                 reginfo = pd.read_csv(os.path.join(glm_path, 'reginfo.tsv'), sep='\t')
@@ -72,23 +70,23 @@ def searchlight_encoding(sns, glm):
 
             # distance trained to gifti
             gifti = nt.make_func_gifti(np.array(D).T, anatomical_struct=SL.structure, column_names=sns)
-            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding.session{dn.sessions[n_sess]}.{H}.func.gii'))
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding.session{gl.sessions[n_sess]}.{H}.func.gii'))
 
             # distance trained to gifti
             gifti = nt.make_func_gifti(np.array(D_trained).T, anatomical_struct=SL.structure, column_names=sns)
-            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-trained.session{dn.sessions[n_sess]}.{H}.func.gii'))
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-trained.session{gl.sessions[n_sess]}.{H}.func.gii'))
 
             # distance untrained to gifti
             gifti = nt.make_func_gifti(np.array(D_untrained).T, anatomical_struct=SL.structure, column_names=sns)
-            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-untrained.session{dn.sessions[n_sess]}.{H}.func.gii'))
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-untrained.session{gl.sessions[n_sess]}.{H}.func.gii'))
 
 
 
 def calc_G(sns, glm, rois, type='chord-session', sessions=None):
-    path_glm = os.path.join(pth.baseDir, f'glm{glm}')
-    path_rois = os.path.join(pth.baseDir, pth.roiDir)
-    path_pcm = os.path.join(pth.baseDir, pth.pcmDir)
-    for h, H in enumerate(im.Hem):
+    path_glm = os.path.join(gl.baseDir, f'glm{glm}')
+    path_rois = os.path.join(gl.baseDir, gl.roiDir)
+    path_pcm = os.path.join(gl.baseDir, gl.pcmDir)
+    for h, H in enumerate(gl.Hem):
         for r, roi in enumerate(rois):
             G = []
             for s, sn in enumerate(sns):
@@ -96,7 +94,7 @@ def calc_G(sns, glm, rois, type='chord-session', sessions=None):
                 reginfo = pd.read_csv(os.path.join(path_glm, f'subj{sn}', 'reginfo.tsv'), sep='\t')
                 betas = nb.load(os.path.join(path_glm, f'subj{sn}', 'beta.dscalar.nii'))
                 betas = nt.volume_from_cifti(betas)
-                residuals = nb.load(os.path.join(path_glm, f'subj{sn}', f'ResMS.nii'))
+                residuals = nb.load(os.path.join(path_glm, f'subj{sn}', f'residual.dtseries.nii'))
                 mask = nb.load(os.path.join(path_rois, f'subj{sn}', f'ROI.{H}.{roi}.nii'))
                 G_tmp = _calc_G_participant(betas, residuals, mask, reginfo, type=type, sessions=sessions)
                 G.append(G_tmp)
@@ -120,7 +118,7 @@ def _calc_G_participant(betas, residuals, mask, reginfo, type='set', sessions=No
 
     # make cond and part
     sess = reginfo.name.str.split(',', n=1, expand=True).loc[:, 1]
-    sess = sess.map(dn.sess_mapping)
+    sess = sess.map(gl.sess_mapping)
     chordID = reginfo.name.str.split(',', n=1, expand=True).loc[:, 0]
     chord = chordID.astype(int).map(chordID_mapping)
     part_vec = (reginfo.run % 10).to_numpy()

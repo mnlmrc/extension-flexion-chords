@@ -3,7 +3,7 @@ import PcmPy as pcm
 import time
 import argparse
 import os
-from analysis import globals as gl
+import EFC_learningfMRI.globals as gl
 import pickle
 
 

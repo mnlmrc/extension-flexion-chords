@@ -3,22 +3,20 @@ import PcmPy as pcm
 import pickle
 import os
 import nibabel as nb
-import globals.path as pth
-import globals.design as dn
+import EFC_learningfMRI.globals as gl
 import nitools as nt
 import time
 import pandas as pd
 import argparse
-from util.util import get_trained_and_untrained
-import globals.imaging as im
+from EFC_learningfMRI.util import get_trained_and_untrained
 from imaging_pipelines.util import extract_mle_corr
 import imaging_pipelines.model as md
 
 def correlation(sns, glm, rois, atlas_name='ROI'):
-        glm_path = os.path.join(pth.baseDir, f'glm{glm}')
-        roi_path = os.path.join(pth.baseDir, pth.roiDir)
-        pcm_path = os.path.join(pth.baseDir, pth.pcmDir)
-        f = open(os.path.join(pth.baseDir, pth.pcmDir, f'M.corr.p'), "rb")
+        glm_path = os.path.join(gl.baseDir, f'glm{glm}')
+        roi_path = os.path.join(gl.baseDir, gl.roiDir)
+        pcm_path = os.path.join(gl.baseDir, gl.pcmDir)
+        f = open(os.path.join(gl.baseDir, gl.pcmDir, f'M.corr.p'), "rb")
         Mflex = pickle.load(f)
         chords = ['trained', 'untrained']
         corrs = [['sess03', 'sess09'], ['sess03', 'sess23'], ['sess09', 'sess23']]
@@ -39,7 +37,7 @@ def correlation(sns, glm, rois, atlas_name='ROI'):
         df = pd.DataFrame()
         for corr in corrs:
             for chord in chords:
-                for H in im.Hem:
+                for H in gl.Hem:
                     for roi in rois:
                         N = len(sns)
                         Y = list()
@@ -49,7 +47,7 @@ def correlation(sns, glm, rois, atlas_name='ROI'):
                             print(f'doing...participant {sn}, {H}, {roi}, sess {int(corr[0][-2:])} vs. '
                                   f'{int(corr[1][-2:])}, {chord} chords')
                             betas = nb.load(os.path.join(glm_path, f'subj{sn}', 'beta.dscalar.nii'))
-                            residuals = nb.load(os.path.join(glm_path, f'subj{sn}', 'ResMS.nii'))
+                            residuals = nb.load(os.path.join(glm_path, f'subj{sn}', 'residual.dtseries.nii'))
                             mask = nb.load(os.path.join(roi_path, f'subj{sn}', f'{atlas_name}.{H}.{roi}.nii'))
 
                             # covert cifti betas to volums
@@ -120,10 +118,10 @@ def correlation(sns, glm, rois, atlas_name='ROI'):
 
 
 def correlation_rep_suppr():
-    glm_path = os.path.join(pth.baseDir, f'glm{glm}')
-    roi_path = os.path.join(pth.baseDir, pth.roiDir)
-    pcm_path = os.path.join(pth.baseDir, pth.pcmDir)
-    f = open(os.path.join(pth.baseDir, pth.pcmDir, f'M.corr.p'), "rb")
+    glm_path = os.path.join(gl.baseDir, f'glm{glm}')
+    roi_path = os.path.join(gl.baseDir, gl.roiDir)
+    pcm_path = os.path.join(gl.baseDir, gl.pcmDir)
+    f = open(os.path.join(gl.baseDir, gl.pcmDir, f'M.corr.p'), "rb")
     Mflex = pickle.load(f)
     chords = ['trained', 'untrained']
     corrs = [['sess03', 'sess09'], ['sess03', 'sess23'], ['sess09', 'sess23']]
@@ -144,7 +142,7 @@ def correlation_rep_suppr():
     df = pd.DataFrame()
     for corr in corrs:
         for chord in chords:
-            for H in im.Hem:
+            for H in gl.Hem:
                 for roi in rois:
                     N = len(sns)
                     Y = list()
@@ -223,24 +221,24 @@ def correlation_rep_suppr():
 
 
 def pcm_searchlight_sess(sns, glm, n_jobs=8):
-    #f = open(os.path.join(pth.baseDir, pth.pcmDir, f'M.trained_untrained.p'), "rb")
+    #f = open(os.path.join(gl.baseDir, gl.pcmDir, f'M.trained_untrained.p'), "rb")
     #M = pickle.load(f)
     structnames = ['CortexLeft', 'CortexRight']
-    glm_path = os.path.join(pth.baseDir, f'glm{glm}')
+    glm_path = os.path.join(gl.baseDir, f'glm{glm}')
     cifti_img_name = 'beta.dscalar.nii'
     res_img_name = 'ResMS.nii'
-    searchlight_path = os.path.join(pth.baseDir, pth.roiDir)
-    surf_path = os.path.join(pth.baseDir, pth.surfDir)
+    searchlight_path = os.path.join(gl.baseDir, gl.roiDir)
+    surf_path = os.path.join(gl.baseDir, gl.surfDir)
     for n_sess in range(3):
         regr_interest = np.arange(8) + 8 * n_sess
-        session = list(dn.sess_mapping.values())[n_sess]
+        session = list(gl.sess_mapping.values())[n_sess]
         regressor_mapping = []
         for sn in sns:
             trained_untrained = get_trained_and_untrained(sn)
             regressor_mapping.append({
                 f"{chordID},sess{sess:02d}": i
                 for i, (chordID, sess) in enumerate(
-                    ((c, s) for s in dn.sessions for c in trained_untrained))})
+                    ((c, s) for s in gl.sessions for c in trained_untrained))})
         print(f'Using {n_jobs} CPUs')
         for h, H in enumerate(['L']):
             SL = md.PcmSearchlight(
@@ -279,15 +277,15 @@ def pcm_searchlight_sess(sns, glm, n_jobs=8):
 
             # distance trained to gifti
             gifti = nt.make_func_gifti(encoding, anatomical_struct=structnames[h], column_names=sns)
-            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding.session{dn.sessions[session]}.{H}.func.gii'))
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding.session{gl.sessions[session]}.{H}.func.gii'))
 
             # distance trained to gifti
             gifti = nt.make_func_gifti(D_tr, anatomical_struct=structnames[h], column_names=sns)
-            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-trained.session{dn.sessions[session]}.{H}.func.gii'))
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-trained.session{gl.sessions[session]}.{H}.func.gii'))
 
             # distance untrained to gifti
             gifti = nt.make_func_gifti(D_untr, anatomical_struct=structnames[h], column_names=sns)
-            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-untrained.session{dn.sessions[session]}.{H}.func.gii'))
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-untrained.session{gl.sessions[session]}.{H}.func.gii'))
 
             # # var_expl to gifti
             # var_expl = np.exp(param_c)

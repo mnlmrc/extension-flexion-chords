@@ -1,29 +1,29 @@
-import globals.path as pth
+import EFC_learningfMRI.globals as gl
 import pandas as pd
 import os
 
 if __name__ == '__main__':
-    sns = [101, 102, 103, 104, 105, 106, 107, 108, 110]
+    sns = [101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113]
     df_pooled = pd.DataFrame()
     for sn in sns:
         for sess in range(24):
             print(f'doing participant {sn}, day {sess + 1}')
-            df = pd.read_csv(os.path.join(pth.baseDir, pth.behavDir, f'day{sess+1}',
+            df = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, f'day{sess+1}',
                          f'efc4_{sn}_single_trial.tsv'), sep = '\t',)
             df_pooled = pd.concat([df_pooled, df])
 
-    df_pooled.to_csv(os.path.join(pth.baseDir, pth.behavDir, f'behaviour.trial.tsv'), sep='\t', index=False)
+    df_pooled.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'behaviour.trial.tsv'), sep='\t', index=False)
 
     df_sess = df_pooled.groupby(['subNum', 'session', 'chord']).mean(numeric_only=True).reset_index()
-    df_sess.to_csv(os.path.join(pth.baseDir, pth.behavDir, f'behaviour.session.tsv'), sep='\t', index=False)
+    df_sess.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'behaviour.session.tsv'), sep='\t', index=False)
 
     df_corr = df_pooled[df_pooled.trialPoint == 1].reset_index()
     df_sess_corr = df_corr.groupby(['subNum', 'session', 'chord']).mean(numeric_only=True).reset_index()
-    df_sess_corr.to_csv(os.path.join(pth.baseDir, pth.behavDir, f'behaviour.session.success.tsv'), sep='\t', index=False)
+    df_sess_corr.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'behaviour.session.success.tsv'), sep='\t', index=False)
 
     df_sess_corr_rep = df_corr.groupby(['subNum', 'session', 'chord', 'Repetition'], observed=True).mean(
         numeric_only=True).reset_index()
-    df_sess_corr_rep.to_csv(os.path.join(pth.baseDir, pth.behavDir, f'behaviour.session.success.repetition.tsv'),
+    df_sess_corr_rep.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'behaviour.session.success.repetition.tsv'),
                              sep='\t', index=False)
 
     df_fabs = df_corr.melt(id_vars=['subNum', 'chordID', 'chord', 'TN', 'BN', 'session', 'Repetition', 'MD', 'ET'],
@@ -44,10 +44,10 @@ if __name__ == '__main__':
     df_force['force_der_peak'] = df_fder_peak.force_der_peak.to_numpy()
     df_force['force_der_t2peak'] = df_fder_t2peak.force_der_t2peak.to_numpy()
     df_force = df_force.groupby(['subNum', 'chordID', 'chord', 'TN', 'BN', 'session', 'Repetition']).mean(numeric_only=True).reset_index()
-    df_force.to_csv(os.path.join(pth.baseDir, pth.behavDir, f'force.success.tsv'), sep='\t', index=False)
+    df_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'force.success.tsv'), sep='\t', index=False)
 
     df_sess_force = df_force.groupby(['subNum', 'session', 'chord']).mean(numeric_only=True).reset_index()
-    df_sess_force.to_csv(os.path.join(pth.baseDir, pth.behavDir, f'force.session.success.tsv'), sep='\t', index=False)
+    df_sess_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'force.session.success.tsv'), sep='\t', index=False)
 
     df_rep_fabs = df_fabs.groupby(['subNum', 'session', 'chord', 'Repetition'], observed=True).mean(
         numeric_only=True).reset_index()
@@ -58,6 +58,6 @@ if __name__ == '__main__':
     df_rep_force = df_rep_fabs.copy()
     df_rep_force['force_der'] = df_rep_fder.force_der.to_numpy()
     df_rep_force['force_der_peak'] = df_rep_fder_peak.force_der_peak.to_numpy()
-    df_rep_force.to_csv(os.path.join(pth.baseDir, pth.behavDir, 'force.session.success.repetition.tsv'), sep='\t',
+    df_rep_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, 'force.session.success.repetition.tsv'), sep='\t',
                         index=False)
 

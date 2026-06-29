@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import xarray as xr
-from analysis import globals as gl
+import EFC_learningfMRI.globals as gl
 import PcmPy as pcm
 import argparse
 from util import get_trained_and_untrained

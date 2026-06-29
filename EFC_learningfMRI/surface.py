@@ -1,18 +1,16 @@
 import os
-import globals.path as pth
-import globals.imaging as im
+import EFC_learningfMRI.globals as gl
 import nitools as nt
 import nibabel as nb
 import numpy as np
 import argparse
-from util.util import get_trained_and_untrained
-import globals.design as dn
+from EFC_learningfMRI.util import get_trained_and_untrained
 #from EFC_learningfMRI.util import get_trained_and_untrained
 
 def gifti2cifti_contrasts(sn, glm):
     print(f'Processing participant {sn}')
-    path = os.path.join(pth.baseDir, pth.surfDir, f'subj{sn}')
-    giftis = [path + '/' + f'glm{glm}.con.{H}.func.gii' for H in im.Hem]
+    path = os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}')
+    giftis = [path + '/' + f'glm{glm}.con.{H}.func.gii' for H in gl.Hem]
     cifti_img = nt.join_giftis_to_cifti(giftis)
     nb.save(cifti_img, path + '/' + f'glm{glm}.con.dscalar.nii')
 
@@ -21,7 +19,7 @@ def smooth_cifti_contrasts(sns, glm):
     data = []
     for sn in sns:
         print(f'Processing participant {sn}')
-        img = os.path.join(pth.baseDir, pth.surfDir, f'subj{sn}', f'glm{glm}.con.dscalar.nii')
+        img = os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}', f'glm{glm}.con.dscalar.nii')
         cifti_img = nb.load(img)
 
         chords = get_trained_and_untrained(sn)
@@ -32,7 +30,7 @@ def smooth_cifti_contrasts(sns, glm):
 
         if glm == 2:
             for rep in [1, 2]:
-                for s in dn.sessions:
+                for s in gl.sessions:
                     sess.append([col for col in row_axis
                                  if f'sess{s:02d}' in col
                                  and col.split('_')[1].split(',')[0] in trained
@@ -43,7 +41,7 @@ def smooth_cifti_contrasts(sns, glm):
                                  and int(col.split(',')[2].split('.')[0]) == rep])
 
         elif glm == 1:
-            for s in dn.sessions:
+            for s in gl.sessions:
                 sess.append([col for col in row_axis
                              if f'sess{s:02d}' in col
                              and col.split('_')[1].split(',')[0] in trained])
@@ -90,11 +88,11 @@ def smooth_cifti_contrasts(sns, glm):
              'sess23,untrained'])
     header = nb.Cifti2Header.from_axes((row_axis_new, brain_axis))
     cifti_img = nb.Cifti2Image(dataobj=data, header=header)
-    nb.save(cifti_img, os.path.join(pth.baseDir, pth.surfDir, f'glm{glm}.con.session.dscalar.nii'))
-    nt.smooth_cifti(os.path.join(pth.baseDir, pth.surfDir, f'glm{glm}.con.session.dscalar.nii'),
-                    os.path.join(pth.baseDir, pth.surfDir, f'glm{glm}.con.session.smooth.dscalar.nii'),
-                    os.path.join(pth.atlasDir, 'fs_LR.32k.L.flat.surf.gii'),
-                    os.path.join(pth.atlasDir, 'fs_LR.32k.R.flat.surf.gii'))
+    nb.save(cifti_img, os.path.join(gl.baseDir, gl.surfDir, f'glm{glm}.con.session.dscalar.nii'))
+    nt.smooth_cifti(os.path.join(gl.baseDir, gl.surfDir, f'glm{glm}.con.session.dscalar.nii'),
+                    os.path.join(gl.baseDir, gl.surfDir, f'glm{glm}.con.session.smooth.dscalar.nii'),
+                    os.path.join(gl.atlasDir, 'fs_LR.32k.L.flat.surf.gii'),
+                    os.path.join(gl.atlasDir, 'fs_LR.32k.R.flat.surf.gii'))
 
 
 
@@ -102,7 +100,7 @@ def smooth_cifti_contrasts(sns, glm):
 #     Hem = ['L', 'R']
 #     if args.what == 'gifti2cifti_betas':
 #         print(f'Processing participant {args.sn}')
-#         path = os.path.join(pth.baseDir, pth.surfDir, f'subj{args.sn}')
+#         path = os.path.join(gl.baseDir, gl.surfDir, f'subj{args.sn}')
 #         giftis = [path + '/' + f'glm{args.glm}.{args.dtype}.{H}.func.gii' for H in Hem]
 #         cifti_img = nt.join_giftis_to_cifti(giftis)
 #         nb.save(cifti_img, path + '/' + f'glm{args.glm}.{args.dtype}.dscalar.nii')
@@ -110,7 +108,7 @@ def smooth_cifti_contrasts(sns, glm):
 #         data, dataDiff = [], []
 #         for sn in args.sns:
 #             print(f'Processing participant {sn}')
-#             img = os.path.join(pth.baseDir, pth.surfDir, f'subj{sn}', f'glm{args.glm}.{args.dtype}.dscalar.nii')
+#             img = os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}', f'glm{args.glm}.{args.dtype}.dscalar.nii')
 #             cifti_img = nb.load(img)
 #
 #             chords = get_trained_and_untrained(sn)
@@ -181,7 +179,7 @@ def smooth_cifti_contrasts(sns, glm):
 #             dataobj=data,  # Stack them along the rows (adjust as needed)
 #             header=header,  # Use one of the headers (may need to modify)
 #         )
-#         nb.save(cifti_img, os.path.join(pth.baseDir, gl.surfDir, f'glm{args.glm}.{args.dtype}.session.dscalar.nii'))
+#         nb.save(cifti_img, os.path.join(gl.baseDir, gl.surfDir, f'glm{args.glm}.{args.dtype}.session.dscalar.nii'))
 #         nt.smooth_cifti(os.path.join(gl.baseDir, gl.surfDir, f'glm{args.glm}.{args.dtype}.session.dscalar.nii'),
 #                         os.path.join(gl.baseDir, gl.surfDir, f'glm{args.glm}.{args.dtype}.session.smooth.dscalar.nii'),
 #                         os.path.join(gl.atlasDir, 'fs_LR.32k.L.flat.surf.gii'),

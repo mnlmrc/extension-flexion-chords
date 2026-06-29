@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.optimize import curve_fit
-import globals.path as pth
+import EFC_learningfMRI.globals as gl
 import os
 
 
@@ -139,7 +139,7 @@ if __name__ == '__main__':
     if args.what == 'plot_current':
         plot_ref()
 
-        path = os.path.join(pth.baseDir, 'behavioural', f'day{args.day}', f'efc4_{args.sn}.dat')
+        path = os.path.join(gl.baseDir, 'behavioural', f'day{args.day}', f'efc4_{args.sn}.dat')
 
         plot_current(path, day=args.day)
 

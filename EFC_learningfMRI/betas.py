@@ -6,9 +6,7 @@ import os
 import shutil
 import subprocess
 
-import globals.path as pth
-import globals.imaging as im
-import globals.design as dn
+import EFC_learningfMRI.globals as gl
 
 import nibabel as nb
 import nitools as nt
@@ -18,7 +16,7 @@ import time
 
 
 def roi_contrasts(sns, atlas_name='ROI', glm=3):
-    rois = im.rois[atlas_name]
+    rois = gl.rois[atlas_name]
     con_dict = {
         'con': [],
         #'psc': [],
@@ -31,15 +29,15 @@ def roi_contrasts(sns, atlas_name='ROI', glm=3):
         'rep': [] if glm == 2 else None
     }
     for sn in sns:
-        path_glm = os.path.join(pth.baseDir, f'glm{glm}', f'subj{sn}')
-        path_rois = os.path.join(pth.baseDir, pth.roiDir, f'subj{sn}')
+        path_glm = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
+        path_rois = os.path.join(gl.baseDir, gl.roiDir, f'subj{sn}')
         con_cifti = nb.load(path_glm + '/' + 'contrast.dscalar.nii')
         #psc_cifti = nb.load(path_glm + '/' + 'psc.dscalar.nii')
         con_vol = nt.volume_from_cifti(con_cifti)
         #psc_vol = nt.volume_from_cifti(psc_cifti)
         regr = con_cifti.header.get_axis(0).name
-        pinfo = pd.read_csv(os.path.join(pth.baseDir, 'participants.tsv'), sep='\t')
-        for H in im.Hem:
+        pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
+        for H in gl.Hem:
             for roi in rois:
                 print(f'doing participant {sn}, {H}, {roi}...')
                 mask = os.path.join(path_rois, f'{atlas_name}.{H}.{roi}.nii')
@@ -69,33 +67,34 @@ def roi_contrasts(sns, atlas_name='ROI', glm=3):
                     con_dict['rep'].append(rep) if glm == 2 else None
 
     con_df = pd.DataFrame(con_dict)
-    con_df.to_csv(os.path.join(pth.baseDir, f'glm{glm}', f'{atlas_name}.con.avg.tsv'), sep='\t', index=False)
+    con_df.to_csv(os.path.join(gl.baseDir, f'glm{glm}', f'{atlas_name}.con.avg.tsv'), sep='\t', index=False)
 
     if glm==2:
         df_1 = con_df[con_df['rep']=='1'].reset_index(drop=True)
         df_2 = con_df[con_df['rep']=='2'].reset_index(drop=True)
         df_rep = df_1.copy()
         df_rep['con'] = df_2['con'] - df_1['con']
-        df_rep.to_csv(os.path.join(pth.baseDir, f'glm{glm}', f'{atlas_name}.repetition_suppression.tsv'), sep='\t', index=False)
+        df_rep.to_csv(os.path.join(gl.baseDir, f'glm{glm}', f'{atlas_name}.repetition_suppression.tsv'), sep='\t', index=False)
 
 
 def save_spm_as_mat7(sn, glm):
-    path_glm = os.path.join(pth.baseDir, f'glm{glm}', f'subj{sn}')
+    path_glm = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
     spm_path = os.path.join(path_glm, 'SPM.mat')
     backup_path = spm_path + ".backup"
 
     if os.path.exists(backup_path):
-        resp = input(
-            f"Backup already exists for participant {sn}.\n"
-            f"This will overwrite SPM.mat using the backup.\n"
-            f"Continue? [y/N]: "
-        ).strip().lower()
+        pass
+        # resp = input(
+        #     f"Backup already exists for participant {sn}.\n"
+        #     f"This will overwrite SPM.mat using the backup.\n"
+        #     f"Continue? [y/N]: "
+        # ).strip().lower()
 
-        if resp not in ["y", "yes"]:
-            print("Skipping conversion.")
-            return
-        else:
-            print("Proceeding with replacement.")
+        # if resp not in ["y", "yes"]:
+        #     print("Skipping conversion.")
+        #     return
+        # else:
+        #     print("Proceeding with replacement.")
 
     else:
         # Step 1: Backup the original file
@@ -112,15 +111,17 @@ def save_spm_as_mat7(sn, glm):
     print(f"Processed {spm_path} with MATLAB")
 
 
-def make_cifti(sn, glm=None, type='beta'):
+def make_cifti_cortex(sn, glm=None, type='beta', session=None):
     print(f'doing participant {sn}, {type}...')
-    path_glm = os.path.join(pth.baseDir, f'glm{glm}', f'subj{sn}')
-    path_rois = os.path.join(pth.baseDir, pth.roiDir, f'subj{sn}')
-    masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in im.Hem]
+    path_glm = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}',
+                                f'day{session}') if session is not None else os.path.join(
+                                gl.baseDir, f'glm{glm}', f'subj{sn}')
+    path_rois = os.path.join(gl.baseDir, gl.roiDir, f'subj{sn}')
+    masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in gl.Hem]
     reginfo = pd.read_csv(os.path.join(path_glm, 'reginfo.tsv'), sep='\t')
     row_axis = nb.cifti2.ScalarAxis(reginfo['name'] + '.' + reginfo['run'].astype(str))
     if type == 'beta':
-        cifti = bt.make_cifti_betas(masks, im.struct, path_glm=path_glm, row_axis=row_axis, )
+        cifti = bt.make_cifti_betas(masks, gl.struct, path_glm=path_glm, row_axis=row_axis, )
         nb.save(cifti, path_glm + '/' + 'beta.dscalar.nii')
     elif type == 'repetition_suppression':
         cifti = nb.load(path_glm + '/' + 'beta.dscalar.nii')
@@ -138,30 +139,30 @@ def make_cifti(sn, glm=None, type='beta'):
         cifti_suppr = nb.Cifti2Image(dataobj=suppr,  header=header)
         nb.save(cifti_suppr, path_glm + '/' + 'beta.dscalar.nii')
     elif type == 'residual':
-        residuals = bt.make_cifti_residuals(path_glm=path_glm, masks=masks, struct=im.struct)
+        residuals = bt.make_cifti_residuals(path_glm=path_glm, masks=masks, struct=gl.struct)
         nb.save(residuals, path_glm + '/' + 'residual.dtseries.nii')
     elif type == 'contrast':
-        cifti = bt.make_cifti_contrasts(path_glm, masks, im.struct, reginfo.name)
+        cifti = bt.make_cifti_contrasts(path_glm, masks, gl.struct, reginfo.name)
         nb.save(cifti, path_glm + '/' + 'contrast.dscalar.nii')
     elif type =='psc':
         contrast = nb.load(path_glm + '/' + 'contrast.dscalar.nii')
         intercept = nb.load(path_glm + '/' + 'intercept.dscalar.nii')
         SPM = spm.SpmGlm(path_glm)
         SPM.get_info_from_spm_mat()
-        cifti = bt.make_cifti_psc(contrast=contrast, intercept=intercept, SPM=SPM, masks=masks, struct=im.struct)
+        cifti = bt.make_cifti_psc(contrast=contrast, intercept=intercept, SPM=SPM, masks=masks, struct=gl.struct)
         nb.save(cifti, path_glm + '/' + 'psc.dscalar.nii')
     elif type == 'intercept':
         session = reginfo.name.str.split(',', n=1, expand=True)[1]
         nRuns = [reginfo[session == sess].run.nunique() for sess in session.unique()]
         nRegressors = reginfo.shape[0]
         intercept = []
-        for sess in range(dn.nSess):
+        for sess in range(gl.nSess):
             for run in range(nRuns[sess]):
                 intercept.append(os.path.join(path_glm, f'beta_0{nRegressors + run + 1 + sess * nRuns[0]}.nii'))
-        masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in im.Hem]
-        cond_vec = np.sort(np.array([f'{sess},{run}' for run in range(nRuns[sess]) for sess in range(dn.nSess)]))
+        masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in gl.Hem]
+        cond_vec = np.sort(np.array([f'{sess},{run}' for run in range(nRuns[sess]) for sess in range(gl.nSess)]))
         row_axis = nb.cifti2.ScalarAxis(cond_vec)
-        cifti = bt.make_cifti_betas(masks, im.struct, intercept, row_axis=row_axis, )
+        cifti = bt.make_cifti_betas(masks, gl.struct, intercept, row_axis=row_axis, )
         nb.save(cifti, path_glm + '/' + 'intercept.dscalar.nii')
     else:
         raise Exception(f'Unknown type {type}. Must be beta, residual, contrast or intercept.')

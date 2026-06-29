@@ -45,9 +45,6 @@ function varargout = efcl_func(what, varargin)
     % get subj_id
     subj_id = subj_row.participant_id{1};
     
-    % get day_id
-    
-
     % get runs (FuncRuns column needs to be in participants.tsv)
     if isscalar(day)
         if day == 3

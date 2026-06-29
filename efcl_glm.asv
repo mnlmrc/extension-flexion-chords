@@ -32,7 +32,6 @@ function varargout = efcl_glm(what, varargin)
 
     %glmEstDir = 'glm';
     behavDir = 'behavioural';
-    localDir = '/localscratch/tmp/SMP';
     % anatomicalDir = 'anatomicals';
     imagingDir = 'imaging_data';
     wbDir = 'surfaceWB';
@@ -476,6 +475,7 @@ function varargout = efcl_glm(what, varargin)
             % fprintf('- Doing glm%d estimation for subj %s\n', glm, day_id, subj_id);
             SPM = load(fullfile(subj_est_dir,'SPM.mat'));
 
+          
             if exist(localDir,'dir'); rmdir(localDir,'s'); end
             mkdir(localDir);
             SPM.SPM.swd = localDir;

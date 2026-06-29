@@ -6,7 +6,7 @@ from  Functional_Fusion.dataset import reliability_within_subj
 
 import pandas as pd
 
-from analysis import globals as gl
+import EFC_learningfMRI.globals as gl
 
 import numpy as np
 

@@ -4,7 +4,7 @@ import pickle
 import warnings
 
 import PcmPy as pcm
-from analysis import globals as gl
+import EFC_learningfMRI.globals as gl
 import nibabel as nb
 import nitools as nt
 import numpy as np
