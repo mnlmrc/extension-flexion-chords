@@ -305,7 +305,7 @@ function varargout = efcl_glm(what, varargin)
             % init J
             J = [];
             T = [];
-            J.dir = {subj_est_dir};
+            J.dir = {localDir}; % {subj_est_dir};
             J.timing.units = 'secs';
             J.timing.RT = 1;
 
@@ -474,21 +474,13 @@ function varargout = efcl_glm(what, varargin)
             currentDir = pwd;
 
             % fprintf('- Doing glm%d estimation for subj %s\n', glm, day_id, subj_id);
-            SPM = load(fullfile(subj_est_dir,'SPM.mat'));
+            SPM = load(fullfile(localDir,'SPM.mat'));
 
-            if exist(localDir,'dir'); rmdir(localDir,'s'); end
-            mkdir(localDir);
-            SPM.SPM.swd = localDir;
+            % if exist(localDir,'dir'); rmdir(localDir,'s'); end
+            % mkdir(localDir);
+            % SPM.SPM.swd = localDir;
 
             spm_rwls_spm(SPM.SPM);
-
-            S = load(fullfile(localDir,'SPM.mat'));
-            S.SPM.swd = subj_est_dir;
-            save(fullfile(localDir,'SPM.mat'), '-struct', 'S', 'SPM', spm_get_defaults('mat.format'));
-
-            %cd(currentDir);                                     % leave localDir before deleting it
-            copyfile(fullfile(localDir,'*'), subj_est_dir);
-            rmdir(localDir,'s');
 
             cd(currentDir)
             
@@ -511,11 +503,10 @@ function varargout = efcl_glm(what, varargin)
             %glm_dir = fullfile(baseDir, sprintf('glm%d', glm), subj_id); 
 
             % load the SPM.mat file
-            SPM = load(fullfile(subj_est_dir, 'SPM.mat')); SPM=SPM.SPM;
-            localDir = '/localscratch/tmp';
-            if exist(localDir,'dir'); rmdir(localDir,'s'); end
-            mkdir(localDir);
-            SPM.swd = '/localscratch/tmp';
+            SPM = load(fullfile(localDir, 'SPM.mat')); SPM=SPM.SPM;
+            % if exist(localDir,'dir'); rmdir(localDir,'s'); end
+            % mkdir(localDir);
+            % %SPM.swd = '/localscratch/tmp';
 
             if replace_xCon
                 SPM  = rmfield(SPM,'xCon');
@@ -554,15 +545,9 @@ function varargout = efcl_glm(what, varargin)
 
             end
 
-            cd(currentDir)
-
-            S = load(fullfile(localDir,'SPM.mat'));
-            S.SPM.swd = subj_est_dir;
-            save(fullfile(localDir,'SPM.mat'), '-struct', 'S', 'SPM', spm_get_defaults('mat.format'));
-
             cd(currentDir);                                     % leave localDir before deleting it
-            copyfile(fullfile(localDir,'*'), subj_est_dir);
-            rmdir(localDir,'s');
+            % copyfile(fullfile(localDir,'*'), subj_est_dir);
+            % rmdir(localDir,'s');
             
        case 'GLM:within_participant'
             
@@ -594,7 +579,16 @@ function varargout = efcl_glm(what, varargin)
                 efcl_glm('GLM:design', 'sn', sn, 'glm', glm, 'hrf_params', hrf_params, 'day', day, 'derivs', derivs)
                 efcl_glm('GLM:estimate', 'sn', sn, 'glm', glm, 'day', day)
                 efcl_glm('GLM:T_contrasts', 'sn', sn, 'glm', glm, 'day', day)
-                efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'con', 'day', day)
+
+                S = load(fullfile(localDir,'SPM.mat'));
+                S.SPM.swd = subj_est_dir;
+                save(fullfile(localDir,'SPM.mat'), '-struct', 'S', 'SPM', spm_get_defaults('mat.format'));
+
+                cd(subj_est_dir);                                     % leave localDir before deleting it
+                copyfile(fullfile(localDir,'*'), subj_est_dir);
+                rmdir(localDir,'s');
+
+                efcl_glm('SURF:vol2surf', 'sn', sn, 'glm', glm, 'type', 'con', 'day', day)      
 
             elseif strcmp(fit_to_day, 'separate')
 

@@ -144,7 +144,7 @@ def load_glm_onset(sn, glm):
     func_runs = np.array(func_runs, dtype=int)
     func_runs = np.array([func_runs + func_runs.size * i for i in range(3)]).flatten()
     events = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, 'day3', f'efc4_subj{sn}_glm{glm}_events.tsv'), sep='\t')
-    events = events[events.BN.isin(func_runs)]
+    events = events[(events.BN.isin(func_runs)) & (events.chordID != 99999)]
     BN = events.BN.to_numpy() - 1
     onset_b = events.Onset.to_numpy()
     onset = (np.round(onset_b * gl.TR) + BN * gl.nTR).astype(int)
