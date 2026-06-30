@@ -81,7 +81,7 @@ rois = {
         'ba4a', 'ba4p', 'ba3A', 'ba3B', 'ba1', 'ba2'
     ],
     'ROI': [
-        'SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp', 'V1'
+        'SMA', 'PMd', 'PMv', 'M1', 'S1', 'SPLa', 'SPLp'
     ],
     'ROI_grouped': [
         'premotor', 'M1-S1', 'parietal', 'V1'

@@ -51,13 +51,13 @@ class Optimise_HRF:
         print('optimising HRF parameters...')
 
         grid = {
-            0: np.array([4., 5., 6., 7., 8., 9.]),  # delay response
-            1: np.array([10., 12., 14., 16., 18., 20.]),  # delay undershoot
-            2: np.array([1.0]),  # dispersion response
-            3: np.array([1.0]),  # dispersion undershoot
-            4: np.array([2., 3., 4., 5., 6., 7.]),  # ratio
-            5: np.array([0.0]),  # onset
-            6: np.array([32.0])  # length
+            0: np.array([4., 5., 6., 7., 8., 9.]),        # delay response
+            1: np.array([12., 14., 16., 18., 20., 22.]),  # delay undershoot
+            2: np.array([1.0]),                           # dispersion response
+            3: np.array([1.0]),                           # dispersion undershoot
+            4: np.array([6.]),                            # ratio
+            5: np.array([0.0]),                           # onset
+            6: np.array([32.0])                           # length
         }
 
         y_raw = np.load(os.path.join(self.glm_path, f'subj{self.sn}', f'BOLD.raw.{self.H}.{roi}.npy'))

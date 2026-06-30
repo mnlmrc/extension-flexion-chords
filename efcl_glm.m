@@ -33,7 +33,6 @@ function varargout = efcl_glm(what, varargin)
     %glmEstDir = 'glm';
     behavDir = 'behavioural';
     localDir = '/localscratch/tmp/SMP';
-    % anatomicalDir = 'anatomicals';
     imagingDir = 'imaging_data';
     wbDir = 'surfaceWB';
     
@@ -453,7 +452,7 @@ function varargout = efcl_glm(what, varargin)
             
             dsave(fullfile(J.dir{1},'reginfo.tsv'), T);
 
-            defaults.mat.format = '-v7';
+            defaults.mat.format = '-v7.3';
             spm_rwls_run_fmri_spec(J);
 
             cd(currentDir)
@@ -478,7 +477,7 @@ function varargout = efcl_glm(what, varargin)
 
             % if exist(localDir,'dir'); rmdir(localDir,'s'); end
             % mkdir(localDir);
-            % SPM.SPM.swd = localDir;
+            SPM.SPM.swd = localDir;
 
             spm_rwls_spm(SPM.SPM);
 
@@ -499,20 +498,16 @@ function varargout = efcl_glm(what, varargin)
             end
 
             % get the subject id folder name
-            fprintf('Contrasts for participant %s\n', subj_id)
-            %glm_dir = fullfile(baseDir, sprintf('glm%d', glm), subj_id); 
+            fprintf('Contrasts for participant %s\n', subj_id) 
 
             % load the SPM.mat file
             SPM = load(fullfile(localDir, 'SPM.mat')); SPM=SPM.SPM;
-            % if exist(localDir,'dir'); rmdir(localDir,'s'); end
-            % mkdir(localDir);
-            % %SPM.swd = '/localscratch/tmp';
 
             if replace_xCon
                 SPM  = rmfield(SPM,'xCon');
             end
 
-            T    = dload(fullfile(subj_est_dir, 'reginfo.tsv'));
+            T    = dload(fullfile(localDir, 'reginfo.tsv'));
             T.name = cellstr(string(T.name));
             contrasts = unique(T.name);
 
@@ -538,20 +533,22 @@ function varargout = efcl_glm(what, varargin)
                 % rename contrast images and spmT images
                 conName = {'con','spmT'};
                 for n = 1:numel(conName)
-                    oldName = fullfile(subj_est_dir, sprintf('%s_%2.4d.nii',conName{n},cname_idx));
-                    newName = fullfile(subj_est_dir, sprintf('%s_%s.nii',conName{n},SPM.xCon(cname_idx).name));
+                    oldName = fullfile(localDir, sprintf('%s_%2.4d.nii',conName{n},cname_idx));
+                    newName = fullfile(localDir, sprintf('%s_%s.nii',conName{n},SPM.xCon(cname_idx).name));
                     movefile(oldName, newName);
                 end % conditions (n, conName: con and spmT)
 
             end
 
-            cd(currentDir);                                     % leave localDir before deleting it
-            % copyfile(fullfile(localDir,'*'), subj_est_dir);
-            % rmdir(localDir,'s');
+            cd(currentDir);                                     
             
        case 'GLM:within_participant'
+
+           currentDir = pwd;
             
-            spm_get_defaults('cmdline', true);  % Suppress GUI prompts, no request for overwirte     
+            spm_get_defaults('cmdline', true);  % Suppress GUI prompts, no request for overwirte 
+            
+            if exist(localDir,"dir"); rmdir(localDir,'s'); end
 
             if strcmp(fit_to_day, 'common')
 
@@ -560,13 +557,13 @@ function varargout = efcl_glm(what, varargin)
                 end
                 
                 % Check for and delete existing SPM.mat file
-                spm_file = fullfile(baseDir, subj_est_dir, 'SPM.mat');
+                spm_file = fullfile(subj_est_dir, 'SPM.mat');
                 if exist(spm_file, 'file')
                     delete(spm_file);
                 end
                 
-                if isfile(fullfile(baseDir, subj_est_dir, 'hrf_params.tsv'))
-                    P = dload(fullfile(baseDir, subj_est_dir, 'hrf_params.tsv'));
+                if isfile(fullfile(baseDir, sprintf('glm%d', glm),'hrf_params.tsv'))
+                    P = dload(fullfile(baseDir, sprintf('glm%d', glm), 'hrf_params.tsv'));
                     hrf_params = P.P(P.sn==sn, :);
                 else
                     hrf_params = [6 16 1 1 6 0 32];
@@ -584,7 +581,7 @@ function varargout = efcl_glm(what, varargin)
                 S.SPM.swd = subj_est_dir;
                 save(fullfile(localDir,'SPM.mat'), '-struct', 'S', 'SPM', spm_get_defaults('mat.format'));
 
-                cd(subj_est_dir);                                     % leave localDir before deleting it
+                cd(currentDir);                                     % leave localDir before deleting it
                 copyfile(fullfile(localDir,'*'), subj_est_dir);
                 rmdir(localDir,'s');
 
