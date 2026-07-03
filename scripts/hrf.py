@@ -10,32 +10,32 @@ if __name__=='__main__':
 
     tAx = np.arange(-3, 17)
 
-    sns = [101, 102, 103, 104, 105, 106, 107, 108, 110, ]
+    sns = [101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113]
 
     glm = 3
 
-    ### save best HRF parameters
-    gridsearch = pd.DataFrame()
-    hrf_params = {'sn': [], 'P': []}
-    for sn in sns:
-        print(f'doing participant {sn}, glm {glm}...')
-        gs = pd.read_csv(os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}', 'gridsearch_hrf.tsv'), sep='\t')
-        gs['sn'] = sn
-        gridsearch = pd.concat([gridsearch, gs], axis=0)
+    # ### save best HRF parameters
+    # gridsearch = pd.DataFrame()
+    # hrf_params = {'sn': [], 'P': []}
+    # for sn in sns:
+    #     print(f'doing participant {sn}, glm {glm}...')
+    #     gs = pd.read_csv(os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}', 'gridsearch_hrf.tsv'), sep='\t')
+    #     gs['sn'] = sn
+    #     gridsearch = pd.concat([gridsearch, gs], axis=0)
 
-        # find best parameters
-        gs_avg = gs.groupby(gl.hrf_params)['R_squared'].mean().reset_index()
-        idxmax = gs_avg.R_squared.argmax()
-        P = gs_avg.loc[idxmax][gl.hrf_params].to_numpy()
-        hrf_params['sn'].append(sn)
-        hrf_params['P'].append(",".join(map(str, P)))
+    #     # find best parameters
+    #     gs_avg = gs.groupby(gl.hrf_params)['R_squared'].mean().reset_index()
+    #     idxmax = gs_avg.R_squared.argmax()
+    #     P = gs_avg.loc[idxmax][gl.hrf_params].to_numpy()
+    #     hrf_params['sn'].append(sn)
+    #     hrf_params['P'].append(",".join(map(str, P)))
         
-    # save grid search
-    gridsearch.to_csv(os.path.join(gl.baseDir, f'glm{glm}', 'hrf_gridsearch.tsv'), sep='\t', index=False)
+    # # save grid search
+    # gridsearch.to_csv(os.path.join(gl.baseDir, f'glm{glm}', 'hrf_gridsearch.tsv'), sep='\t', index=False)
 
-    # save best parameters
-    hrf_params = pd.DataFrame(hrf_params)
-    hrf_params.to_csv(os.path.join(gl.baseDir, f'glm{glm}', 'hrf_params.tsv'), sep='\t', index=False)
+    # # save best parameters
+    # hrf_params = pd.DataFrame(hrf_params)
+    # hrf_params.to_csv(os.path.join(gl.baseDir, f'glm{glm}', 'hrf_params.tsv'), sep='\t', index=False)
 
     ### save segmented BOLD 
     df = pd.DataFrame()

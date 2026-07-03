@@ -11,6 +11,39 @@ from scipy.stats import linregress, t
 #import EFC_learningfMRI.globals as gl
 
 
+def make_chord_mapping(sn, type='trained-untrained'):
+
+    trained_untrained = np.array(get_trained_and_untrained(sn)).astype(int)
+    if type == 'trained-untrained':
+        label = [1, 1, 1, 1, 2, 2, 2, 2,]
+        chordID_mapping = dict(zip(trained_untrained, label))
+    elif type == 'chord-session':
+        chordID_mapping = dict(zip(trained_untrained, np.arange(8)))
+    else:
+        raise ValueError("Wrong type. Use 'trained-untrained' for trained vs. untrained and 'chord-session' for "
+                         "individual chords in each session.")
+    
+    return chordID_mapping
+
+def get_cond_part(sn, glm, type='trained-untrained'):
+
+    path_glm = os.path.join(gl.baseDir, f'glm{glm}')
+
+    reginfo = pd.read_csv(os.path.join(path_glm, f'subj{sn}', 'reginfo.tsv'), sep='\t')
+
+    chordID_mapping = make_chord_mapping(sn, type)
+
+    # make cond and part
+    sess = reginfo.name.str.split(',', n=1, expand=True).loc[:, 1]
+    sess = sess.map(gl.sess_mapping)
+    chordID = reginfo.name.str.split(',', n=1, expand=True).loc[:, 0]
+    chord = chordID.astype(int).map(chordID_mapping)
+    part_vec = (reginfo.run % 10).to_numpy()
+    cond_vec = (sess.astype(str) + ',' + chord.astype(str)).to_numpy()
+
+    return part_vec, cond_vec
+
+
 def get_trained_and_untrained(sn):
     """
     Retrieve which chords where trained and untrained in participant sn.

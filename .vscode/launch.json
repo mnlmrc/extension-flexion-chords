@@ -18,7 +18,7 @@
             "args": [
                 "searchlight_encoding_session",
                 "--glm",
-                "1",
+                "3",
                 "--sns",
                 "101",
                 "102"
@@ -47,16 +47,31 @@
             ]
         },
         {
-            "name": "make_cifti_residual",
+            "name": "make_cifti",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/main.py",
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/venv/bin/python",
             "args": [
-                "make_cifti_residual",
+                "make_cifti_psc",
+                "--glm",
+                "3",
                 "--sns",
                 "101"
+            ]
+        },
+        {
+            "name": "G_trained_untrained",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/venv/bin/python",
+            "args": [
+                "G_trained_untrained",
+                "--sns",
+                "101", "102"
             ]
         }
     ]

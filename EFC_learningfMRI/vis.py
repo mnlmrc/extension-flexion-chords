@@ -2,7 +2,58 @@ import numpy as np
 import PcmPy as pcm
 import seaborn as sb
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from scipy.stats import ttest_rel
+import EFC_learningfMRI.globals as gl
+from EFC_learningfMRI.force import load_mov
+from EFC_learningfMRI.util import lowpass_butter
+import os
+
+
+def custom_legend(fig, labels, colors, loc='outside right center', kind='line'):
+
+    if kind == 'box':
+        handles = [
+            Patch(facecolor=color, label=label) for color, label in zip(colors, labels)
+        ]
+    else:
+        handles = [
+            Line2D([0], [0], color=color, lw=2, label=label) for color, label in zip(colors, labels)
+        ]
+    fig.legend(handles=handles, frameon=False, loc=loc)
+
+
+def plot_example_trial(fig, axs, sessions, sn=101, n_block=1, n_trial: list=None):
+
+    tAx = np.linspace(-1, 3.5, int(gl.fsample['force'] * 4.5))
+
+    ch_idx = np.array(gl.diffCols)
+
+    for s, sess in enumerate(sessions):
+        ax = axs[s]
+        filename = os.path.join(gl.baseDir, 'behavioural', f'day{sess}', f'efc4_{sn}_{n_block:02d}.mov')
+        mov = load_mov(filename)[n_trial[s]]
+        mov = mov[(mov[:, 1] == gl.wait_exec) | (mov[:, 1] == gl.wait_exec - 1)]
+        force = mov[:, ch_idx] * gl.fGain
+        force_lp = lowpass_butter(force, cutoff=20, fsample=gl.fsample['force'], axis=0)
+        ax.plot(tAx, force_lp, lw=2, label=['thumb', 'index', 'middle', 'ring', 'pinkie'])
+        ax.set_title(f'Session {sess}')
+        ax.axhspan(-gl.fthresh, gl.fthresh, color='grey', alpha=0.2, lw=0)
+        ax.axvline(0, color='k', lw=.8)
+        ax.axhline(2, color='k', lw=.8, ls=':')
+        ax.axhline(-2, color='k', lw=.8, ls=':')
+        ax.axhline(5, color='k', lw=.8, ls=':')
+        ax.axhline(-5, color='k', lw=.8, ls=':')
+        ax.set_ylabel('force (N)') if s == 0 else None
+        ax.set_xlabel('time (s)')
+        ax.set_ylim([-6, 6])
+        ax.tick_params(axis='y', left=False) if s == 1 else None
+        ax.set_yticks([-5, -2.5, 0, 2.5, 5])
+        ax.legend(bbox_to_anchor=(1, .5), loc='center left', frameon=False) if s==1 else None
+
+        sb.despine(ax=ax, trim=True, left=(s>0))
+
+    fig.suptitle('Example trials')
 
 def plot_hrf_cut(fig, axs, df, rois):
     for r, roi in enumerate(rois):
@@ -53,16 +104,32 @@ def plot_pcm_corr(fig, axs, df, corr, rois):
                 ax.tick_params(left=True)
 
 
-def plot_im_sess(fig, axs, df, rois, x='session', y=None, hue=None, dodge=.2, hue_order=None, palette=None, color=None, add_zero=False):
+def plot_im_sess(fig, axs, df, rois, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', **kwargs):
+    kws = {
+        'point': dict(dodge=.2, lw=2, errorbar='se', estimator='mean'),
+        'box': dict(showfliers=False, boxprops=dict(alpha=1)),
+        'bar': dict(errorbar='se'),
+        'violin': dict(),
+    }[kind] | kwargs
     for r, roi in enumerate(rois):
         ax = axs[r]
-        sb.pointplot(data=df[df.roi==roi], ax=ax, x=x, y=y, hue=hue, hue_order=hue_order, palette=palette, color=color, dodge=dodge, lw=2, 
-        legend=False if r<len(rois)-1 else True, errorbar='se')
-        ax.set_xlabel(None)
-        ax.spines[['top', 'right']].set_visible(False)
-        ax.spines[['left', 'bottom']].set_visible(False) if r>0 else None
-        ax.tick_params(left=False, bottom=False, labelbottom=False) if r>0 else None
+        common = dict(data=df[df.roi==roi], ax=ax, x=x, y=y, hue=hue, hue_order=hue_order, palette=palette, color=color,
+        legend=False if r<len(rois)-1 else True)
+        if kind == 'point':
+            sb.pointplot(**common, **kws)
+        elif kind == 'box':
+            sb.boxplot(**common, **kws)
+        elif kind == 'bar':
+            sb.barplot(**common, **kws)
+        elif kind == 'violin':
+            sb.violinplot(**common, **kws)
         ax.set_title(roi)
+        ax.set_xlabel(None)
+        if r>0:
+            sb.despine(ax=ax, left=True, bottom=True)
+            ax.tick_params(left=False, bottom=False, labelbottom=False) if r>0 else None
+        else:
+            sb.despine(ax=ax)
         if add_zero:
             ax.axhline(0, lw=.8, color='k', ls=':')
 

@@ -70,15 +70,15 @@ def searchlight_encoding(sns, glm):
 
             # distance trained to gifti
             gifti = nt.make_func_gifti(np.array(D).T, anatomical_struct=SL.structure, column_names=sns)
-            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding.session{gl.sessions[n_sess]}.{H}.func.gii'))
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding.glm{glm}.session{gl.sessions[n_sess]}.{H}.func.gii'))
 
             # distance trained to gifti
             gifti = nt.make_func_gifti(np.array(D_trained).T, anatomical_struct=SL.structure, column_names=sns)
-            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-trained.session{gl.sessions[n_sess]}.{H}.func.gii'))
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-trained.glm{glm}.session{gl.sessions[n_sess]}.{H}.func.gii'))
 
             # distance untrained to gifti
             gifti = nt.make_func_gifti(np.array(D_untrained).T, anatomical_struct=SL.structure, column_names=sns)
-            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-untrained.session{gl.sessions[n_sess]}.{H}.func.gii'))
+            nb.save(gifti, os.path.join(surf_path, f'searchlight.encoding-untrained.glm{glm}.session{gl.sessions[n_sess]}.{H}.func.gii'))
 
 
 
@@ -94,7 +94,7 @@ def calc_G(sns, glm, rois, type='chord-session', sessions=None):
                 reginfo = pd.read_csv(os.path.join(path_glm, f'subj{sn}', 'reginfo.tsv'), sep='\t')
                 betas = nb.load(os.path.join(path_glm, f'subj{sn}', 'beta.dscalar.nii'))
                 betas = nt.volume_from_cifti(betas)
-                residuals = nb.load(os.path.join(path_glm, f'subj{sn}', f'residual.dtseries.nii'))
+                residuals = nb.load(os.path.join(path_glm, f'subj{sn}', 'ResMS.nii')) # f'residual.dtseries.nii'))
                 mask = nb.load(os.path.join(path_rois, f'subj{sn}', f'ROI.{H}.{roi}.nii'))
                 G_tmp = _calc_G_participant(betas, residuals, mask, reginfo, type=type, sessions=sessions)
                 G.append(G_tmp)
@@ -102,13 +102,12 @@ def calc_G(sns, glm, rois, type='chord-session', sessions=None):
             np.save(os.path.join(path_pcm, f'G_obs.{type}.glm{glm}.{H}.{roi}.npy'), G)
 
 
-def _calc_G_participant(betas, residuals, mask, reginfo, type='set', sessions=None):
+def _calc_G_participant(betas, residuals, mask, reginfo, type='trained-untrained', sessions=None):
 
-    # get trained chords
     sn = reginfo.sn.unique()[0]
     trained_untrained = np.array(get_trained_and_untrained(sn)).astype(int)
-    label = [1, 1, 1, 1, 2, 2, 2, 2,] #['trained'] * 4 + ['untrained'] * 4
     if type == 'trained-untrained':
+        label = [1, 1, 1, 1, 2, 2, 2, 2,]
         chordID_mapping = dict(zip(trained_untrained, label))
     elif type == 'chord-session':
         chordID_mapping = dict(zip(trained_untrained, np.arange(8)))

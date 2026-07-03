@@ -1,7 +1,9 @@
-from EFC_learningfMRI import rois, force, betas, searchlight, surface, hrf, geometry
+from EFC_learningfMRI import rois, force, betas, searchlight, hrf, geometry, correlation
 import EFC_learningfMRI.globals as gl
 import time
 import argparse
+
+from scripts import activation
 
 def main(args):
 
@@ -40,27 +42,29 @@ def main(args):
     # save activity patterns as 3D cifti files
     elif args.what == "make_cifti_beta":
         for sn in args.sns:
-            betas.make_cifti(sn=sn, glm=args.glm, type='beta')
+            betas.make_cifti_cortex(sn=sn, glm=args.glm, type='beta')
 
     elif args.what == "make_cifti_repetition_suppression":
         for sn in args.sns:
-            betas.make_cifti(sn=sn, glm=args.glm, type='repetition_suppression')
+            betas.make_cifti_cortex(sn=sn, glm=args.glm, type='repetition_suppression')
 
     # save residuals as 4D cifti file
     elif args.what == "make_cifti_residual":
         for sn in args.sns:
-            betas.make_cifti(sn=sn, glm=args.glm, type='residual')
+            betas.make_cifti_cortex(sn=sn, glm=args.glm, type='residual')
 
     # save contrasts vs. resting baseline to 3D cifti
     elif args.what == "make_cifti_contrast":
         for sn in args.sns:
-            betas.make_cifti(sn=sn, glm=args.glm, type='contrast')
+            betas.make_cifti_cortex(sn=sn, glm=args.glm, type='contrast')
+
     elif args.what == "make_cifti_intercept":
         for sn in args.sns:
-            betas.make_cifti(sn=sn, glm=args.glm, type='intercept')
+            betas.make_cifti_cortex(sn=sn, glm=args.glm, type='intercept')
+            
     elif args.what == "make_cifti_psc":
         for sn in args.sns:
-            betas.make_cifti(sn=sn, glm=args.glm, type='psc')
+            betas.make_cifti_cortex(sn=sn, glm=args.glm, type='psc')
 
     # save average activity vs. baseline in each ROI
     elif args.what == "roi_contrasts":
@@ -69,20 +73,20 @@ def main(args):
     # make smooth surface cifti file for contrast vs. resting baseline
     elif args.what == "smooth_cifti_contrast":
         for sn in args.sns:
-            surface.gifti2cifti_contrasts(sn=sn, glm=args.glm)
-        surface.smooth_cifti_contrasts(sns=args.sns, glm=args.glm)
-        
+            activation.gifti2cifti_contrasts(sn=sn, glm=args.glm)
+        activation.smooth_cifti_contrasts(sns=args.sns, glm=args.glm)
+    
     elif args.what == "G_trained_untrained":
         geometry.calc_G(sns=args.sns, glm=args.glm, rois=gl.rois[args.atlas_name], type='trained-untrained')
+    
     elif args.what == "G_chord_session":
         geometry.calc_G(sns=args.sns, glm=args.glm, rois=gl.rois[args.atlas_name], type='chord-session', sessions=gl.sessions)
-
         
     elif args.what == "searchlight_encoding_session":
         geometry.searchlight_encoding(sns=args.sns, glm=args.glm)
 
     elif args.what == "correlation_between_sessions":
-        pcm.correlation(sns=args.sns, glm=args.glm, rois=gl.rois[args.atlas_name], atlas_name=args.atlas_name)
+        correlation.correlation_sess(sns=args.sns, glm=args.glm, rois=gl.rois[args.atlas_name], atlas_name=args.atlas_name)
         
     elif args.what == "correlation_between_sessions_rep_suppr":
         pcm.correlation_rep_suppr(sns=args.sns, glm=args.glm, rois=gl.rois[args.atlas_name], atlas_name=args.atlas_name)
@@ -98,7 +102,7 @@ if __name__ == "__main__":
                                                                    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24])
     parser.add_argument('--rois', nargs='+', type=str, default=gl.rois['ROI'])
     parser.add_argument('--atlas_name', type=str, default='ROI')
-    parser.add_argument('--glm', type=int, default=1)
+    parser.add_argument('--glm', type=int, default=None)
 
     args = parser.parse_args()
 

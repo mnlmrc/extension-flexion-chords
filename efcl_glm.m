@@ -145,7 +145,7 @@ function varargout = efcl_glm(what, varargin)
                         events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d) & D.repetition == rep) + 10 * (d - 1)] ;
                         events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d) & D.repetition == rep)];
                         events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d) & D.repetition == rep) + 1000];
-                        events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.day == day(d) & D.repetition == rep)];
+                        %events.Duration = [events.Duration; D.execMaxTime(D.chordID == chordID & D.day == day(d) & D.repetition == rep)];
                         n_rep = length(D.BN(D.chordID == chordID & D.day == day(d) & D.repetition == rep));
                         events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [n_rep, 1])];
                         events.day = [events.day; repmat({sprintf('%d', day(d))}, [n_rep, 1])];
@@ -155,10 +155,9 @@ function varargout = efcl_glm(what, varargin)
                 end
             end
             
-            %events.Duration = zeros(length(events.BN), 1);
+            events.Duration = zeros(length(events.BN), 1);
             events = struct2table(events);
             events.Onset = events.Onset ./ 1000;
-            events.Duration = events.Duration ./ 1000;
             
             varargout{1} = events;
 
@@ -466,7 +465,7 @@ function varargout = efcl_glm(what, varargin)
             end 
 
             defaults.mat.format = '-v7.3';
-            gib = 8; % Gib used to estimate GLM reduce if code crashes
+            gib = 6; % Gib used to estimate GLM reduce if code crashes
             spm_get_defaults('stats.maxmem', gib*1024^3);  
             %defaults.stats.maxmem = 16*1024^3;
 
@@ -561,14 +560,14 @@ function varargout = efcl_glm(what, varargin)
                 if exist(spm_file, 'file')
                     delete(spm_file);
                 end
-                
+
                 if isfile(fullfile(baseDir, sprintf('glm%d', glm),'hrf_params.tsv'))
                     P = dload(fullfile(baseDir, sprintf('glm%d', glm), 'hrf_params.tsv'));
                     hrf_params = P.P(P.sn==sn, :);
                 else
                     hrf_params = [6 16 1 1 6 0 32];
                 end
-    
+
                 disp('Using P:')
                 disp(hrf_params)
 
@@ -694,12 +693,12 @@ function varargout = efcl_glm(what, varargin)
             GL = surf_vol2surf(c1L,c2L,V,'anatomicalStruct','CortexLeft', 'exclude_thres', 0.9, 'faces', hemLpial.faces);
             GL = surf_makeFuncGifti(GL.cdata,'anatomicalStruct', 'CortexLeft', 'columnNames', cols);
     
-            save(GL, fullfile(baseDir, wbDir, subj_id, ['glm' glm '.'   type '.L.func.gii']))
+            save(GL, fullfile(baseDir, wbDir, subj_id, ['glm' num2str(glm) '.'   type '.L.func.gii']))
     
             GR = surf_vol2surf(c1R,c2R,V,'anatomicalStruct','CortexRight', 'exclude_thres', 0.9, 'faces', hemRpial.faces);
             GR = surf_makeFuncGifti(GR.cdata,'anatomicalStruct', 'CortexRight', 'columnNames', cols);
 
-            save(GR, fullfile(baseDir, wbDir, subj_id, ['glm' glm  '.'  type '.R.func.gii']))
+            save(GR, fullfile(baseDir, wbDir, subj_id, ['glm' num2str(glm)  '.'  type '.R.func.gii']))
             
             cd(currentDir)
         
