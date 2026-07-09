@@ -104,16 +104,27 @@ def plot_pcm_corr(fig, axs, df, corr, rois):
                 ax.tick_params(left=True)
 
 
-def plot_im_sess(fig, axs, df, rois, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', **kwargs):
+def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', roi_col=None, **kwargs):
     kws = {
         'point': dict(dodge=.2, lw=2, errorbar='se', estimator='mean'),
         'box': dict(showfliers=False, boxprops=dict(alpha=1)),
         'bar': dict(errorbar='se'),
-        'violin': dict(),
+        'strip': dict(jitter=True, dodge=True, alpha=.2),
+        'violin': dict(inner='point', split=False),
     }[kind] | kwargs
+
+    if roi_col is None:
+        candidates = ['roi', 'regionname', 'region']
+        roi_col = next((c for c in candidates if c in df.columns), None)
+        if roi_col is None:
+            raise KeyError(f"None of {candidates} in df contain the requested rois; pass roi_col explicitly.")
+        
+    if rois is None:
+        rois = df[roi_col].unique()
+        
     for r, roi in enumerate(rois):
         ax = axs[r]
-        common = dict(data=df[df.roi==roi], ax=ax, x=x, y=y, hue=hue, hue_order=hue_order, palette=palette, color=color,
+        common = dict(data=df[df[roi_col]==roi], ax=ax, x=x, y=y, hue=hue, hue_order=hue_order, palette=palette, color=color,
         legend=False if r<len(rois)-1 else True)
         if kind == 'point':
             sb.pointplot(**common, **kws)
@@ -123,6 +134,8 @@ def plot_im_sess(fig, axs, df, rois, x='session', y=None, hue=None, hue_order=No
             sb.barplot(**common, **kws)
         elif kind == 'violin':
             sb.violinplot(**common, **kws)
+        elif kind == 'strip':
+            sb.stripplot(**common, **kws)
         ax.set_title(roi)
         ax.set_xlabel(None)
         if r>0:

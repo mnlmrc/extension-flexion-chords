@@ -54,9 +54,9 @@
             "console": "integratedTerminal",
             "python": "${workspaceFolder}/venv/bin/python",
             "args": [
-                "make_cifti_psc",
+                "make_cifti_repetition_suppression",
                 "--glm",
-                "3",
+                "2",
                 "--sns",
                 "101"
             ]
@@ -72,6 +72,20 @@
                 "G_trained_untrained",
                 "--sns",
                 "101", "102"
+            ]
+        },
+        {
+            "name": "make_cortical_rois",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "${workspaceFolder}/venv/bin/python",
+            "args": [
+                "make_cortical_rois",
+                "--sns",
+                "111",
+                "--glm", "3"
             ]
         }
     ]

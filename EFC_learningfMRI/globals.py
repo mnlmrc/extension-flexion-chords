@@ -92,7 +92,7 @@ borders = {'L': os.path.join(atlasDir, 'fs_LR.32k.L.border'),
            'R': os.path.join(atlasDir, 'fs_LR.32k.L.border')}
 
 Hem = ['L', 'R']
-struct = ['CortexLeft', 'CortexRight']
+struct_cortex = ['CortexLeft', 'CortexRight']
 rois = {
     'Desikan': [
         'rostralmiddlefrontal',

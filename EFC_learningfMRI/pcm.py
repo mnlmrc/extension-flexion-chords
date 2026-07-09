@@ -76,69 +76,82 @@ def fit_component_model(glm, atlas):
 
     df = pd.DataFrame()
     for sn in gl.participants:
+        print(f'starting participant {sn}...')
 
-        # load betas and residuals
-        betas = nb.load(os.path.join(path_glm, f'subj{sn}', 'beta.dscalar.nii'))
-        betas = nt.volume_from_cifti(betas)
-        residuals = nb.load(os.path.join(path_glm, f'subj{sn}', 'ResMS.nii')) # f'residual.dtseries.nii'))
+          # load betas and residuals
+        betas     = nb.load(os.path.join(path_glm, f'subj{sn}', 'beta.dscalar.nii'))
+        betas     = nt.volume_from_cifti(betas)
+        residuals = nb.load(os.path.join(path_glm, f'subj{sn}', 'residual.dtseries.nii'))
 
+          # make cond and part vec
         part_vec, cond_vec = get_cond_part(sn, glm, type='chord-session')
         
+          # make pcm model
         M, comp_names = make_models(sn)
-        Mc = M[-2]
+        Mc            = M[-2]
+
+          # define save dir for subj G matrix
+        saveDir_G = os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}')
+        os.makedirs(saveDir_G, exist_ok=True)
         
         for H in gl.Hem:
             for roi in gl.rois[atlas]:
                 
-                # prewhiten betas in ROI
-                mask = nb.load(os.path.join(path_rois, f'subj{sn}', f'ROI.{H}.{roi}.nii'))
+                  # prewhiten betas in ROI
+                mask              = nb.load(os.path.join(path_rois, f'subj{sn}', f'ROI.{H}.{roi}.nii'))
                 betas_prewhitened = calc_prewhitened_betas(betas, residuals, mask)
 
                 nRuns = betas_prewhitened.shape[0] // 3
 
-                for n_sess, sess in enumerate(gl.sessions):
+                G = np.zeros((3, 8, 8))
+                for n_sess, sess in enumerate(gl.sessions): 
 
-                    print()
-
-                    # select session rows
-                    rows = np.arange(nRuns) + nRuns * n_sess
+                        # select session rows
+                    rows      = np.arange(nRuns) + nRuns * n_sess
                     beta_sess = betas_prewhitened[rows]
                     cond_sess = cond_vec[rows]
                     part_sess = part_vec[rows]
 
-                    # make dataset
+                        # make dataset
                     obs_des = {
                         'cond_vec': cond_sess,
                         'part_vec': part_sess
                     }
-                    Y = pcm.dataset.Dataset(beta_sess, obs_descriptors=obs_des)
+                    Y        = pcm.dataset.Dataset(beta_sess, obs_descriptors=obs_des)
+                    G_tmp, _ = pcm.est_G_crossval(Y.measurements, 
+                                           Y.obs_descriptors['cond_vec'], 
+                                           Y.obs_descriptors['part_vec'], 
+                                           X=pcm.indicator(Y.obs_descriptors['part_vec']))
+                    G[n_sess] = G_tmp
 
-                    # fit_model
+                        # fit_model
                     _, theta_in = pcm.fit_model_individ(Y, Mc, fit_scale=False, verbose=True, fixed_effect='block')
 
                     weight = np.asarray(np.exp(theta_in)).ravel()
 
-                    # component order matches make_models(); a trailing param is the noise scale
-                    if len(weight) > len(comp_names):
+                        # component order matches make_models(); a trailing param is the noise scale
+                    if len(weight) > len(comp_names): 
                         labels = comp_names + ['noise'] * (len(weight) - len(comp_names))
-                    else:
+                    else: 
                         labels = comp_names[:len(weight)]
 
                     df_tmp = pd.DataFrame({
-                        'weight': weight,
+                        'weight'   : weight,
                         'component': labels,
                     })
-                    df_tmp['sn'] = sn
-                    df_tmp['Hem'] = H
-                    df_tmp['roi'] = roi
+                    df_tmp['sn']   = sn
+                    df_tmp['Hem']  = H
+                    df_tmp['roi']  = roi
                     df_tmp['sess'] = sess
-                    df = pd.concat([df, df_tmp], ignore_index=True)
+                    df             = pd.concat([df, df_tmp], ignore_index=True)
+
+                np.save(os.path.join(saveDir_G, f'G_obs.glm{glm}.{H}.{roi}.npy'), G)
 
     df.to_csv(os.path.join(path_pcm, f'component_model.{atlas}.glm{glm}.tsv'), sep='\t', index=False)
 
 
 if __name__=='__main__':
-    glm = 3
+    glm = 2
     atlas = 'ROI'
     fit_component_model(glm, atlas)
 

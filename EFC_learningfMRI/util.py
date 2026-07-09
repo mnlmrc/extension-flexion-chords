@@ -11,7 +11,7 @@ from scipy.stats import linregress, t
 #import EFC_learningfMRI.globals as gl
 
 
-def make_chord_mapping(sn, type='trained-untrained'):
+def make_chord_mapping(sn, type='chord-session'):
 
     trained_untrained = np.array(get_trained_and_untrained(sn)).astype(int)
     if type == 'trained-untrained':
@@ -62,6 +62,41 @@ def get_trained_and_untrained(sn):
     chords.extend(untrained)
 
     return chords
+
+
+def add_chord_column(df, chordID_col='chordID', sn_col='sn', out_col='chord'):
+    """Add a ``chord`` column labelling each row 'trained' or 'untrained'.
+
+    For every participant in ``sn_col`` the trained/untrained chord IDs are
+    looked up with :func:`get_trained_and_untrained` (first four trained, last
+    four untrained), and each row's ``chordID_col`` value is labelled
+    accordingly.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Table containing a chord-ID column and a participant column.
+    chordID_col : str, optional
+        Name of the chord-ID column (default ``'chordID'``).
+    sn_col : str, optional
+        Name of the participant column (default ``'sn'``); needed because the
+        trained/untrained split differs per participant.
+    out_col : str, optional
+        Name of the column to add (default ``'chord'``).
+
+    Returns
+    -------
+    pandas.DataFrame
+        A copy of ``df`` with the ``out_col`` column added.
+    """
+    df = df.copy()
+    df[out_col] = 'untrained'
+    for sn in df[sn_col].unique():
+        trained = np.array(get_trained_and_untrained(sn)[:4]).astype(int)
+        mask = (df[sn_col] == sn) & (df[chordID_col].astype(int).isin(trained))
+        df.loc[mask, out_col] = 'trained'
+
+    return df
 
 
 def linear_fit(x, y, alternative_slope='two-sided', alternative_intercept='greater'):
@@ -171,7 +206,7 @@ def calc_R2(Y, Yhat):
 
 
 
-def load_glm_onset(sn, glm):
+def load_glm_onset(sn, glm, output_events=False):
     pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
     func_runs = pinfo.loc[pinfo.participant_id == f"subj{sn}", "FuncRuns_day3"].iloc[0].split('.')
     func_runs = np.array(func_runs, dtype=int)
@@ -182,5 +217,8 @@ def load_glm_onset(sn, glm):
     onset_b = events.Onset.to_numpy()
     onset = (np.round(onset_b * gl.TR) + BN * gl.nTR).astype(int)
     onset = np.sort(onset)
-    return onset
+    if output_events:
+        return onset, events
+    else:
+        return onset
 

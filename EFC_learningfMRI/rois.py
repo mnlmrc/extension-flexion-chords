@@ -10,7 +10,7 @@ import time
 
 def make_cortical_rois(sn, atlas_name='ROI', glm=1):
     exclude = {
-        'ROI': [(1, 2), (1, 6), (1, 7), (2, 3), (2, 4), (2, 5), (2, 7), (3, 4), (3, 5), (7, 8)],
+        'ROI': [(1, 2), (1, 6), (1, 7), (2, 3), (2, 4), (2, 5), (2, 7), (3, 4), (3, 5)],
         'BA_handArea': [],
         'ROI_grouped': []
     }

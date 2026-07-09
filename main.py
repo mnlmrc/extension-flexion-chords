@@ -44,7 +44,7 @@ def main(args):
         for sn in args.sns:
             betas.make_cifti_cortex(sn=sn, glm=args.glm, type='beta')
 
-    elif args.what == "make_cifti_repetition_suppression":
+    elif args.what == "make_cifti_rep_suppr":
         for sn in args.sns:
             betas.make_cifti_cortex(sn=sn, glm=args.glm, type='repetition_suppression')
 
