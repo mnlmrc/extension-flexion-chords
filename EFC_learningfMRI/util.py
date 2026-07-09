@@ -64,6 +64,25 @@ def get_trained_and_untrained(sn):
     return chords
 
 
+def params_to_df(model):
+    """Collect the estimated parameters of a fitted (Mixed)LM into a tidy DataFrame.
+
+    One row per term (fixed effects plus any variance components), with the
+    coefficient, standard error, z-statistic, p-value and 95% CI.
+    """
+    ci = model.conf_int()
+    out = pd.DataFrame({
+        'term': model.params.index,
+        'coef': model.params.to_numpy(),
+        'se': model.bse.to_numpy(),
+        'z': model.tvalues.to_numpy(),
+        'pval': model.pvalues.to_numpy(),
+        'ci_low': ci.iloc[:, 0].to_numpy(),
+        'ci_high': ci.iloc[:, 1].to_numpy(),
+    }).reset_index(drop=True)
+    return out
+
+
 def add_chord_column(df, chordID_col='chordID', sn_col='sn', out_col='chord'):
     """Add a ``chord`` column labelling each row 'trained' or 'untrained'.
 

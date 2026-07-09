@@ -104,7 +104,8 @@ def plot_pcm_corr(fig, axs, df, corr, rois):
                 ax.tick_params(left=True)
 
 
-def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', roi_col=None, **kwargs):
+def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point',       
+                 roi_col=None, native_scale=True, **kwargs):
     kws = {
         'point': dict(dodge=.2, lw=2, errorbar='se', estimator='mean'),
         'box': dict(showfliers=False, boxprops=dict(alpha=1)),
@@ -125,7 +126,7 @@ def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_ord
     for r, roi in enumerate(rois):
         ax = axs[r]
         common = dict(data=df[df[roi_col]==roi], ax=ax, x=x, y=y, hue=hue, hue_order=hue_order, palette=palette, color=color,
-        legend=False if r<len(rois)-1 else True)
+        native_scale=native_scale, legend=False if r<len(rois)-1 else True)
         if kind == 'point':
             sb.pointplot(**common, **kws)
         elif kind == 'box':
@@ -138,6 +139,7 @@ def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_ord
             sb.stripplot(**common, **kws)
         ax.set_title(roi)
         ax.set_xlabel(None)
+        ax.set_xticks(df[x].unique())
         if r>0:
             sb.despine(ax=ax, left=True, bottom=True)
             ax.tick_params(left=False, bottom=False, labelbottom=False) if r>0 else None
