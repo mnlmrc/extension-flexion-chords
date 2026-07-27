@@ -1,4 +1,6 @@
 import os
+from dataclasses import dataclass
+from functools import cached_property
 
 import numpy as np
 import pandas as pd
@@ -11,37 +13,85 @@ from scipy.stats import linregress, t
 #import EFC_learningfMRI.globals as gl
 
 
-def make_chord_mapping(sn, type='chord-session'):
+@dataclass
+class RegInfo:
+    """The reginfo.tsv of one subject/glm, parsed into partition and condition vectors.
 
-    trained_untrained = np.array(get_trained_and_untrained(sn)).astype(int)
-    if type == 'trained-untrained':
-        label = [1, 1, 1, 1, 2, 2, 2, 2,]
-        chordID_mapping = dict(zip(trained_untrained, label))
-    elif type == 'chord-session':
-        chordID_mapping = dict(zip(trained_untrained, np.arange(8)))
-    else:
-        raise ValueError("Wrong type. Use 'trained-untrained' for trained vs. untrained and 'chord-session' for "
-                         "individual chords in each session.")
-    
-    return chordID_mapping
+    The file is read and parsed on first access, then cached, so a pipeline that
+    needs ``cond_vec`` and ``part_vec`` more than once does not re-read the TSV
+    each time (which is what repeated ``get_cond_part`` calls do)::
 
-def get_cond_part(sn, glm, type='trained-untrained'):
+        reg = RegInfo(sn, glm)
+        reg.cond_vec, reg.part_vec        # parsed once here, reused after
+        reg.reginfo                       # the raw DataFrame, if you need it
+    """
 
-    path_glm = os.path.join(gl.baseDir, f'glm{glm}')
+    sn: int
+    glm: int
 
-    reginfo = pd.read_csv(os.path.join(path_glm, f'subj{sn}', 'reginfo.tsv'), sep='\t')
+    @cached_property
+    def reginfo(self):
+        """The raw reginfo.tsv as a DataFrame."""
+        path = os.path.join(gl.baseDir, f'glm{self.glm}', f'subj{self.sn}', 'reginfo.tsv')
+        return pd.read_csv(path, sep='\t')
 
-    chordID_mapping = make_chord_mapping(sn, type)
+    @cached_property
+    def part_vec(self):
+        """Partition (run) vector, one entry per regressor."""
+        return self.reginfo.run.to_numpy()
 
-    # make cond and part
-    sess = reginfo.name.str.split(',', n=1, expand=True).loc[:, 1]
-    sess = sess.map(gl.sess_mapping)
-    chordID = reginfo.name.str.split(',', n=1, expand=True).loc[:, 0]
-    chord = chordID.astype(int).map(chordID_mapping)
-    part_vec = (reginfo.run % 10).to_numpy()
-    cond_vec = (sess.astype(str) + ',' + chord.astype(str)).to_numpy()
+    @cached_property
+    def condition(self):
+        return parse_regressor_name(self.reginfo.name)
 
-    return part_vec, cond_vec
+    @cached_property
+    def condition_unique(self):
+        return self.condition.drop_duplicates(ignore_index=True)
+
+    @cached_property
+    def make_chord_mapping(self):
+        trained_untrained = get_trained_and_untrained(self.sn)
+        trained_untrained = np.asarray(trained_untrained, dtype=int)
+        return dict(zip(trained_untrained, np.arange(8)))
+
+    @cached_property
+    def cond_vec(self):
+        """
+        transform condition labels into number for correct ordering in G matrix
+        """
+        sess    = self.condition[1].map(gl.sess_mapping)
+        chordID = self.condition[0].astype(int).map(self.make_chord_mapping)
+
+        cond_vec = sess.astype(str) + ',' + chordID.astype(str)
+
+        if self.condition.shape[1] > 2:
+            return (cond_vec + ',' + self.condition[2].astype(str)).to_numpy()
+        else:
+            return cond_vec.to_numpy()
+
+
+def parse_regressor_name(name, sep=','):
+    """Split a contrast regressor name into its component condition labels.
+
+    Regressor names are ``sep``-delimited condition labels, e.g.
+    ``'chordID,sess'`` or ``'chordID,sess,rep'`` with the default ``sep=','``.
+
+    Parameters
+    ----------
+    name : pandas.Series of str
+        The regressor names to parse.
+    sep : str, optional
+        Field separator (default ``','``).
+
+    Returns
+    -------
+    tuple of pandas.Series
+        One ``Series`` per delimited component, in order. The tuple has as many
+        elements as the number of parts found, so it can be unpacked directly,
+        e.g. ``chordID, sess = _parse_regressor_name(regressor)``.
+    """
+    parts = name.str.split(sep, expand=True)
+    return pd.DataFrame(tuple(parts[col] for col in parts.columns)).T
 
 
 def get_trained_and_untrained(sn):
@@ -54,33 +104,28 @@ def get_trained_and_untrained(sn):
         list of chordIDs. First four are trained, last four untrained
     """
 
-    pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
-    trained = pinfo[pinfo.sn == sn].reset_index()['trained'][0].split('.')
+    pinfo     = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
+    trained   = pinfo[pinfo.sn == sn].reset_index()['trained'][0].split('.')
     untrained = pinfo[pinfo.sn == sn].reset_index()['untrained'][0].split('.')
-    chords = list()
+    chords    = list()
     chords.extend(trained)
     chords.extend(untrained)
 
     return chords
 
 
-def params_to_df(model):
-    """Collect the estimated parameters of a fitted (Mixed)LM into a tidy DataFrame.
+def runs_to_keep(session, totRuns):
 
-    One row per term (fixed effects plus any variance components), with the
-    coefficient, standard error, z-statistic, p-value and 95% CI.
-    """
-    ci = model.conf_int()
-    out = pd.DataFrame({
-        'term': model.params.index,
-        'coef': model.params.to_numpy(),
-        'se': model.bse.to_numpy(),
-        'z': model.tvalues.to_numpy(),
-        'pval': model.pvalues.to_numpy(),
-        'ci_low': ci.iloc[:, 0].to_numpy(),
-        'ci_high': ci.iloc[:, 1].to_numpy(),
-    }).reset_index(drop=True)
-    return out
+        session_dict = {3: 0, 9: 1, 23: 2}
+
+        if session=='all':
+            keep = np.ones(totRuns, dtype=bool)
+        else:
+            session                                   = session_dict[session]
+            nRuns                                     = totRuns // 3
+            keep                                      = np.zeros(totRuns, dtype=bool)
+            keep[session * nRuns:(session + 1)*nRuns] = True
+        return keep
 
 
 def add_chord_column(df, chordID_col='chordID', sn_col='sn', out_col='chord'):
@@ -116,6 +161,27 @@ def add_chord_column(df, chordID_col='chordID', sn_col='sn', out_col='chord'):
         df.loc[mask, out_col] = 'trained'
 
     return df
+
+
+def add_flexion_imbalance(pair, sep="-"):
+    """
+    Flexion difference for a chord pair, e.g. "91211-22911".
+    Each chord is 5 fingers coded 1=extension, 2=flexion, 9=neutral.
+    Returns |n_flexed(A) - n_flexed(B)|; NaN if the entry is malformed.
+
+    Accepts a single string or a whole column: pass a pandas Series (e.g.
+    ``df['pair']``) and a Series of the same length is returned, so it can be
+    assigned straight back with ``df['flexion_imbalance'] = add_flexion_imbalance(df['pair'])``.
+    """
+    if isinstance(pair, pd.Series):
+        return pair.map(lambda p: add_flexion_imbalance(p, sep))
+    if not isinstance(pair, str):
+        return float("nan")
+    parts = pair.split(sep)
+    if len(parts) != 2 or any("99999" in p for p in parts):
+        return float("nan")
+    a, b = parts
+    return abs(a.count("2") - b.count("2"))   # 2 == flexion
 
 
 def linear_fit(x, y, alternative_slope='two-sided', alternative_intercept='greater'):
@@ -226,16 +292,16 @@ def calc_R2(Y, Yhat):
 
 
 def load_glm_onset(sn, glm, output_events=False):
-    pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
+    pinfo     = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
     func_runs = pinfo.loc[pinfo.participant_id == f"subj{sn}", "FuncRuns_day3"].iloc[0].split('.')
     func_runs = np.array(func_runs, dtype=int)
     func_runs = np.array([func_runs + func_runs.size * i for i in range(3)]).flatten()
-    events = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, 'day3', f'efc4_subj{sn}_glm{glm}_events.tsv'), sep='\t')
-    events = events[(events.BN.isin(func_runs)) & (events.chordID != 99999)]
-    BN = events.BN.to_numpy() - 1
-    onset_b = events.Onset.to_numpy()
-    onset = (np.round(onset_b * gl.TR) + BN * gl.nTR).astype(int)
-    onset = np.sort(onset)
+    events    = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, 'day3', f'efc4_subj{sn}_glm{glm}_events.tsv'), sep='\t')
+    events    = events[(events.BN.isin(func_runs)) & (events.chordID != 99999)]
+    BN        = events.BN.to_numpy() - 1
+    onset_b   = events.Onset.to_numpy()
+    onset     = (np.round(onset_b * gl.TR) + BN * gl.nTR).astype(int)
+    onset     = np.sort(onset)
     if output_events:
         return onset, events
     else:

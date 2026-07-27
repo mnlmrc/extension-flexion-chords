@@ -2,10 +2,13 @@ import argparse
 import EFC_learningfMRI.globals as gl
 import os
 import pandas as pd
-
+import numpy as np
 import warnings
 
 from EFC_learningfMRI.util import lowpass_fir
+
+
+FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinkie']
 
 
 def calc_md(X):
@@ -73,8 +76,6 @@ def load_mov(filename):
     return mov
 
 
-import numpy as np
-
 def find_sustained_threshold_crossing(X, channels, threshold, fsample, duration_ms=600):
     """
     Find the first timepoint at which all selected channels exceed a threshold
@@ -108,8 +109,6 @@ def find_sustained_threshold_crossing(X, channels, threshold, fsample, duration_
         return -1
 
 
-FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinkie']
-
 
 def _find_blocks(path, prefix, ext='.mov'):
     """Block numbers available on disk for a subject, sorted."""
@@ -130,13 +129,13 @@ def _trial_row(force_tmp, dat_row, prev_chordID, trained):
 
     # force derivative features
     force_filt = lowpass_fir(force_tmp, n_ord=4, cutoff=10, fsample=fsample, axis=0)
-    der_abs = np.abs(np.gradient(force_filt, 1 / fsample, axis=0))
-    der_peak = der_abs.max(axis=0)
+    der_abs    = np.abs(np.gradient(force_filt, 1 / fsample, axis=0))
+    der_peak   = der_abs.max(axis=0)
     der_t2peak = np.argmax(der_abs, axis=0) / fsample
-    der_avg = der_abs.mean(axis=0)
+    der_avg    = der_abs.mean(axis=0)
 
     # execution-time / reaction-time boundaries
-    channels = [i for i, c in enumerate(str(chordID)) if c in ('1', '2')]
+    channels   = [i for i, c in enumerate(str(chordID)) if c in ('1', '2')]
     et_samples = find_sustained_threshold_crossing(np.abs(force_filt), channels, gl.ftarget, fsample=fsample)
     if et_samples > 0:
         rt_samples = int((dat_row['RT'][0] / 1000) * fsample)
@@ -147,26 +146,26 @@ def _trial_row(force_tmp, dat_row, prev_chordID, trained):
         et_samples = len(force_tmp) - int(gl.hold_time * fsample)
     assert et_samples > rt_samples
 
-    MD, _ = calc_md(force_tmp[rt_samples:et_samples])
+    MD, _     = calc_md(force_tmp[rt_samples:et_samples])
     force_avg = force_tmp[-et_samples:].mean(axis=0)
 
     chord = 'trained' if str(chordID) in trained else 'untrained'
-    Rep = 2 if (prev_chordID is not None and prev_chordID == chordID) else 1
+    Rep   = 2 if (prev_chordID is not None and prev_chordID == chordID) else 1
 
     row = {
-        'subNum': dat_row['subNum'][0],
-        'BN': dat_row['BN'][0],
-        'Repetition': Rep,
-        'TN': dat_row['TN'][0],
-        'trialPoint': trialPoint,
-        'RT': dat_row['RT'][0],
-        'ET': et_samples / fsample,
-        'MD': MD,
-        'chordID': chordID,
-        'chord': chord,
-        'session': dat_row['day'][0],
+        'subNum'      : dat_row['subNum'][0],
+        'BN'          : dat_row['BN'][0],
+        'Repetition'  : Rep,
+        'TN'          : dat_row['TN'][0],
+        'trialPoint'  : trialPoint,
+        'RT'          : dat_row['RT'][0],
+        'ET'          : et_samples / fsample,
+        'MD'          : MD,
+        'chordID'     : chordID,
+        'chord'       : chord,
+        'session'     : dat_row['day'][0],
         'session_type': dat_row['session'][0],
-        'week': dat_row['week'][0],
+        'week'        : dat_row['week'][0],
     }
     for i, f in enumerate(FINGERS):
         row[f] = force_avg[i]                          # average signed force
@@ -179,17 +178,19 @@ def _trial_row(force_tmp, dat_row, prev_chordID, trained):
 
 def single_trial_behaviour(sn=None, session=None):
     ch_idx = np.array(gl.diffCols)
-    path = os.path.join(gl.baseDir, 'behavioural', f'day{session}')
+    path   = os.path.join(gl.baseDir, 'behavioural', f'day{session}')
 
-    dat = pd.read_csv(os.path.join(path, f'efc4_{sn}.dat'), sep='\t')
-    pinfo = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
+    dat     = pd.read_csv(os.path.join(path, f'efc4_{sn}.dat'), sep='\t')
+    pinfo   = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
     trained = pinfo[pinfo.sn == sn].reset_index()['trained'][0].split('.')
+
+    assert dat.subNum.unique() == sn
 
     rows = []
     for bl in _find_blocks(path, prefix=f'efc4_{sn}'):
         dat_tmp = dat[dat['BN'] == bl]
-        mov = _load_block_mov(os.path.join(path, f'efc4_{sn}_{int(bl):02d}.mov'))
-        TN = np.unique(mov[:, 0])
+        mov     = _load_block_mov(os.path.join(path, f'efc4_{sn}_{int(bl):02d}.mov'))
+        TN      = np.unique(mov[:, 0])
 
         print(f'Processing... subj{sn}, session{session}, block {bl}, {TN.size} trials found...')
         assert TN.size == len(dat_tmp)
@@ -197,7 +198,7 @@ def single_trial_behaviour(sn=None, session=None):
         prev_chordID = None
         for ntrial in TN:
             force_tmp = mov[mov[:, 0] == ntrial][:, ch_idx] * gl.fGain
-            dat_row = dat_tmp[dat_tmp.TN == ntrial].reset_index()
+            dat_row   = dat_tmp[dat_tmp.TN == ntrial].reset_index()
 
             row = _trial_row(force_tmp, dat_row, prev_chordID, trained)
             print(f"subj{sn}, session {session}, block {bl}, ntrial {ntrial + 1}, "

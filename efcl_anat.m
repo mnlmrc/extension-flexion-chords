@@ -20,7 +20,6 @@ function varargout = efcl_anat(what, varargin)
     anatomicalDir = 'anatomicals'; % anatomical files (individual space)
     freesurferDir = 'surfaceFreesurfer'; % freesurfer reconall output
     surfacewbDir = 'surfaceWB'; % fs32k template 
-    suitDir = 'suit'; % SUIT 2.0 outputs
     regDir = 'ROI';
     wbDir = 'surfaceWB';
     glmEstDir = 'glm';

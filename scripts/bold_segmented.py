@@ -9,12 +9,12 @@ if __name__=='__main__':
 
     tAx = np.arange(-3, 17)
 
-    sns = [101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113]
+    sns = gl.participants
 
     glm = 3
 
     df = pd.DataFrame()
-    for H in ['L']: #gl.Hem:
+    for H in gl.Hem:
         for r, roi in enumerate(gl.rois['ROI']):
             for sn in sns:
                 print(f'doing participant {sn}, {H}, {roi}, glm {glm}, fitted')

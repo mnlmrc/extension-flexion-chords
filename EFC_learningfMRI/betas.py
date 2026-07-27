@@ -1,116 +1,175 @@
-import argparse
-
 import pandas as pd
 import numpy as np
 import os
-import shutil
-import subprocess
+import itertools
+from dataclasses import dataclass, field
+from functools import cached_property
+from typing import Sequence, Iterator
+
 from SUITPy.atlas import summarize_data
 
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.util import add_chord_column
+from EFC_learningfMRI.util import RegInfo, add_chord_column
 
 import nibabel as nb
 import nitools as nt
 import imaging_pipelines.betas as bt
+from imaging_pipelines.model import calc_prewhitened_betas
 import nitools.spm as spm
 
+@dataclass
+class BetasRoi:
+    """Prewhitened betas of one ROI, with the labels needed to model them."""
+    sn      : int
+    Hem     : str
+    roi     : str
+    betas   : np.ndarray
+    cond_vec: np.ndarray
+    part_vec: np.ndarray
 
-def _parse_regressor_name(name, sep=','):
-    """Split a contrast regressor name into its component condition labels.
 
-    Regressor names are ``sep``-delimited condition labels, e.g.
-    ``'chordID,sess'`` or ``'chordID,sess,rep'`` with the default ``sep=','``.
+@dataclass
+class BetasPrewithenedLoader:
+    """Prewhitened betas of every subject and ROI, loading each subject once.
 
-    Parameters
-    ----------
-    name : pandas.Series of str
-        The regressor names to parse.
-    sep : str, optional
-        Field separator (default ``','``).
+    Iterating is the whole API. The betas and residuals of a subject are read
+    once and reused for every ROI, and each ROI is prewhitened once::
 
-    Returns
-    -------
-    tuple of pandas.Series
-        One ``Series`` per delimited component, in order. The tuple has as many
-        elements as the number of parts found, so it can be unpacked directly,
-        e.g. ``chordID, sess = _parse_regressor_name(regressor)``.
+        for data in RoiLoader(glm=3):
+            G = calc_G(data.betas, data.cond_vec, data.part_vec, session=3)
     """
-    parts = name.str.split(sep, expand=True)
-    return tuple(parts[col] for col in parts.columns)
+
+    glm: int
+    sns: Sequence[int]  = field(default_factory=lambda: gl.participants)
+    atlas_name: str     = 'ROI'
+    residual_fname: str = 'residual.dtseries.nii'
+    Hem: Sequence[str]  = ('L', 'R')
+
+    @property
+    def rois(self) -> list:
+        return gl.rois[self.atlas_name]
+
+    def __iter__(self) -> Iterator[BetasRoi]:
+        for sn in self.sns:
+            reginfo   = RegInfo(sn, self.glm)
+            betas     = load_betas(sn, self.glm)
+            residuals = load_residuals(sn, self.glm, self.residual_fname)
+            
+            for H, roi in itertools.product(self.Hem, self.rois):
+                print(f'doing participant {sn}, {H}, {roi}...')
+                mask              = load_roi_mask(sn, H, roi, self.atlas_name)
+                betas_prewhitened = calc_prewhitened_betas(betas, residuals, mask)
+                yield BetasRoi(sn, H, roi, betas_prewhitened, reginfo.cond_vec, reginfo.part_vec)
+
+
+
+def load_residuals(sn, glm, residual_fname='residual.dtseries.nii'):
+    """Residuals of one subject.
+
+    Loading does not depend on the ROI, so load once per subject and reuse for
+    every mask. A cifti (``residual.dtseries.nii``) is left as-is: converting it
+    to a volume densifies it to the full grid, which for a run of this length is
+    tens of GB. ``ResMS.nii`` is a plain volume and selects the much cheaper
+    univariate prewhitening downstream.
+    """
+    path_glm = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
+    return nb.load(os.path.join(path_glm, residual_fname))
     
 
+
+def load_betas(sn, glm, fname='beta.dscalar.nii'):
+    """Betas of one subject, as a volume."""
+    path_glm   = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
+    beta_cifti = nb.load(os.path.join(path_glm, fname))
+    return nt.volume_from_cifti(beta_cifti, struct_names=['CortexLeft', 'CortexRight'])
+
+
+def load_roi_mask(sn, H, roi, atlas_name='ROI'):
+    """Mask of one ROI in one hemisphere."""
+    return nb.load(os.path.join(gl.baseDir, gl.roiDir, f'subj{sn}', f'{atlas_name}.{H}.{roi}.nii'))
+
+
 def roi_avg(sns=None, glm=None, atlas_name='ROI', cond_names=['chordID', 'session'], fname='contrast.dscalar.nii'):
-    df = pd.DataFrame()
+
+    frames = []
+
     for sn in sns:
+        # `desc` must have one row per FRAME of `fname` -- summarize_data's `frame`
+        # column (0..n_frames-1) is what we merge on. Read the labels off the file's
+        # own scalar axis. (reginfo has one row per run-wise regressor, e.g. 240, not
+        # per contrast frame, e.g. 24, so building desc from it misaligns the merge.)
+        reginfo   = RegInfo(sn, glm)
+        condition = reginfo.condition_unique
+        desc      = pd.DataFrame({name: condition[c].to_numpy() for c, name in enumerate(cond_names)})
+        vol       = load_betas(sn, glm, fname)
+
         for H in gl.Hem:
             print(f'doing participant {sn}, {H}...')
 
-            # load contrasts
-            cifti = nb.load(os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}', fname))
-            vol = nt.volume_from_cifti(cifti)
-
-            # load rois
+            
             masks = nb.load(os.path.join(gl.baseDir, gl.roiDir, f'subj{sn}', f'{atlas_name}.{H}.nii'))
+            tmp   = summarize_data(vol, label_image=masks, region_names=['S1', 'M1', 'PMd', 'PMv', 'SMA', 'V1', 'SPLa', 'SPLp'])
 
-            # do summarize
-            tmp = summarize_data(vol, label_image=masks, 
-                                 region_names=['S1', 'M1', 'PMd', 'PMv', 'SMA', 'V1', 'SPLa', 'SPLp'])
-
-            # add condition descriptors
-            name = cifti.header.get_axis(0).name
-            regressor = pd.Series(np.repeat(name, tmp.region.nunique()))
-            cond = _parse_regressor_name(regressor)
-            for c, c_name in enumerate(cond_names):tmp[c_name] = cond[c]
-
-            # add subject, Hem and trained/untrained descriptors
-            tmp['sn'] = sn
-            tmp['Hem'] = H
-            tmp = add_chord_column(tmp)
-
+            # attach condition labels by frame, then subject / hemisphere / chord
+            tmp            = tmp.merge(desc, left_on='frame', right_index=True)
+            tmp['sn']      = sn
+            tmp['Hem']     = H
+            tmp            = add_chord_column(tmp)
             tmp['session'] = tmp.session.map({'sess03': 3, 'sess09': 9, 'sess23': 23})
 
-            df = pd.concat([df, tmp])
+            frames.append(tmp)
 
+    df = pd.concat(frames, ignore_index=True)
+    
     df.to_csv(os.path.join(gl.baseDir, f'glm{glm}', f'{atlas_name}.activation.tsv'), sep='\t', index=False)
 
 
-def save_spm_as_mat7(sn, glm):
-    path_glm = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
-    spm_path = os.path.join(path_glm, 'SPM.mat')
-    backup_path = spm_path + ".backup"
 
-    if os.path.exists(backup_path):
-        pass
-    else:
-        # Step 1: Backup the original file
-        shutil.copy(spm_path, backup_path)
-        print(f"Backed up {spm_path} to {backup_path}")
+@dataclass
+class CiftiCortex:
+    """Build and save the cortical CIFTI of one subject, one output ``type`` at a time.
 
-    # Step 2: Run MATLAB command
-    matlab_cmd = (
-        f"matlab -nodesktop -nosplash -r "
-        f"\"load('{spm_path}'); save('{spm_path}', '-struct', 'SPM', '-v7'); exit\""
-    )
+    The shared setup (paths, masks, reginfo, row axis) lives in properties and each
+    output type is its own method, so ``make(type)`` just dispatches to the method
+    of that name. ``make_cifti_cortex`` remains as a thin wrapper for existing callers.
+    """
 
-    subprocess.run(matlab_cmd, shell=True, check=True)
-    print(f"Processed {spm_path} with MATLAB")
+    sn: int
+    glm: int = None
 
+    # --- shared setup --------------------------------------------------------
+    @property
+    def path_glm(self):
+        return os.path.join(gl.baseDir, f'glm{self.glm}', f'subj{self.sn}')
 
-def make_cifti_cortex(sn, glm=None, type='beta', session=None):
-    print(f'doing participant {sn}, {type}...')
-    path_glm = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}',
-                                f'day{session}') if session is not None else os.path.join(
-                                gl.baseDir, f'glm{glm}', f'subj{sn}')
-    path_rois = os.path.join(gl.baseDir, gl.roiDir, f'subj{sn}')
-    masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in gl.Hem]
-    reginfo = pd.read_csv(os.path.join(path_glm, 'reginfo.tsv'), sep='\t')
-    row_axis = nb.cifti2.ScalarAxis(reginfo['name'] + '.' + reginfo['run'].astype(str))
-    if type == 'beta':
-        cifti = bt.make_cifti_betas(masks, gl.struct_cortex, path_glm=path_glm, row_axis=row_axis, )
-        nb.save(cifti, path_glm + '/' + 'beta.dscalar.nii')
-    elif type == 'repetition_suppression':
-        cifti          = bt.make_cifti_contrasts(path_glm, masks, gl.struct_cortex, reginfo.name)
+    @property
+    def path_rois(self):
+        return os.path.join(gl.baseDir, gl.roiDir, f'subj{self.sn}')
+
+    @property
+    def masks(self):
+        return [os.path.join(self.path_rois, f'Hem.{H}.nii') for H in gl.Hem]
+
+    @cached_property
+    def reginfo(self):
+        return pd.read_csv(os.path.join(self.path_glm, 'reginfo.tsv'), sep='\t')
+
+    @property
+    def row_axis(self):
+        return nb.cifti2.ScalarAxis(self.reginfo['name'] + '.' + self.reginfo['run'].astype(str))
+
+    def _save(self, cifti, fname):
+        nb.save(cifti, os.path.join(self.path_glm, fname))
+        return cifti
+
+    # --- one method per output type ------------------------------------------
+    def beta(self):
+        print(f'doing betas, participant {self.sn}')
+        cifti = bt.make_cifti_betas(self.masks, gl.struct_cortex, path_glm=self.path_glm, row_axis=self.row_axis, )
+        return self._save(cifti, 'beta.dscalar.nii')
+
+    def repetition_suppression(self):
+        cifti          = bt.make_cifti_contrasts(self.path_glm, self.masks, gl.struct_cortex, self.reginfo.name)
         brain_axis     = cifti.header.get_axis(1)
         regr           = pd.Series(cifti.header.get_axis(0).name)[::2]
         chord_sess_rep = regr.str.split(',', expand=True)
@@ -119,35 +178,39 @@ def make_cifti_cortex(sn, glm=None, type='beta', session=None):
         data           = cifti.get_fdata()
         rep1           = data[::2]
         rep2           = data[1::2]
-        suppr          = rep2 / rep1
+        suppr          = rep2 - rep1
         header         = nb.Cifti2Header.from_axes((row_axis, brain_axis))
         cifti_suppr    = nb.Cifti2Image(dataobj=suppr,  header=header)
-        nb.save(cifti_suppr, path_glm + '/' + 'rep_suppr.dscalar.nii')
-    elif type == 'residual':
-        residuals = bt.make_cifti_residuals(path_glm=path_glm, masks=masks, struct=gl.struct_cortex)
-        nb.save(residuals, path_glm + '/' + 'residual.dtseries.nii')
-    elif type == 'contrast':
-        cifti = bt.make_cifti_contrasts(path_glm, masks, gl.struct_cortex, reginfo.name)
-        nb.save(cifti, path_glm + '/' + 'contrast.dscalar.nii')
-    elif type =='psc':
-        contrast = nb.load(path_glm + '/' + 'contrast.dscalar.nii')
-        intercept = nb.load(path_glm + '/' + 'intercept.dscalar.nii')
-        SPM = spm.SpmGlm(path_glm)
+        return self._save(cifti_suppr, 'rep_suppr.dscalar.nii')
+
+    def residual(self):
+        print(f'doing residuals, participant {self.sn}')
+        residuals = bt.make_cifti_residuals(path_glm=self.path_glm, masks=self.masks, struct=gl.struct_cortex)
+        return self._save(residuals, 'residual.dtseries.nii')
+
+    def contrast(self):
+        print(f'doing contrasts, participant {self.sn}')
+        cifti = bt.make_cifti_contrasts(self.path_glm, self.masks, gl.struct_cortex, self.reginfo.name)
+        return self._save(cifti, 'contrast.dscalar.nii')
+
+    def psc(self):
+        contrast  = nb.load(os.path.join(self.path_glm, 'contrast.dscalar.nii'))
+        intercept = nb.load(os.path.join(self.path_glm, 'intercept.dscalar.nii'))
+        SPM       = spm.SpmGlm(self.path_glm)
         SPM.get_info_from_spm_mat()
-        cifti = bt.make_cifti_psc(contrast=contrast, intercept=intercept, SPM=SPM, masks=masks, struct=gl.struct_cortex)
-        nb.save(cifti, path_glm + '/' + 'psc.dscalar.nii')
-    elif type == 'intercept':
-        session = reginfo.name.str.split(',', n=1, expand=True)[1]
-        nRuns = [reginfo[session == sess].run.nunique() for sess in session.unique()]
-        nRegressors = reginfo.shape[0]
-        intercept = []
+        cifti = bt.make_cifti_psc(contrast=contrast, intercept=intercept, SPM=SPM, masks=self.masks, struct=gl.struct_cortex)
+        return self._save(cifti, 'psc.dscalar.nii')
+
+    def intercept(self):
+        session     = self.reginfo.name.str.split(',', n=1, expand=True)[1]
+        nRuns       = [self.reginfo[session == sess].run.nunique() for sess in session.unique()]
+        nRegressors = self.reginfo.shape[0]
+        intercept   = []
         for sess in range(gl.nSess):
             for run in range(nRuns[sess]):
-                intercept.append(os.path.join(path_glm, f'beta_0{nRegressors + run + 1 + sess * nRuns[0]}.nii'))
-        masks = [os.path.join(path_rois, f'Hem.{H}.nii') for H in gl.Hem]
+                intercept.append(os.path.join(self.path_glm, f'beta_0{nRegressors + run + 1 + sess * nRuns[0]}.nii'))
         cond_vec = np.sort(np.array([f'{sess},{run}' for run in range(nRuns[sess]) for sess in range(gl.nSess)]))
         row_axis = nb.cifti2.ScalarAxis(cond_vec)
-        cifti = bt.make_cifti_betas(masks, gl.struct_cortex, intercept, row_axis=row_axis, )
-        nb.save(cifti, path_glm + '/' + 'intercept.dscalar.nii')
-    else:
-        raise Exception(f'Unknown type {type}. Must be beta, residual, contrast or intercept.')
+        cifti    = bt.make_cifti_betas(self.masks, gl.struct_cortex, intercept, row_axis=row_axis, )
+        return self._save(cifti, 'intercept.dscalar.nii')
+

@@ -77,38 +77,81 @@ def plot_hrf_cut(fig, axs, df, rois):
     fig.legend(loc='lower center', frameon=False, ncol=2)
     
 
-def plot_pcm_corr(fig, axs, df, corr, rois):
-    chords = ['trained', 'untrained']
-    xmin, xmax = .02, .25
-    xminP, xmaxP = xmin / (xmax - xmin), .2 / (xmax - xmin)
-    for chord in chords:
-        for r, roi in enumerate(rois):
-            ax = axs[r]
-            df_tmp = df[(df['roi'] == roi) & (df['corr'] == corr) & (df['chord'] == chord)]
-            r_indiv = df_tmp.r_indiv.to_numpy()
-            SNR = df_tmp.SNR.to_numpy()
-            r_group = df_tmp.r_group.to_numpy()[0]
-            #ci_lo, ci_hi = df_corr_tmp.ci_lo.to_numpy()[0], df_corr_tmp.ci_hi.to_numpy()[0]
-            #print(f'{roi}: r={r_group}, 95% [{ci_lo}, {ci_hi}]')
-            ax.scatter(SNR, r_indiv, color='r' if chord=='trained' else 'b')
-            ax.axhline(r_group, xmin=xminP, xmax=xmaxP, color='r' if chord=='trained' else 'b', ls='--')
-            ax.axhline(0, xmin=xminP, xmax=xmaxP, color='k', linestyle='-', lw=.8)
-            #ax.axhspan(ci_lo, ci_hi, lw=0, color='lightgrey', zorder=0)
-            ax.set_xlim(-.02, .25)
-            ax.set_ylim(-1.2, 1.2)
-            ax.spines[['top', 'right', 'left', 'bottom']].set_visible(False)
+def _hue_colors(df, hue, hue_order, palette, color):
+    """Map each hue level to the colour seaborn will give it.
+
+    Lets the group-level lines be drawn in the same colours as the scatter points
+    without hard-coding a palette.
+    """
+    if hue is None:
+        return {None: color}
+    if isinstance(palette, dict):
+        return palette
+    if palette is None:
+        colors = [color] * len(hue_order) if color is not None else sb.color_palette(n_colors=len(hue_order))
+    else:
+        colors = sb.color_palette(palette, n_colors=len(hue_order)) if isinstance(palette, str) else list(palette)
+    return dict(zip(hue_order, colors))
+
+
+def plot_pcm_corr(fig, axs, df, corr, rois=None, x='SNR', y='r_indiv', hue='chord', hue_order=None, palette=None, color=None, add_zero=True, group_col='r_group', roi_col=None, legend=True, **kwargs):
+
+    kws = dict(s=25) | kwargs
+
+    if roi_col is None:
+        candidates = ['roi', 'regionname', 'region']
+        roi_col = next((c for c in candidates if c in df.columns), None)
+        if roi_col is None:
+            raise KeyError(f"None of {candidates} in df contain the requested rois; pass roi_col explicitly.")
+
+    df = df[df['corr'] == corr]
+
+    if rois is None:
+        rois = df[roi_col].unique()
+    if hue is not None and hue_order is None:
+        hue_order = list(df[hue].unique())
+
+    colors = _hue_colors(df, hue, hue_order, palette, color)
+
+    for r, roi in enumerate(rois):
+        ax     = axs[r]
+        df_roi = df[df[roi_col] == roi]
+        sb.scatterplot(data      = df_roi ,
+                       ax        = ax ,
+                       x         = x ,
+                       y         = y ,
+                       hue       = hue ,
+                       hue_order = hue_order ,
+                       palette   = palette if hue is not None else None ,
+                       color     = color ,
+                       legend    = legend and r == len(rois)-1 ,
+                       **kws)
+
+        # group_col=None skips the dashed lines. Needed for permuted data, where
+        # each relabeling has its own group r and picking one would be arbitrary.
+        for level in (hue_order if hue is not None else [None]) if group_col else []:
+            df_lvl = df_roi if level is None else df_roi[df_roi[hue] == level]
+            if df_lvl.empty:
+                continue
+            ax.hlines(df_lvl[group_col].to_numpy()[0], df_lvl[x].min(), df_lvl[x].max(),
+                      color=colors[level], ls='--')
+
+        ax.set_title(roi)
+        ax.set_xlabel(None)
+        ax.set_ylabel(None)
+        if r>0:
+            sb.despine(ax=ax, left=True, bottom=True)
             ax.tick_params(left=False, bottom=False, labelbottom=False)
-            if r == 0:
-                ax.spines['left'].set_visible(True)
-                ax.spines['left'].set_bounds(-1, 1)
-                ax.tick_params(left=True)
+        else:
+            sb.despine(ax=ax)
+        if add_zero is not False:
+            ax.axhline(0 if add_zero is True else add_zero, lw=.8, color='k', ls=':')
 
 
-def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point',       
-                 roi_col=None, native_scale=True, **kwargs):
+def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', roi_col=None, native_scale=True, legend=True, alpha=1, **kwargs):
     kws = {
         'point': dict(dodge=.2, lw=2, errorbar='se', estimator='mean'),
-        'box': dict(showfliers=False, boxprops=dict(alpha=1)),
+        'box': dict(showfliers=False, boxprops=dict(alpha=alpha)),
         'bar': dict(errorbar='se'),
         'strip': dict(jitter=True, dodge=True, alpha=.2),
         'violin': dict(inner='point', split=False),
@@ -125,8 +168,16 @@ def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_ord
         
     for r, roi in enumerate(rois):
         ax = axs[r]
-        common = dict(data=df[df[roi_col]==roi], ax=ax, x=x, y=y, hue=hue, hue_order=hue_order, palette=palette, color=color,
-        native_scale=native_scale, legend=False if r<len(rois)-1 else True)
+        common = dict(data         = df[df[roi_col]==roi], 
+                      ax           = ax,
+                      x            = x,
+                      y            = y,
+                      hue          = hue,
+                      hue_order    = hue_order,
+                      palette      = palette,
+                      color        = color,
+                      native_scale = native_scale,
+                      legend       = legend and r == len(rois)-1)
         if kind == 'point':
             sb.pointplot(**common, **kws)
         elif kind == 'box':
@@ -139,14 +190,14 @@ def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_ord
             sb.stripplot(**common, **kws)
         ax.set_title(roi)
         ax.set_xlabel(None)
-        ax.set_xticks(df[x].unique())
+        ax.set_xticks(df[x].unique()) if df[x].dtype == int else None
         if r>0:
             sb.despine(ax=ax, left=True, bottom=True)
             ax.tick_params(left=False, bottom=False, labelbottom=False) if r>0 else None
         else:
             sb.despine(ax=ax)
-        if add_zero:
-            ax.axhline(0, lw=.8, color='k', ls=':')
+        if add_zero is not False:
+            ax.axhline(0 if add_zero is True else add_zero, lw=.8, color='k', ls=':')
 
 
 def plot_behav_sess(fig, ax, df, x='session', y=None, hue=None, hue_order=None, palette=None, decor=True):

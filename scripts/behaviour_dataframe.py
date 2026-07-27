@@ -3,13 +3,12 @@ import pandas as pd
 import os
 
 if __name__ == '__main__':
-    sns = [101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113]
+    sns       = gl.participants
     df_pooled = pd.DataFrame()
     for sn in sns:
         for sess in range(24):
             print(f'doing participant {sn}, day {sess + 1}')
-            df = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, f'day{sess+1}',
-                         f'efc4_{sn}_single_trial.tsv'), sep = '\t',)
+            df = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, f'day{sess+1}', f'efc4_{sn}_single_trial.tsv'), sep = '\t',)
             df_pooled = pd.concat([df_pooled, df])
 
     df_pooled.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'behaviour.trial.tsv'), sep='\t', index=False)

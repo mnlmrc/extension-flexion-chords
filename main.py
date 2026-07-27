@@ -83,7 +83,7 @@ def main(args):
         geometry.calc_G(sns=args.sns, glm=args.glm, rois=gl.rois[args.atlas_name], type='chord-session', sessions=gl.sessions)
         
     elif args.what == "searchlight_encoding_session":
-        geometry.searchlight_encoding(sns=args.sns, glm=args.glm)
+        geometry.Searchlight(sns=args.sns, glm=args.glm).run()
 
     elif args.what == "correlation_between_sessions":
         correlation.correlation_sess(sns=args.sns, glm=args.glm, rois=gl.rois[args.atlas_name], atlas_name=args.atlas_name)

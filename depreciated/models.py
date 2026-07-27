@@ -40,7 +40,7 @@ def make_models_chord():
 
 def main(args):
     if args.what == "correlation_across_sessions":
-        Mflex = pcm.CorrelationModel("flex", num_items=4, corr=None, cond_effect=True)
+        Mflex = pcm.CorrelationModel("flex", num_items=4, corr=None, cond_effect=False)
         f = open(os.path.join(gl.baseDir, gl.pcmDir, f'M.corr.p'), "wb")
         pickle.dump(Mflex, f)
     if args.what == "trained_untrained_sess":

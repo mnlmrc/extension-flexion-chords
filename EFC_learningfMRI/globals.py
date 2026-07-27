@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import time
 import sys
+import itertools
 
 baseDir = "/cifs/diedrichsen/data/Chord_exp/EFC_learningfMRI"
 if not os.path.exists(baseDir):
@@ -41,32 +42,16 @@ fsample = {
 
 nblocks = 8
 
-participants = [101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113]
+participants = [101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113, 114]
 
 chordID = np.sort(np.array([21911, 92122, 91211, 22911, 21291, 12129, 12291, 11911]))
 
-chord_finger = {
-     21911: np.array([1, 1, 0, 1, 1]),
-     92122: np.array([0, 1, 1, 1, 1]),
-     91211: np.array([0, 1, 1, 1, 1]),
-     22911: np.array([1, 1, 0, 1, 1]),
-     21291: np.array([1, 1, 1, 0, 1]),
-     12129: np.array([1, 1, 1, 1, 0]),
-     12291: np.array([1, 1, 1, 0, 1]),
-     11911: np.array([1, 1, 0, 1, 1])
-}
-
-chord_pattern = {
-     21911: np.array([-1,  1,  0,  1,  1]),
-     92122: np.array([ 0, -1,  1, -1, -1]),
-     91211: np.array([ 0,  1, -1,  1,  1]),
-     22911: np.array([-1, -1,  0,  1,  1]),
-     21291: np.array([-1,  1, -1,  0,  1]),
-     12129: np.array([ 1, -1,  1, -1,  0]),
-     12291: np.array([ 1, -1, -1,  0,  1]),
-     11911: np.array([ 1,  1,  0,  1,  1])
-}
-
+# all 70 ways to split the 8 chords into trained (first 4) and untrained (last 4);
+# each entry is an 8-element list, ordered like util.get_trained_and_untrained()
+chordID_combinations = [
+    [int(c) for c in trained] + [int(c) for c in chordID if c not in trained]
+    for trained in itertools.combinations(chordID, 4)
+]
 
 
 sessions = [3, 9, 23]
@@ -80,9 +65,9 @@ trialPoint_mapping = {
 }
 
 sess_mapping = {
-    'sess03': 0,
-    'sess09': 1,
-    'sess23': 2
+    'sess03': 1,
+    'sess09': 2,
+    'sess23': 3
 }
 
 TR = 1
