@@ -54,10 +54,9 @@ class BetasPrewithenedLoader:
             reginfo   = RegInfo(sn, self.glm)
             betas     = load_betas(sn, self.glm)
             residuals = load_residuals(sn, self.glm, self.residual_fname)
-            
             for H, roi in itertools.product(self.Hem, self.rois):
                 print(f'doing participant {sn}, {H}, {roi}...')
-                mask              = load_roi_mask(sn, H, roi, self.atlas_name)
+                mask = nb.load(os.path.join(gl.baseDir, gl.roiDir, f'subj{sn}', f'{self.atlas_name}.{H}.{roi}.nii'))
                 betas_prewhitened = calc_prewhitened_betas(betas, residuals, mask)
                 yield BetasRoi(sn, H, roi, betas_prewhitened, reginfo.cond_vec, reginfo.part_vec)
 
@@ -84,11 +83,6 @@ def load_betas(sn, glm, fname='beta.dscalar.nii'):
     return nt.volume_from_cifti(beta_cifti, struct_names=['CortexLeft', 'CortexRight'])
 
 
-def load_roi_mask(sn, H, roi, atlas_name='ROI'):
-    """Mask of one ROI in one hemisphere."""
-    return nb.load(os.path.join(gl.baseDir, gl.roiDir, f'subj{sn}', f'{atlas_name}.{H}.{roi}.nii'))
-
-
 def roi_avg(sns=None, glm=None, atlas_name='ROI', cond_names=['chordID', 'session'], fname='contrast.dscalar.nii'):
 
     frames = []
@@ -100,7 +94,7 @@ def roi_avg(sns=None, glm=None, atlas_name='ROI', cond_names=['chordID', 'sessio
         # per contrast frame, e.g. 24, so building desc from it misaligns the merge.)
         reginfo   = RegInfo(sn, glm)
         condition = reginfo.condition_unique
-        desc      = pd.DataFrame({name: condition[c].to_numpy() for c, name in enumerate(cond_names)})
+        cond_name = pd.DataFrame({name: condition[c].to_numpy() for c, name in enumerate(cond_names)})
         vol       = load_betas(sn, glm, fname)
 
         for H in gl.Hem:
@@ -111,7 +105,7 @@ def roi_avg(sns=None, glm=None, atlas_name='ROI', cond_names=['chordID', 'sessio
             tmp   = summarize_data(vol, label_image=masks, region_names=['S1', 'M1', 'PMd', 'PMv', 'SMA', 'V1', 'SPLa', 'SPLp'])
 
             # attach condition labels by frame, then subject / hemisphere / chord
-            tmp            = tmp.merge(desc, left_on='frame', right_index=True)
+            tmp            = tmp.merge(cond_name, left_on='frame', right_index=True)
             tmp['sn']      = sn
             tmp['Hem']     = H
             tmp            = add_chord_column(tmp)

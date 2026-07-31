@@ -3,79 +3,11 @@ import itertools
 import numpy as np
 import pandas as pd
 import PcmPy as pcm
-from EFC_learningfMRI.geometry import split_trained
-from EFC_learningfMRI.G_matrix import Intercept, make_G_dataframe
+# from EFC_learningfMRI.geometry import split_trained
+# from EFC_learningfMRI.G_matrix import lme_trained_untrained
 import EFC_learningfMRI.globals as gl
+from EFC_learningfMRI.util import get_trained_and_untrained
 
-N_CHORDS = 8
-
-
-def session_block(M, s1=0, s2=0):
-    """The 8 chords of session s1 (rows) against the 8 chords of session s2 (columns).
-
-    Conditions are ordered session-major, so session s occupies 8*s to 8*s+8.
-    The block always has the trained chords first, which is what split_trained
-    expects. A within-session matrix holds one session, hence the default s1=s2=0.
-    """
-    return M[N_CHORDS*s1:N_CHORDS*(s1 + 1), N_CHORDS*s2:N_CHORDS*(s2 + 1)]
-
-
-def crossnobis(G, s1=0, s2=0):
-    """One row per chord set, with its mean euclidean and cosine dissimilarity.
-    
-    """
-    
-    dist   = pcm.G_to_dist(G)
-    M_dist = session_block(dist, s1, s2)
-
-    _, dist_trained, dist_untrained = split_trained(M_dist)
-
-    return {'chord': 'trained',   'dist': dist_trained.mean()}, {'chord': 'untrained', 'dist': dist_untrained.mean()}
-
-
-def cosine(G, s1=0, s2=0):
-    """One row per chord set, with its mean euclidean and cosine dissimilarity.
-    
-    """
-    
-    cos    = pcm.G_to_cosine(G)
-    M_cos  = session_block(cos, s1, s2)
-
-    if (s1>0) or (s2>0):
-        M_cos_diag = np.diag(M_cos)
-        cos_trained, cos_untrained = M_cos_diag[:4], M_cos_diag[4:]
-    else:
-        _, cos_trained, cos_untrained   = split_trained(M_cos)
-
-    return {'chord': 'trained', 'cos': cos_trained.mean()}, {'chord': 'untrained', 'cos': cos_untrained.mean()}
-
-
-def within_session(sns, glm, atlas_name):
-    """Dissimilarity within the trained and within the untrained chords of each session."""
-
-    rows = []
-    for H, roi, sess in itertools.product(gl.Hem, gl.rois[atlas_name], gl.sessions):
-        G_obs = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'G_obs.within_session.{sess}.glm{glm}.{H}.{roi}.npy'))
-        for sn, G in zip(sns, G_obs):
-            for dist, cos in zip(crossnobis(G), cosine(G)):
-                rows.append({'sn': sn, 'Hem': H, 'roi': roi, 'session': sess, **dist})
-                rows.append({'sn': sn, 'Hem': H, 'roi': roi, 'session': sess, **cos})
-
-    return pd.DataFrame(rows)
-
-
-def across_session(sns, glm, atlas_name):
-    """Dissimilarity within the trained and within the untrained chords, between two sessions."""
-
-    rows = []
-    for H, roi in itertools.product(gl.Hem, gl.rois[atlas_name]):
-        cov = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'cov.across_session.glm{glm}.{H}.{roi}.npy'))
-        for sn, cov_ in zip(sns, cov):
-            for s1, s2 in itertools.combinations(range(len(gl.sessions)), 2):
-                for cos in cosine(cov_, s1, s2):
-                    rows.append({'sn': sn, 'Hem': H, 'roi': roi, 'session': f'{gl.sessions[s1]}-{gl.sessions[s2]}', **cos})
-
-    return pd.DataFrame(rows)
 
 
 def shuffle_trained_untrained(df, rng):
@@ -89,6 +21,92 @@ def shuffle_trained_untrained(df, rng):
     return out
 
 
+
+def make_G_dataframe(glm, atlas_name='ROI', sns=None, ref_session=3, crossval=False):
+    """Long-form table of within-session crossnobis and cosine dissimilarities.
+
+    Each row is one chord pair for one subject/hemisphere/ROI/session. The pair is
+    classified as ``trained`` (both chords trained), ``untrained`` (both untrained)
+    or ``trained_untrained`` (one of each), and labelled with the two chord IDs,
+    e.g. ``11911-22911``. Per subject the 8 chords follow
+    :func:`get_trained_and_untrained` (first 4 trained, last 4 untrained), so the
+    labels are read from that subject's own chord order.
+
+    ``crossnobis_group`` / ``cosine_group`` add the across-subject mean of each
+    metric for that chord pair in the reference session ``ref_session`` (default 3),
+    pooled over the trained/untrained/mixed classes so every subject contributes. The
+    same reference value is broadcast to every session, so a row's ``*_group`` is the
+    ref-session group geometry for that pair regardless of the row's own session --
+    the fixed reference to plot / regress each session's subject distances against.
+
+    ``crossval`` makes that reference leave-one-subject-out: a subject's ``*_group`` is
+    then the mean over the *other* subjects only, so it is never regressed against a
+    group mean that contains its own data. Without it the group mean includes the
+    subject, biasing subject-vs-group fits toward the diagonal.
+    """
+    sns  = gl.participants if sns is None else sns
+    rois = gl.rois[atlas_name]
+
+    mask                           = np.tri(8, k=-1, dtype=bool)
+    mask_trained                   = mask.copy()
+    mask_untrained                 = mask.copy()
+    mask_trained[4:]               = False
+    mask_untrained[:, :4]          = False
+    mask_trained_untrained         = np.zeros((8, 8), dtype=bool)
+    mask_trained_untrained[:4, 4:] = True
+
+    # (classification, row indices, col indices) for the three chord-pair groups
+    masks = {'trained'          : mask_trained,
+             'untrained'        : mask_untrained,
+             'trained_untrained': mask_trained_untrained}
+    idx   = {chord: np.where(m) for chord, m in masks.items()}
+
+    rows = []
+    for H, roi, sess in itertools.product(gl.Hem, rois, gl.sessions):
+        G   = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'G_obs.within_session.{sess}.glm{glm}.{H}.{roi}.npy'))
+        D   = pcm.G_to_dist(G)
+        cos = pcm.G_to_cosine(G)
+        for i, sn in enumerate(sns):
+            chords = get_trained_and_untrained(sn)
+            for chord, (r, c) in idx.items():
+                for ri, ci in zip(r, c):
+                    rows.append({'sn'        : sn,
+                                 'Hem'       : H,
+                                 'roi'       : roi,
+                                 'session'   : sess,
+                                 'chord'     : chord,
+                                 'pair'      : f'{chords[ri]}-{chords[ci]}',
+                                 'crossnobis': D[i, ri, ci],
+                                 'cosine'    : cos[i, ri, ci]})
+
+    df = pd.DataFrame(rows)
+
+    df['pair'] = df.pair.map(lambda s: '-'.join(sorted(s.split('-'))))
+
+    # group-mean geometry: across-subject mean of each chord pair in the reference
+    # session, pooled over trained/untrained/mixed (no 'chord'/'session' in the key,
+    # so all subjects contribute). Merged onto every row, so the *_group columns hold
+    # the ref-session reference for every session.
+    keys = ['Hem', 'roi', 'pair']
+    s3   = df[df.session == ref_session]
+    if crossval:
+        # leave-one-subject-out: subtract each subject's own value from the pair sum,
+        # so their reference is the mean over the other subjects. Keyed by subject too,
+        # then merged so it broadcasts across that subject's sessions.
+        ref = s3[keys + ['sn']].copy()
+        for metric in ('crossnobis', 'cosine'):
+            g = s3.groupby(keys)[metric]
+            ref[f'{metric}_group'] = (g.transform('sum') - s3[metric]) / (g.transform('size') - 1)
+        df = df.merge(ref, on=keys + ['sn'], how='left')
+    else:
+        ref = (s3.groupby(keys, as_index=False)
+                 .agg(crossnobis_group=('crossnobis', 'mean'),
+                      cosine_group    =('cosine',     'mean')))
+        df  = df.merge(ref, on=keys, how='left')
+
+    return df
+
+
 if __name__=='__main__':
     sns        = gl.participants
     glm        = 3
@@ -98,17 +116,18 @@ if __name__=='__main__':
 
     within_long.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
 
+    # # permutation loop: shuffle labels -> refit -> append
+    # rng    = np.random.default_rng(0)
+    # n_perm = 1000
+    # rows   = []
+    # for i in range(n_perm):
+    #     print(f'{i + 1}/{n_perm}') if (i + 1) % (n_perm // 10) == 0 else None
+    #     dist_perm    = shuffle_trained_untrained(within_long, rng)
+    #     res_perm_tmp = lme_trained_untrained(dist_perm)
+    #     rows.append(res_perm_tmp)
 
-    # within = within_session(sns, glm, atlas_name)
-    # across = across_session(sns, glm, atlas_name)
+    # result_perm = pd.concat(rows, axis=0)
 
-    # within.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
-    # across.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity.across_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
+    # result_perm.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity_perm.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
 
-    # intercept = Intercept(sns, glm)
-    # dist      = intercept.dataframe(pcm.G_to_dist)
-    # cos       = intercept.dataframe(pcm.G_to_cosine)
 
-    # dist.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'intercept.within_session.crossnobis.ROI.glm{glm}.tsv'), sep='\t', index=False)
-
-    # cos.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'intercept.within_session.cosine.ROI.glm{glm}.tsv'), sep='\t', index=False)

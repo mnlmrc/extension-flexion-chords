@@ -62,7 +62,7 @@ def fixed_models():
 
     return G_tr_untr, G_tr, G_untr
 
-def subj_spec_models(order=None):
+def subj_spec_models(order=None, glm=3):
 
     finger  = np.zeros((8, 5))
     pattern = np.zeros_like(finger)
@@ -111,10 +111,11 @@ def fit_component_model(loader):
     glm   = loader.glm
     atlas = loader.atlas_name
 
-    df = pd.DataFrame()
+    df     = pd.DataFrame()
+    thetas = {}                       # (sn, Hem, roi, session) -> theta_in, pickled below
     for data in loader:
         for session in gl.sessions:
-            keep = runs_to_keep(session, totRuns=data.part_vec.size)
+            keep = runs_to_keep(data.part_vec.size, session=session)
 
             betas    = data.betas[keep]
             cond_vec = data.cond_vec[keep]
@@ -127,25 +128,23 @@ def fit_component_model(loader):
             model, comp_names = make_models(data.sn)
             model = model[-2] # select component model
 
+            G_session3 = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'G_obs.within_session.3.glm{glm}.{data.Hem}.{data.roi}.npy'))
+            G_session3 = G_session3.mean(axis=0)
+            comp_names.append('base')
+            model.Gc      = np.r_[model.Gc, G_session3[None, :, :]]
+            model.n_param = model.Gc.shape[0]     # sync param count with the extended Gc
+
             _, theta_in = pcm.fit_model_individ(Y, model, fit_scale=False, verbose=True, fixed_effect='block')
 
-            weight = np.asarray(np.exp(theta_in)).ravel()
+            path = os.path.join(gl.baseDir, gl.pcmDir, f'subj{data.sn}')
+            os.makedirs(path, exist_ok=True)
+            with open(os.path.join(path, f'component_model.theta_in.{atlas}.glm{glm}.{session}.{data.Hem}.{data.roi}.p'), 'wb') as f:
+                pickle.dump(theta_in, f)
 
-            # component order matches make_models(); a trailing param is the noise scale
-            if len(weight) > len(comp_names): 
-                labels = comp_names + ['noise'] * (len(weight) - len(comp_names))
-            else: 
-                labels = comp_names[:len(weight)]
 
-            df_tmp = pd.DataFrame({'weight'   : weight, 
-                                   'component': labels,})
-            df_tmp['sn']      = data.sn
-            df_tmp['Hem']     = data.Hem
-            df_tmp['roi']     = data.roi
-            df_tmp['session'] = session
-            df                = pd.concat([df, df_tmp], ignore_index=True)
 
-    df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'component_model.{atlas}.glm{glm}.tsv'), sep='\t', index=False)
+
+    
 
 
 

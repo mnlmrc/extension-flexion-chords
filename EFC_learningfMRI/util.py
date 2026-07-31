@@ -59,15 +59,16 @@ class RegInfo:
         """
         transform condition labels into number for correct ordering in G matrix
         """
-        sess    = self.condition[1].map(gl.sess_mapping)
-        chordID = self.condition[0].astype(int).map(self.make_chord_mapping)
-
-        cond_vec = sess.astype(str) + ',' + chordID.astype(str)
+        session  = self.condition[1].map(gl.sess_mapping)
+        chordID  = self.condition[0].astype(int).map(self.make_chord_mapping)
 
         if self.condition.shape[1] > 2:
-            return (cond_vec + ',' + self.condition[2].astype(str)).to_numpy()
+            repetition = self.condition[2]
+            cond_vec   = session.astype(str) + ',' + repetition.astype(str) + ',' + chordID.astype(str)
         else:
-            return cond_vec.to_numpy()
+            cond_vec = session.astype(str) + ',' + chordID.astype(str)
+        
+        return cond_vec.to_numpy()
 
 
 def parse_regressor_name(name, sep=','):
@@ -114,18 +115,49 @@ def get_trained_and_untrained(sn):
     return chords
 
 
-def runs_to_keep(session, totRuns):
+def runs_to_keep(totRuns, session='all', repetition='all', rep_vec=None):
+    """Boolean mask over ``totRuns`` regressor rows, selecting a session and/or repetition.
 
-        session_dict = {3: 0, 9: 1, 23: 2}
+    The two filters are independent and combined with AND, so you can ask for one,
+    the other, or both.
 
-        if session=='all':
-            keep = np.ones(totRuns, dtype=bool)
-        else:
-            session                                   = session_dict[session]
-            nRuns                                     = totRuns // 3
-            keep                                      = np.zeros(totRuns, dtype=bool)
-            keep[session * nRuns:(session + 1)*nRuns] = True
-        return keep
+    Args:
+        totRuns:    number of rows the mask covers, e.g. ``part_vec.size``.
+        session:    3, 9 or 23 to keep only that session's rows, or ``'all'``.
+                    Sessions are assumed to split the rows into three equal blocks.
+        repetition: repetition label to keep, or ``'all'``. Needs ``rep_vec``.
+        rep_vec:    repetition label per row, length ``totRuns``. Only required
+                    when ``repetition != 'all'``.
+
+    Returns:
+        Boolean array of length ``totRuns``, True for rows passing both filters.
+    """
+    session_dict = {3: 0, 9: 1, 23: 2}
+
+    if session == 'all':
+        keep_sess = np.ones(totRuns, dtype=bool)
+    else:
+        if session not in session_dict:
+            raise ValueError(f"session must be 'all' or one of {sorted(session_dict)}, got {session!r}")
+        block                                        = session_dict[session]
+        nRuns                                        = totRuns // 3
+        keep_sess                                    = np.zeros(totRuns, dtype=bool)
+        keep_sess[block * nRuns:(block + 1) * nRuns] = True
+
+    if repetition == 'all':
+        keep_rep = np.ones(totRuns, dtype=bool)
+    else:
+        if rep_vec is None:
+            raise ValueError('rep_vec must be passed if a specific repetition is requested')
+        rep_vec = np.asarray(rep_vec)
+        if rep_vec.size != totRuns:
+            raise ValueError(f'rep_vec has {rep_vec.size} entries but totRuns is {totRuns}')
+        keep_rep = rep_vec == repetition
+        if not keep_rep.any():
+            raise ValueError(f'no rows match repetition {repetition!r}; '
+                             f'rep_vec holds {np.unique(rep_vec).tolist()}')
+
+    return keep_sess & keep_rep
 
 
 def add_chord_column(df, chordID_col='chordID', sn_col='sn', out_col='chord'):
@@ -184,46 +216,19 @@ def add_flexion_imbalance(pair, sep="-"):
     return abs(a.count("2") - b.count("2"))   # 2 == flexion
 
 
-def linear_fit(x, y, alternative_slope='two-sided', alternative_intercept='greater'):
-    slope, intercept, r_value, p_slope, std_err = linregress(x, y, alternative=alternative_slope)
-
-    R2 = r_value ** 2
-
-    x_fit = np.linspace(np.min(x), np.max(x), 100)
-    y_fit = slope * x_fit + intercept
-
-    # Compute confidence intervals
-    n = len(x)
-    y_pred = slope * x + intercept
-    residuals = y - y_pred
-    dof = n - 2
-    t_val = t.ppf(0.975, dof)
-
-    se_line = np.sqrt(
-        np.sum(residuals ** 2) / dof * (1 / n + (x_fit - np.mean(x)) ** 2 / np.sum((x - np.mean(x)) ** 2))
-    )
-    ci = t_val * se_line
-
-    # Check confidence interval at x = 0
-    ix_0 = np.argmin(np.abs(x_fit - 0))
-    lower_bound = y_fit[ix_0] - ci[ix_0]
-    upper_bound = y_fit[ix_0] + ci[ix_0]
-
-    MSE = np.sum(residuals ** 2) / dof
-    SE_intercept = np.sqrt(MSE * (1 / n + np.mean(x) ** 2 / np.sum((x - np.mean(x)) ** 2)))
-    t_intercept = intercept / SE_intercept
-    if alternative_intercept == 'two-sided':
-        p_intercept = 2 * (1 - t.cdf(t_intercept, df=dof))
-    elif alternative_intercept == 'greater':
-        p_intercept = 1 - t.cdf(t_intercept, df=dof)
-    elif alternative_intercept == 'less':
-        p_intercept = t.cdf(t_intercept, df=dof)
-
-    # print(f'slope: {slope}, p = {p_slope:.3f}')
-    # print(f'intercept: {intercept}, p_intercept = {p_intercept:.3f}')
-    # print(f'R2 = {R2:.3f}')
-
-    return x_fit, y_fit, ci, slope, p_slope, intercept, p_intercept, R2
+def split_trained_untrained(M):
+    """Mean of the trained (first 4) and untrained (last 4) condition blocks."""
+    mask4 = np.tri(4, k=-1, dtype=bool)
+    mask8 = np.tri(8, k=-1, dtype=bool)
+    if M.ndim==2:
+        trained   = M[:4, :4][mask4]
+        untrained = M[4:, 4:][mask4]
+        tot       = M[mask8].mean()
+    elif M.ndim==3:
+        trained   = M[:, :4, :4][:, mask4]
+        untrained = M[:, 4:, 4:][:, mask4]
+        tot       = M[:, mask8].mean(axis=1)
+    return tot, trained, untrained
 
 
 

@@ -15,7 +15,7 @@ subjects):
     from EFC_learningfMRI.geometry import split_trained
 
     betas, cond_vec, part_vec, chords = load(1, 9001)   # split from participants.tsv
-    keep = runs_to_keep(3, part_vec.size)
+    keep = runs_to_keep(part_vec.size, session=3)
     G, _ = pcm.est_G_crossval(betas[keep], cond_vec[keep], part_vec[keep],
                               X=pcm.indicator(part_vec[keep]))
     _, trained, untrained = split_trained(pcm.G_to_dist(G))

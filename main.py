@@ -73,8 +73,8 @@ def main(args):
     # make smooth surface cifti file for contrast vs. resting baseline
     elif args.what == "smooth_cifti_contrast":
         for sn in args.sns:
-            activation.gifti2cifti_contrasts(sn=sn, glm=args.glm)
-        activation.smooth_cifti_contrasts(sns=args.sns, glm=args.glm)
+            activation.smooth_cifti_contrasts(sn=sn, glm=args.glm)
+        activation.average_smoothed_contrasts(sns=args.sns, glm=args.glm)
     
     elif args.what == "G_trained_untrained":
         geometry.calc_G(sns=args.sns, glm=args.glm, rois=gl.rois[args.atlas_name], type='trained-untrained')

@@ -7,6 +7,6 @@ import EFC_learningfMRI.globals as gl
 if __name__=='__main__':
     sns    = gl.participants
     glm    = 3
-    loader = BetasPrewithenedLoader(sns=sns, glm=glm)
-    fit_comp
-    onent_model(loader)
+    loader = BetasPrewithenedLoader(sns=sns, glm=glm, residual_fname='residual.dtseries.nii')
+
+    fit_component_model(loader)

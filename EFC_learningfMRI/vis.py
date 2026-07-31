@@ -150,12 +150,16 @@ def plot_pcm_corr(fig, axs, df, corr, rois=None, x='SNR', y='r_indiv', hue='chor
 
 def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', roi_col=None, native_scale=True, legend=True, alpha=1, **kwargs):
     kws = {
-        'point': dict(dodge=.2, lw=2, errorbar='se', estimator='mean'),
+        'point': dict(dodge=.2, lw=2, ls='-', errorbar='se', estimator='mean'),
         'box': dict(showfliers=False, boxprops=dict(alpha=alpha)),
         'bar': dict(errorbar='se'),
         'strip': dict(jitter=True, dodge=True, alpha=.2),
         'violin': dict(inner='point', split=False),
     }[kind] | kwargs
+
+    # dodge only makes sense across hue levels; seaborn crashes on a numeric dodge without hue
+    if hue is None:
+        kws.pop('dodge', None)
 
     if roi_col is None:
         candidates = ['roi', 'regionname', 'region']

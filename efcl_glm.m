@@ -190,6 +190,78 @@ function varargout = efcl_glm(what, varargin)
             events.Onset = events.Onset ./ 1000;
             
             varargout{1} = events;
+
+       case 'GLM:make_glm6'
+
+            chords = unique(D.chordID);
+            
+            events.BN = [];
+            events.TN = [];
+            events.Onset = [];
+            events.Duration = [];
+            events.chordID = [];
+            events.day = [];
+            events.eventtype = [];
+            
+            for d = 1:length(day)
+                for chordID = chords'
+                    events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d)) + 10 * (d - 1)] ;
+                    events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d))];
+                    events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d)) + 1000];
+                    n_rep = length(D.BN(D.chordID == chordID & D.day == day(d)));
+                    events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [n_rep, 1])];
+                    events.day = [events.day; repmat({sprintf('%d', day(d))}, [n_rep, 1])];
+                    events.eventtype = [events.eventtype; repmat({sprintf('%d,sess%02d', chordID, day(d))}, [n_rep, 1])];
+                end
+            end
+            
+            events.Duration = zeros(length(events.BN), 1) + 1; % BOXCAR OF 1s
+            events = struct2table(events);
+            events.Onset = events.Onset ./ 1000;
+            
+            varargout{1} = events;
+
+       case 'GLM:make_glm7'
+
+            chords = unique(D.chordID);
+            
+            events.BN = [];
+            events.TN = [];
+            events.Onset = [];
+            events.Duration = [];
+            events.chordID = [];
+            events.day = [];
+            events.eventtype = [];
+            
+            for d = 1:length(day)
+                for chordID = chords'
+                    events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d)) + 10 * (d - 1)] ;
+                    events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d))];
+                    events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d))];
+                    n_rep = length(D.BN(D.chordID == chordID & D.day == day(d)));
+                    events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [n_rep, 1])];
+                    events.day = [events.day; repmat({sprintf('%d', day(d))}, [n_rep, 1])];
+                    events.eventtype = [events.eventtype; repmat({sprintf('%d,sess%02d,plan', chordID, day(d))}, [n_rep, 1])];
+                end
+            end
+
+            for d = 1:length(day)
+                for chordID = chords'
+                    events.BN = [events.BN; D.BN(D.chordID == chordID & D.day == day(d)) + 10 * (d - 1)] ;
+                    events.TN = [events.TN; D.TN(D.chordID == chordID & D.day == day(d))];
+                    events.Onset = [events.Onset; D.startTimeReal(D.chordID == chordID & D.day == day(d)) + 1000];
+                    n_rep = length(D.BN(D.chordID == chordID & D.day == day(d)));
+                    events.chordID = [events.chordID; repmat({sprintf('%d', chordID)}, [n_rep, 1])];
+                    events.day = [events.day; repmat({sprintf('%d', day(d))}, [n_rep, 1])];
+                    events.eventtype = [events.eventtype; repmat({sprintf('%d,sess%02d,exec', chordID, day(d))}, [n_rep, 1])];
+                end
+            end
+            
+            events.Duration = zeros(length(events.BN), 1) + 1; % BOXCAR OF 1s
+            events = struct2table(events);
+            events.Onset = events.Onset ./ 1000;
+            
+            varargout{1} = events;
        
        case 'GLM:make_glm4'
 
