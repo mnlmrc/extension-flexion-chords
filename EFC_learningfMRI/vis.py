@@ -150,10 +150,10 @@ def plot_pcm_corr(fig, axs, df, corr, rois=None, x='SNR', y='r_indiv', hue='chor
 
 def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', roi_col=None, native_scale=True, legend=True, alpha=1, **kwargs):
     kws = {
-        'point': dict(dodge=.2, lw=2, ls='-', errorbar='se', estimator='mean'),
-        'box': dict(showfliers=False, boxprops=dict(alpha=alpha)),
-        'bar': dict(errorbar='se'),
-        'strip': dict(jitter=True, dodge=True, alpha=.2),
+        'point' : dict(dodge=.2, lw=2, ls='-', errorbar='se', estimator='mean'),
+        'box'   : dict(showfliers=False, boxprops=dict(alpha=alpha)),
+        'bar'   : dict(errorbar='se'),
+        'strip' : dict(jitter=True, dodge=True, alpha=.2),
         'violin': dict(inner='point', split=False),
     }[kind] | kwargs
 
@@ -204,33 +204,79 @@ def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_ord
             ax.axhline(0 if add_zero is True else add_zero, lw=.8, color='k', ls=':')
 
 
-def plot_behav_sess(fig, ax, df, x='session', y=None, hue=None, hue_order=None, palette=None, decor=True):
-    sb.pointplot(ax=ax, x=x, y=y, hue=hue, dodge=.2, data=df, errorbar='se', palette=palette, hue_order=hue_order, lw=2)
+# sessions belonging to each training week, used to lay out the behavioural x axis
+WEEKS = {1: (1, 5), 2: (6, 10), 3: (11, 15), 4: (16, 20), 5: (21, 24)}
+
+
+def plot_behav_sess(fig, ax, df, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', native_scale=False, legend=True, alpha=1, decor=True, **kwargs):
+    kws = {
+        'point' : dict(dodge=.2, lw=2, ls='-', errorbar='se', estimator='mean'),
+        'box'   : dict(showfliers=False, boxprops=dict(alpha=alpha)),
+        'bar'   : dict(errorbar='se'),
+        'strip' : dict(jitter=True, dodge=True, alpha=.2),
+        'violin': dict(inner='point', split=False),
+    }[kind] | kwargs
+
+    # dodge only makes sense across hue levels; seaborn crashes on a numeric dodge without hue
+    if hue is None:
+        kws.pop('dodge', None)
+
+    common = dict(data         = df,
+                  ax           = ax,
+                  x            = x,
+                  y            = y,
+                  hue          = hue,
+                  hue_order    = hue_order,
+                  palette      = palette,
+                  color        = color,
+                  native_scale = native_scale,
+                  legend       = legend)
+    if kind == 'point':
+        sb.pointplot(**common, **kws)
+    elif kind == 'box':
+        sb.boxplot(**common, **kws)
+    elif kind == 'bar':
+        sb.barplot(**common, **kws)
+    elif kind == 'violin':
+        sb.violinplot(**common, **kws)
+    elif kind == 'strip':
+        sb.stripplot(**common, **kws)
     ax.set_xlabel('')
-    if decor:
-        vlines = np.array([4.5, 9.5, 14.5, 19.5])
-        for vline in vlines:
-            ax.axvline(vline, color='k', lw=.8, ls=':')
-        ax.set_xticks([])
-        ax.set_xticklabels([])
-        ax.spines[['top', 'right', 'bottom']].set_visible(False)
-        ax.axvspan(1.5, 2.5, facecolor='lightgrey')
-        ax.axvspan(7.5, 8.5, facecolor='lightgrey')
-        ax.axvspan(21.5, 22.5, facecolor='lightgrey')
-        ylim0, ylim1 = ax.get_ylim()[0], ax.get_ylim()[1]
-        ydiff = (ylim1 - ylim0)
-        xticks = ylim0 - (.025 * ydiff)
-        xlabel = ylim0 - (.1 * ydiff)
-        ax.text(2, ylim0 + .05 * ydiff, 'fMRI', rotation=90, ha='center', va='bottom')
-        ax.text(8, ylim0 + .05 * ydiff, 'fMRI', rotation=90, ha='center', va='bottom')
-        ax.text(22, ylim0 + .05 * ydiff, 'fMRI', rotation=90, ha='center', va='bottom')
-        ax.text(2, xticks, '1', ha='center', va='top', transform=ax.transData)
-        ax.text(7, xticks, '2', ha='center', va='top', transform=ax.transData)
-        ax.text(12, xticks, '3', ha='center', va='top', transform=ax.transData)
-        #ax.text(12, xlabel, 'week', ha='center', va='top', transform=ax.transData)
-        ax.text(.5, 0.075, 'week', ha='center', va='top', transform=fig.transFigure)
-        ax.text(17, xticks, '4', ha='center', va='top', transform=ax.transData)
-        ax.text(21.5, xticks, '5', ha='center', va='top', transform=ax.transData)
+
+    if add_zero is not False:
+        ax.axhline(0 if add_zero is True else add_zero, lw=.8, color='k', ls=':')
+
+    if not decor:
+        sb.despine(ax=ax)
+        return
+
+    # decor is specified in session units; with native_scale=False seaborn puts the
+    # sessions on categorical positions instead, so map session -> axis coordinate
+    levels = np.sort(df[x].unique())
+    to_pos = (lambda v: np.asarray(v, dtype=float)) if native_scale else \
+             (lambda v: np.interp(v, levels, np.arange(len(levels))))
+
+    starts = [w[0] for w in WEEKS.values()]
+    for start in starts[1:]:
+        ax.axvline(to_pos(start - .5), color='k', lw=.8, ls=':')
+
+    ax.set_xticks([])
+    ax.set_xticklabels([])
+    ax.spines[['top', 'right', 'bottom']].set_visible(False)
+    for sess in gl.sessions:
+        ax.axvspan(to_pos(sess - .5), to_pos(sess + .5), facecolor='lightgrey')
+
+    ylim0, ylim1 = ax.get_ylim()[0], ax.get_ylim()[1]
+    ydiff  = (ylim1 - ylim0)
+    xticks = ylim0 - (.025 * ydiff)
+
+    for sess in gl.sessions:
+        ax.text(to_pos(sess), ylim0 + .05 * ydiff, 'fMRI', rotation=90, ha='center', va='bottom')
+    for week, (first, last) in WEEKS.items():
+        ax.text(to_pos((first + last) / 2), xticks, f'{week}', ha='center', va='top', transform=ax.transData)
+    ax.text(.5, 0.075, 'week', ha='center', va='top', transform=fig.transFigure)
+
+    if legend and ax.get_legend_handles_labels()[0]:
         ax.legend(frameon=False,)
 
 
