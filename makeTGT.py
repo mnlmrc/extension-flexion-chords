@@ -5,7 +5,7 @@ import numpy as np
 import EFC_learningfMRI.globals as gl
 
 experiment = 'EFC_learningfMRI'
-sn = 117
+sn = 118
 # day = 2
 
 pinfo = pd.read_table(os.path.join(gl.baseDir,  'participants.tsv'), sep='\t')
