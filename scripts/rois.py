@@ -35,7 +35,7 @@ def make_hemispheres(sn, glm):
 
 
 if "__main__" == __name__:
-    sns = [114]
+    sns = [117]
     glm = 3
     for sn in sns:
         make_cortical_rois(sn, glm)

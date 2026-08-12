@@ -45,7 +45,7 @@ def make_G_dataframe(glm, atlas_name='ROI', sns=None, ref_session=3, crossval=Fa
     for H, roi, sess in itertools.product(gl.Hem, rois, gl.sessions):
         for sn in sns:
             
-            print(f'doing participant {sn}, session {session}, {H}, {roi}...')
+            print(f'doing participant {sn}, session {sess}, {H}, {roi}...')
 
             chords = get_trained_and_untrained(sn)
             G   = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'G_obs_raw.within_session.{sess}.glm{glm}.{H}.{roi}.npy'))

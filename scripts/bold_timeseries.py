@@ -33,10 +33,10 @@ def save_bold_rois(sn, glm, atlas='ROI', rois=None):
 
 
 if __name__=='__main__':
-    sns   = [110, 111, 112, 113, 114] # gl.participants
-    glm   = 6
+    sns   = [117] # gl.participants
+    glm   = 3
     atlas = 'ROI'
-    rois  = ['M1'] #gl.rois[atlas]
+    rois  = gl.rois[atlas]
 
     for sn in sns:
         save_bold_rois(sn, glm, rois=rois)

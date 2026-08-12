@@ -39,7 +39,7 @@ def calc_G_rois(loader, sessions=('all', *gl.sessions), repetitions=('all', 1, 2
 
 
 if __name__=='__main__':
-    sns         = gl.participants
+    sns         = [117] #gl.participants
     glm         = 3
     sessions    = ('all', *gl.sessions)
     repetitions = ['all'] #, 1, 2]

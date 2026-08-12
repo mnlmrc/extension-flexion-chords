@@ -5,7 +5,7 @@ import EFC_learningfMRI.globals as gl
 
 
 if __name__=='__main__':
-    sns    = gl.participants
+    sns    = [117] #gl.participants
     glm    = 3
     loader = BetasPrewithenedLoader(sns=sns, glm=glm, residual_fname='residual.dtseries.nii')
 
