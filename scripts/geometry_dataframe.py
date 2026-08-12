@@ -23,27 +23,7 @@ def shuffle_trained_untrained(df, rng):
 
 
 def make_G_dataframe(glm, atlas_name='ROI', sns=None, ref_session=3, crossval=False):
-    """Long-form table of within-session crossnobis and cosine dissimilarities.
 
-    Each row is one chord pair for one subject/hemisphere/ROI/session. The pair is
-    classified as ``trained`` (both chords trained), ``untrained`` (both untrained)
-    or ``trained_untrained`` (one of each), and labelled with the two chord IDs,
-    e.g. ``11911-22911``. Per subject the 8 chords follow
-    :func:`get_trained_and_untrained` (first 4 trained, last 4 untrained), so the
-    labels are read from that subject's own chord order.
-
-    ``crossnobis_group`` / ``cosine_group`` add the across-subject mean of each
-    metric for that chord pair in the reference session ``ref_session`` (default 3),
-    pooled over the trained/untrained/mixed classes so every subject contributes. The
-    same reference value is broadcast to every session, so a row's ``*_group`` is the
-    ref-session group geometry for that pair regardless of the row's own session --
-    the fixed reference to plot / regress each session's subject distances against.
-
-    ``crossval`` makes that reference leave-one-subject-out: a subject's ``*_group`` is
-    then the mean over the *other* subjects only, so it is never regressed against a
-    group mean that contains its own data. Without it the group mean includes the
-    subject, biasing subject-vs-group fits toward the diagonal.
-    """
     sns  = gl.participants if sns is None else sns
     rois = gl.rois[atlas_name]
 
@@ -63,11 +43,14 @@ def make_G_dataframe(glm, atlas_name='ROI', sns=None, ref_session=3, crossval=Fa
 
     rows = []
     for H, roi, sess in itertools.product(gl.Hem, rois, gl.sessions):
-        G   = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'G_obs.within_session.{sess}.glm{glm}.{H}.{roi}.npy'))
-        D   = pcm.G_to_dist(G)
-        cos = pcm.G_to_cosine(G)
-        for i, sn in enumerate(sns):
+        for sn in sns:
+            
+            print(f'doing participant {sn}, session {session}, {H}, {roi}...')
+
             chords = get_trained_and_untrained(sn)
+            G   = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'G_obs_raw.within_session.{sess}.glm{glm}.{H}.{roi}.npy'))
+            D   = pcm.G_to_dist(G)
+            cos = pcm.G_to_cosine(G)
             for chord, (r, c) in idx.items():
                 for ri, ci in zip(r, c):
                     rows.append({'sn'        : sn,
@@ -76,8 +59,8 @@ def make_G_dataframe(glm, atlas_name='ROI', sns=None, ref_session=3, crossval=Fa
                                  'session'   : sess,
                                  'chord'     : chord,
                                  'pair'      : f'{chords[ri]}-{chords[ci]}',
-                                 'crossnobis': D[i, ri, ci],
-                                 'cosine'    : cos[i, ri, ci]})
+                                 'crossnobis': D[ri, ci],
+                                 'cosine'    : cos[ri, ci]})
 
     df = pd.DataFrame(rows)
 
@@ -103,6 +86,10 @@ def make_G_dataframe(glm, atlas_name='ROI', sns=None, ref_session=3, crossval=Fa
                  .agg(crossnobis_group=('crossnobis', 'mean'),
                       cosine_group    =('cosine',     'mean')))
         df  = df.merge(ref, on=keys, how='left')
+
+    # calculate angle from cosine
+    df['theta']       = np.arccos(df.cosine)
+    df['theta_group'] = np.arccos(df.cosine_group)
 
     return df
 

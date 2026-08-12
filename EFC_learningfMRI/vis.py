@@ -16,6 +16,10 @@ def custom_legend(fig, labels, colors, loc='outside right center', kind='line'):
         handles = [
             Patch(facecolor=color, label=label) for color, label in zip(colors, labels)
         ]
+    elif kind == 'point':
+        handles = [
+            Line2D([0], [0], color=color, ls='', marker='o', label=label) for color, label in zip(colors, labels)
+        ]
     else:
         handles = [
             Line2D([0], [0], color=color, lw=2, label=label) for color, label in zip(colors, labels)
@@ -543,3 +547,72 @@ def add_grid_legend(fig, anchor=(0.05, 0.1, 0.1, 0.18),
         legax.text(.075, y, r_lbl, ha='right', va='center', fontsize=10)
         for j, m in enumerate(markers, start=1):
             legax.scatter(j, y, s=markersize, marker=m, c=c)
+
+
+def plot_mds(fig, axs, W, trained, rois, sessions=None, chords=None, hue_order=None, palette=None,
+             origin=False, label_chords=False, legend=True):
+    """Grid of MDS scatters: mean position of every chord when trained vs untrained.
+
+    Each chord is trained in about half the participants, so it gets two points —
+    the mean over those who trained it and the mean over those who did not — joined
+    by an arrow pointing untrained -> trained. Error bars are the SEM over
+    participants in each group.
+
+    Args:
+        fig, axs:     figure and a (n_sessions, n_rois) array of axes.
+        W:            dict roi -> (n_subj, n_sess, n_chords, 2) coordinates, already
+                      in a common frame (see `G_matrix.procrustes_mean`).
+        trained:      (n_subj, n_chords) boolean, True where that participant
+                      trained that chord. Columns must follow `chords`.
+        rois:         ROI names, one per column of `axs`.
+        sessions:     session labels, one per row of `axs`. Defaults to `gl.sessions`.
+        chords:       chord IDs, used only for labelling. Defaults to `gl.chordID`.
+        origin:       mark the origin and start the x axis there. Use with
+                      coordinates from an uncentred MDS, where distance from the
+                      origin is activity and dim 0 is the activity axis. With
+                      centred coordinates the origin is just the mean pattern and
+                      the axes are equal-aspect instead.
+        label_chords: annotate each chord with its ID.
+    """
+    sessions  = gl.sessions if sessions is None else sessions
+    chords    = gl.chordID  if chords   is None else chords
+    hue_order = ['trained', 'untrained'] if hue_order is None else hue_order
+    palette   = ['red', 'blue'] if palette is None else palette
+
+    for r, roi in enumerate(rois):
+        for e, session in enumerate(sessions):
+            ax = axs[e, r]
+            ax.axhline(0, lw=.4, color='lightgrey', zorder=-1)
+            if origin:
+                ax.plot(0, 0, '+', color='k', ms=7, mew=1)     # zero activity
+            else:
+                ax.axvline(0, lw=.4, color='lightgrey', zorder=-1)
+
+            for c, chord in enumerate(chords):
+                # mean over the participants who trained this chord, and over those who did not
+                grp = [trained[:, c], ~trained[:, c]]
+                m   = np.array([W[roi][g, e, c].mean(axis=0) for g in grp])
+                se  = np.array([W[roi][g, e, c].std(axis=0, ddof=1) / np.sqrt(g.sum()) for g in grp])
+                ax.annotate('', xy=m[0], xytext=m[1], zorder=0,          # untrained -> trained
+                            arrowprops=dict(arrowstyle='->', color='grey', lw=.6, shrinkA=3, shrinkB=3))
+                for i in range(2):
+                    ax.errorbar(*m[i], xerr=se[i, 0], yerr=se[i, 1], fmt='o', ms=4,
+                                color=palette[i], ecolor=palette[i], elinewidth=.6, alpha=.6)
+                if label_chords:
+                    ax.annotate(chord, m[0], textcoords='offset points', xytext=(4, 3),
+                                fontsize=4.5, color='k', alpha=.7)
+
+            ax.tick_params(labelsize=7)
+            if origin:
+                ax.set_xlim(left=0)
+            else:
+                ax.set_aspect('equal')
+            if e == 0:
+                ax.set_title(roi)
+            if r == 0:
+                ax.set_ylabel(f'session {session}\ndim 2', fontsize=8)
+            if e == len(sessions) - 1:
+                ax.set_xlabel('activity (dim 1)' if origin else 'dim 1', fontsize=8)
+
+    if legend:
+        custom_legend(fig, hue_order, palette, loc='outside lower right', kind='point')

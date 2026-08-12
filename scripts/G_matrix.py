@@ -20,8 +20,10 @@ def calc_G_rois(loader, sessions=('all', *gl.sessions), repetitions=('all', 1, 2
         for session in sessions:
             for repetition in repetitions:
 
-                G   = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=False)
-                cov = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=True)
+                G        = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=False)
+                cov      = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=True)
+                G_raw    = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=True, fixed_effect=False)
+                G_noxval = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=True, fixed_effect=False, crossval=False)
 
                 save_path = os.path.join(gl.baseDir, gl.pcmDir, f'subj{data.sn}')
                 os.makedirs(save_path, exist_ok=True)
@@ -32,6 +34,8 @@ def calc_G_rois(loader, sessions=('all', *gl.sessions), repetitions=('all', 1, 2
 
                 np.save(os.path.join(save_path, f'G_obs.{fname}.glm{glm}.{data.Hem}.{data.roi}'), G)
                 np.save(os.path.join(save_path, f'cov.{fname}.glm{glm}.{data.Hem}.{data.roi}'), cov)
+                np.save(os.path.join(save_path, f'G_obs_raw.{fname}.glm{glm}.{data.Hem}.{data.roi}'), G_raw)
+                np.save(os.path.join(save_path, f'G_obs_noxval.{fname}.glm{glm}.{data.Hem}.{data.roi}'), G_noxval)
 
 
 if __name__=='__main__':

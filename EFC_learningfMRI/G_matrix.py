@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import PcmPy as pcm
 from scipy.stats import linregress
+from scipy.linalg import orthogonal_procrustes
 
 import EFC_learningfMRI.globals as gl
 from EFC_learningfMRI.util import get_trained_and_untrained, runs_to_keep, split_trained_untrained
@@ -64,7 +65,7 @@ def G_sorted(G, sns, order=None):
     return out[0] if single else out
 
 
-def calc_G(data, cond_vec, part_vec, session='all', repetition='all', centred=False):
+def calc_G(data, cond_vec, part_vec, session='all', repetition='all', centred=False, fixed_effect=True, crossval=True):
     """
     calc G matrix for runs in session
 
@@ -87,10 +88,18 @@ def calc_G(data, cond_vec, part_vec, session='all', repetition='all', centred=Fa
         rep_vec = parts[1].astype(int).to_numpy()
 
     keep     = runs_to_keep(part_vec.size, session=session, repetition=repetition, rep_vec=rep_vec)
-    G_obs, _ = pcm.est_G_crossval(data[keep],
-                                  cond_vec[keep],
-                                  part_vec[keep],
-                                  X=pcm.indicator(part_vec[keep]))
+
+    if crossval:
+        G_obs, _ = pcm.est_G_crossval(data[keep],
+                                    cond_vec[keep],
+                                    part_vec[keep],
+                                    X=pcm.indicator(part_vec[keep]) if fixed_effect else None)
+    else:
+        G_obs, _ = pcm.est_G(data[keep],
+                            cond_vec[keep],
+                            part_vec[keep],
+                            X=pcm.indicator(part_vec[keep]) if fixed_effect else None)
+
     return G_obs
 
 
@@ -118,11 +127,13 @@ def G_scaling(G_ref, G_tar):
 
     scale = act_tar / act_ref
 
-    D_ref = pcm.G_to_dist(G_ref)
-    D_tar = pcm.G_to_dist(G_tar)
+    D_ref = np.sqrt(pcm.G_to_dist(G_ref))
+    D_tar = np.sqrt(pcm.G_to_dist(G_tar))
+
+    mask = np.tri(K, k=-1, dtype=bool)
  
-    diss_ref = np.sqrt(D_ref.mean())
-    diss_obs = np.sqrt(D_tar.mean())
+    diss_ref = D_ref[mask].mean()
+    diss_obs = D_tar[mask].mean()
     diss_pred = scale * diss_ref
  
     return pd.DataFrame({
@@ -134,3 +145,6 @@ def G_scaling(G_ref, G_tar):
         "diss_pred"           : diss_pred,
         "residual"            : diss_obs - diss_pred,
     }, index=[0])
+
+
+
