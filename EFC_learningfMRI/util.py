@@ -1,3 +1,4 @@
+import itertools
 import os
 from dataclasses import dataclass
 from functools import cached_property
@@ -9,7 +10,7 @@ from scipy.optimize import least_squares
 from scipy.signal import butter, filtfilt, firwin
 from scipy.special import expit
 import EFC_learningfMRI.globals as gl
-from scipy.stats import linregress, t
+from scipy.stats import linregress, t, ttest_rel
 #import EFC_learningfMRI.globals as gl
 
 
@@ -294,6 +295,89 @@ def calc_R2(Y, Yhat):
 
     return 1 - ss_res / ss_tot
 
+
+
+def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, roi_col='roi', subject_col='sn', alternative='two-sided'):
+    """Paired t-tests between ``hue`` levels, one per ROI and per level of ``x``.
+
+    The statistical counterpart of :func:`EFC_learningfMRI.vis.plot_im_sess`: it
+    takes the same long-format table and the same ``rois``/``x``/``y``/``hue``
+    arguments, and tests, within each ROI and each session, the ``y`` values of
+    one ``hue`` level against another. With more than two levels every pair is
+    tested (columns ``A`` and ``B`` say which), so the trained/untrained case is
+    simply the two-level special case::
+
+        ttest = ttest_im_sess(dist_chord_sess, rois, y='crossnobis', hue='chord',
+                              hue_order=['trained', 'untrained'])
+        print(ttest[['T', 'dof', 'p_val', 'CI95', 'roi', 'session']])
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Long-format table with one row per subject / ROI / ``x`` / ``hue`` cell.
+        Duplicate rows within a cell raise, rather than being averaged silently.
+    rois : list, optional
+        ROIs to test, in order (default: all in ``roi_col``).
+    x : str, optional
+        Column whose levels are tested separately (default ``'session'``).
+    y : str
+        Column holding the values to test.
+    hue : str
+        Column whose levels are compared against each other.
+    hue_order : list, optional
+        Levels of ``hue`` to compare, in order; the t-test is signed as the
+        first level minus the second (default: order of appearance in ``df``).
+    roi_col : str, optional
+        Column holding the ROI names (default ``'roi'``).
+    subject_col : str, optional
+        Column identifying the subject, used to pair observations across
+        ``hue`` levels (default ``'sn'``).
+    alternative : {'two-sided', 'less', 'greater'}, optional
+        Passed to scipy.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per ROI / ``x`` level / pair of ``hue`` levels, with columns
+        ``A``, ``B``, ``T``, ``dof``, ``p_val``, ``CI95``, plus the ``roi_col``
+        and ``x`` columns.
+    """
+    if y is None or hue is None:
+        raise ValueError("y (the values to test) and hue (the levels to compare) are both required")
+
+    if rois is None:
+        rois = df[roi_col].unique()
+
+    if hue_order is None:
+        hue_order = list(df[hue].unique())
+
+    x_levels = np.sort(df[x].unique())
+
+    rows = []
+    for roi in rois:
+
+        df_roi = df[df[roi_col]==roi]
+
+        for level in x_levels:
+
+            df_level   = df_roi[df_roi[x]==level]
+            piv        = df_level.pivot(index=subject_col, columns=hue, values=y)
+            hue_levels = [h for h in hue_order if h in piv.columns]
+
+            for a, b in itertools.combinations(hue_levels, 2):
+                pair = piv[[a, b]].dropna()
+                res  = ttest_rel(pair[a], pair[b], alternative=alternative)
+                ci   = res.confidence_interval()
+                rows.append({roi_col : roi,
+                             x       : level,
+                             'A'     : a,
+                             'B'     : b,
+                             'T'     : res.statistic,
+                             'dof'   : res.df,
+                             'p_val' : res.pvalue,
+                             'CI95'  : np.round([ci.low, ci.high], 3)})
+
+    return pd.DataFrame(rows)
 
 
 def load_glm_onset(sn, glm, output_events=False):
