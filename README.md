@@ -3,8 +3,20 @@
 Analysis code for the extension–flexion chord (EFC) learning fMRI study: from 1st-level
 GLM betas to ROI / searchlight multivariate geometry, PCM component models, and statistics.
 
+
 ## Pipeline overview
 
+### Preprocessing: 
+
+
+### GLMs 
+* glm3: one regressor per chord, averaged over both executions 
+* glm2: repetition suppression glm, one per chord
+
+
+
+
+## Flow chart
 ```mermaid
 flowchart TD
     %% ---------- inputs ----------
