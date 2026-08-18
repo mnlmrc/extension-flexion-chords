@@ -198,7 +198,8 @@ def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_ord
             sb.stripplot(**common, **kws)
         ax.set_title(roi)
         ax.set_xlabel(None)
-        ax.set_xticks(df[x].unique()) if df[x].dtype == int else None
+        if x is not None:
+            ax.set_xticks(df[x].unique()) if df[x].dtype == int else None
         if r>0:
             sb.despine(ax=ax, left=True, bottom=True)
             ax.tick_params(left=False, bottom=False, labelbottom=False) if r>0 else None
@@ -208,9 +209,58 @@ def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_ord
             ax.axhline(0 if add_zero is True else add_zero, lw=.8, color='k', ls=':')
 
 
+def plot_ci_im_sess(fig, axs, df, rois=None, x='session', y=None, ci=('ci_low', 'ci_high'), hue=None, hue_order=None, palette=None, color=None, add_zero=False, roi_col=None, dodge=0, legend=True, **kwargs):
+    """Point estimate plus a *precomputed* confidence interval, one panel per roi.
+
+    Mirrors :func:`plot_im_sess`, but the interval is read from the two ``ci``
+    columns instead of being estimated from repeated observations. Use it when the
+    frame already holds one fitted value per (hue, roi, x) -- a regression intercept
+    and its ``conf_int()``, say -- where seaborn has nothing left to aggregate and
+    would draw a zero-width bar.
+
+    ``dodge`` is in data units (not seaborn's categorical offset), since the session
+    axis is numeric: it is the total width the hue levels are spread over at each x.
+    """
+    kws = dict(marker='o', ms=6, lw=2, capsize=0, elinewidth=2) | kwargs
+
+    if roi_col is None:
+        candidates = ['roi', 'regionname', 'region']
+        roi_col = next((c for c in candidates if c in df.columns), None)
+        if roi_col is None:
+            raise KeyError(f"None of {candidates} in df contain the requested rois; pass roi_col explicitly.")
+
+    if rois is None:
+        rois = df[roi_col].unique()
+
+    levels  = [None] if hue is None else list(hue_order if hue_order is not None else df[hue].unique())
+    offsets = np.zeros(len(levels)) if len(levels) == 1 else np.linspace(-dodge / 2, dodge / 2, len(levels))
+
+    lo, hi = ci
+    for r, roi in enumerate(rois):
+        ax    = axs[r]
+        d_roi = df[df[roi_col] == roi]
+        for l, level in enumerate(levels):
+            d = (d_roi if level is None else d_roi[d_roi[hue] == level]).sort_values(by=x)
+            # errorbar wants distances from the estimate, not the bounds themselves
+            yerr = np.abs(np.c_[d[y] - d[lo], d[hi] - d[y]].T)
+            ax.errorbar(d[x].to_numpy() + offsets[l], d[y].to_numpy(), yerr=yerr,
+                        color=color if palette is None else palette[l],
+                        label=level if (legend and r == len(rois) - 1) else '_nolegend_',
+                        **kws)
+        ax.set_title(roi)
+        ax.set_xlabel(None)
+        ax.set_xticks(df[x].unique()) if df[x].dtype == int else None
+        if r > 0:
+            sb.despine(ax=ax, left=True, bottom=True)
+            ax.tick_params(left=False, bottom=False, labelbottom=False)
+        else:
+            sb.despine(ax=ax)
+        if add_zero is not False:
+            ax.axhline(0 if add_zero is True else add_zero, lw=.8, color='k', ls=':')
+
+
 # sessions belonging to each training week, used to lay out the behavioural x axis
 WEEKS = {1: (1, 5), 2: (6, 10), 3: (11, 15), 4: (16, 20), 5: (21, 24)}
-
 
 def plot_behav_sess(fig, ax, df, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', native_scale=False, legend=True, alpha=1, decor=True, **kwargs):
     kws = {

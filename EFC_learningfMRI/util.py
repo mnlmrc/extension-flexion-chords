@@ -217,6 +217,73 @@ def add_flexion_imbalance(pair, sep="-"):
     return abs(a.count("2") - b.count("2"))   # 2 == flexion
 
 
+def add_behav_pair_diff(df, measures=('ET', 'MD', 'force_abs', 'force_der', 'force_der_peak'), behav=None, pair_col='pair',
+                        sn_col='sn', session_col='session', behav_sn_col='subNum', chordID_col='chordID'):
+
+    """Behavioural difference between the two chords of each pair, as a column per measure.
+
+    For every row the two chords in ``pair_col`` are looked up in the trial-level
+    behavioural table for that participant and session, averaged over trials, and
+    ``|measure(A) - measure(B)|`` is written to ``f'{measure}{suffix}'``. Lets a
+    pair's crossnobis distance be regressed on how differently its two chords were
+    actually executed.
+
+    The difference is absolute because ``pair`` is unordered -- the two chord IDs
+    are sorted when the dissimilarity table is built -- so a signed difference
+    would flip meaning from row to row. Same convention as
+    :func:`add_flexion_imbalance`.
+
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        Dissimilarity table, one row per chord pair, e.g.
+        ``dissimilarity.within_session.{atlas}.glm{glm}.tsv``.
+    measures : sequence of str, optional
+        Behavioural columns to difference.
+    behav : pandas.DataFrame, optional
+        Trial-level behaviour. Defaults to ``force.success.tsv``, which is the
+        table to use here: the ``*.session.success.tsv`` files are already
+        collapsed to trained/untrained, and their ``chordID`` is an average of
+        chord IDs rather than a chord.
+    pair_col, sn_col, session_col : str, optional
+        Columns of ``df`` holding the pair, the participant and the session.
+    behav_sn_col, chordID_col : str, optional
+        Participant and chord-ID columns of ``behav`` (named differently there).
+    sep : str, optional
+        Separator between the two chord IDs in ``pair_col``.
+    suffix : str, optional
+        Appended to each measure name to form the new column name.
+
+    Returns
+    -------
+    pandas.DataFrame
+        A copy of ``df`` with one ``f'{measure}{suffix}'`` column per measure.
+        Pairs whose chords are missing from ``behav``, or that are malformed
+        (e.g. containing '99999'), come out as NaN.
+    """
+
+    measures = list(measures)
+    absent   = [m for m in measures if m not in behav.columns]
+    if absent:
+        raise KeyError(f'{absent} not in the behavioural table; it has {sorted(behav.columns)}')
+
+    # one value per (participant, session, chord), averaged over successful trials
+    behav = behav.copy()
+    behav[chordID_col] = pd.to_numeric(behav[chordID_col], errors='coerce').astype(float)
+    lut = behav.groupby([behav_sn_col, session_col, chordID_col])[measures].mean()
+
+    chords = df[pair_col].str.split('-', expand=True)
+    sides  = [pd.to_numeric(chords[i], errors='coerce').astype(float) for i in (0, 1)]
+
+    df = df.copy()
+    # reindex rather than merge, so row order and duplicate pairs are preserved
+    vals = [lut.reindex(pd.MultiIndex.from_arrays([df[sn_col], df[session_col], c])) for c in sides]
+    for m in measures:
+        df[m] = np.abs(vals[0][m].to_numpy() - vals[1][m].to_numpy())
+
+    return df
+
+
 def split_trained_untrained(M):
     """Mean of the trained (first 4) and untrained (last 4) condition blocks."""
     mask4 = np.tri(4, k=-1, dtype=bool)
