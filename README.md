@@ -13,6 +13,7 @@ GLM betas to ROI / searchlight multivariate geometry, PCM component models, and 
 * glm3: one regressor per chord, averaged over both executions 
 * glm2: repetition suppression glm, one per chord
 
+### Behavioral analysis 
 
 
 
@@ -95,3 +96,5 @@ crossnobis/cosine dissimilarities and PCM component weights) and a **surface sea
 branch (per-subject `func.gii` maps pooled into group maps).
 
 
+## Results overview 
+* Name of notebook: Type of analysis...
