@@ -24,13 +24,13 @@ PCM) is still to be written up.
 ```mermaid
 flowchart TD
     %% ---------- raw ----------
-    RAW[("<b>.mov and .dat files from each participant and sessions:</b><br/>behavioural/day&lt;1..24&gt;/efc4_&lt;sn&gt;.dat<br/>behavioural/day&lt;1..24&gt;/efc4_&lt;sn&gt;_&lt;bl&gt;.mov")]:::input
+    RAW_BEHAV[("<b>.mov and .dat files from each participant and sessions:</b><br/>behavioural/day&lt;1..24&gt;/efc4_&lt;sn&gt;.dat<br/>behavioural/day&lt;1..24&gt;/efc4_&lt;sn&gt;_&lt;bl&gt;.mov")]:::input
 
     %% ---------- single trial ----------
     ST["scripts/behaviour_single_trial.py"]:::code
     STTSV[("<b>trial-wise behavioural metrics for each participant and session:</b><br/>behavioural/day&lt;d&gt;/efc4_&lt;sn&gt;_single_trial.tsv")]:::data
 
-    RAW --> ST
+    RAW_BEHAV --> ST
     ST --> STTSV
 
     %% ---------- summary ----------
