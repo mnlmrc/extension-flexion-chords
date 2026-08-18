@@ -1,62 +1,143 @@
-import EFC_learningfMRI.globals as gl
-import pandas as pd
+"""Aggregate the per-day single-trial behavioural files into the summary tables.
+
+Only successful trials (`trialPoint == 1`) contribute to the
+averages; `trialPoint` itself is averaged over all trials, so it is the success
+rate.
+
+Files generated
+---------------
+behaviour.trial.tsv (TRIAL)
+    All single trials of all participants concatenated, with the identifier
+    columns (`ID_COLS`) cast to category and moved to the front. Source table
+    for everything below.
+behaviour.session.success.tsv (PERF)
+    Performance (`PERF_COLS`) averaged per `SESSION_BY` cell.
+behaviour.session.success.repetition.tsv (PERF_REP)
+    Same, additionally split by Repetition.
+force.trial.wide.tsv (FWIDE)
+    Successful single trials with one column per finger x force measure, e.g.
+    `thumb_abs`. Source table for the two force branches below.
+force.fmri.wide.tsv (FFMRI)
+    force.trial.wide restricted to the scanning sessions and averaged per
+    `BLOCK_BY` cell — i.e. one row per block, for use as GLM regressors.
+force.trial.long.tsv (FLONG)
+    force.trial.wide in long format: one row per trial x finger, with columns
+    force_abs, force_der and force_der_peak.
+force.session.avg.tsv (FSESS)
+    force.trial.long averaged (across fingers and trials) per `SESSION_BY` cell.
+force.session.avg.repetition.tsv (FSESS_REP)
+    Same, additionally split by Repetition.
+"""
+
 import os
 
+import pandas as pd
+
+import EFC_learningfMRI.globals as gl
+from EFC_learningfMRI.force import FINGERS
+
+# Trial identifiers: the columns that label a trial rather than measure it.
+ID_COLS = ['subNum', 'BN', 'TN', 'Repetition', 'chordID', 'chord', 'session', 'session_type', 'week']
+
+# Performance measures kept in the behaviour.* tables.
+PERF_COLS = ['trialPoint', 'ET', 'MD']
+
+# Force measures, kept as one column per finger in wide format (`thumb_abs`, ...)
+# and as one column per measure in long format (`force_abs`, ...).
+FORCE_MEASURES = ['abs', 'der', 'der_peak']
+FORCE_COLS = {m: [f'{f}_{m}' for f in FINGERS] for m in FORCE_MEASURES}
+
+# Identifiers kept in the force tables (chordID as well as chord, no trialPoint).
+FORCE_ID_COLS = ['subNum', 'TN', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
+
+# Groupings: one row per session (the `.repetition` tables append Repetition),
+# and one row per scanning block for the fMRI regressors.
+SESSION_BY = ['subNum', 'session', 'chord', 'session_type', 'week']
+BLOCK_BY = ['subNum', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
+
+
+def load_single_trials(participants, ndays=24):
+    """Concatenate the per-day single-trial tables of every participant (STTSV -> TRIAL)."""
+    path = os.path.join(gl.baseDir, gl.behavDir)
+
+    trials = []
+    for sn in participants:
+        for day in range(1, ndays + 1):
+            print(f'doing participant {sn}, day {day}')
+            trials.append(pd.read_csv(os.path.join(path, f'day{day}', f'efc4_{sn}_single_trial.tsv'), sep='\t'))
+    trial = pd.concat(trials)
+
+    # identifiers as category, so that groupby(observed=True) keeps only the cells
+    # that actually occur, and up front, so that the table is readable
+    cat_cols = [c for c in ID_COLS if c in trial.columns]
+    trial = trial.astype({c: 'category' for c in cat_cols})
+    return trial[cat_cols + [c for c in trial.columns if c not in cat_cols]]
+
+
+def summarise_trials(trial, by):
+    """Average trials within each cell of `by`.
+
+    Every measure is averaged over successful trials only, except `trialPoint`,
+    which is averaged over all trials and is therefore the success rate.
+    """
+    success = trial[trial.trialPoint == 1].groupby(by, observed=True).mean(numeric_only=True).reset_index()
+    rate = trial.groupby(by, observed=True)[['trialPoint']].mean().reset_index()
+    return success.drop(columns='trialPoint').merge(rate, on=by)
+
+
+def force_wide_to_long(force_wide):
+    """Stack the per-finger force columns into one row per trial x finger (FWIDE -> FLONG).
+
+    The measures are melted separately and pasted back together column-wise:
+    each melt stacks the fingers in the same order, so the rows stay aligned.
+    `finger` is named after the first measure melted (`thumb_abs`, ...).
+    """
+    force_long = None
+    for measure in FORCE_MEASURES:
+        value_name = f'force_{measure}'
+        melted = force_wide.melt(id_vars=FORCE_ID_COLS, value_vars=FORCE_COLS[measure],
+                                 var_name='finger', value_name=value_name)
+        if force_long is None:
+            force_long = melted
+        else:
+            force_long[value_name] = melted[value_name].to_numpy()
+    return force_long
+
+
+def save(df, fname):
+    """Write one summary table to `<baseDir>/<behavDir>/<fname>`."""
+    df.to_csv(os.path.join(gl.baseDir, gl.behavDir, fname), sep='\t', index=False)
+
+
 if __name__ == '__main__':
-    sns       = gl.participants
-    df_pooled = pd.DataFrame()
-    for sn in sns:
-        for sess in range(24):
-            print(f'doing participant {sn}, day {sess + 1}')
-            df = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, f'day{sess+1}', f'efc4_{sn}_single_trial.tsv'), sep = '\t',)
-            df_pooled = pd.concat([df_pooled, df])
 
-    df_pooled.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'behaviour.trial.tsv'), sep='\t', index=False)
+    # ---- TRIAL: all single trials of all participants -----------------------
+    trial = load_single_trials(gl.participants)
+    save(trial, 'behaviour.trial.tsv')
 
-    df_sess = df_pooled.groupby(['subNum', 'session', 'chord']).mean(numeric_only=True).reset_index()
-    df_sess.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'behaviour.session.tsv'), sep='\t', index=False)
+    # ---- PERF / PERF_REP: trial-wise -> session-wise performance ------------
+    perf = trial[SESSION_BY + ['Repetition'] + PERF_COLS]
+    save(summarise_trials(perf, SESSION_BY), 'behaviour.session.success.tsv')
+    save(summarise_trials(perf, SESSION_BY + ['Repetition']), 'behaviour.session.success.repetition.tsv')
 
-    df_corr = df_pooled[df_pooled.trialPoint == 1].reset_index()
-    df_sess_corr = df_corr.groupby(['subNum', 'session', 'chord']).mean(numeric_only=True).reset_index()
-    df_sess_corr.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'behaviour.session.success.tsv'), sep='\t', index=False)
+    # ---- FWIDE: trial-wise force, one column per finger ---------------------
+    force_wide = trial[FORCE_ID_COLS + ['trialPoint'] + [c for m in FORCE_MEASURES for c in FORCE_COLS[m]]]
+    force_wide = force_wide[force_wide.trialPoint == 1].drop(columns='trialPoint')
+    save(force_wide, 'force.trial.wide.tsv')
 
-    df_sess_corr_rep = df_corr.groupby(['subNum', 'session', 'chord', 'Repetition'], observed=True).mean(
-        numeric_only=True).reset_index()
-    df_sess_corr_rep.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'behaviour.session.success.repetition.tsv'),
-                             sep='\t', index=False)
+    # ---- FFMRI: trial-wise -> block-wise force, scanning sessions only ------
+    fmri_force = force_wide[force_wide.session_type == 'scanning']
+    fmri_force = fmri_force.groupby(BLOCK_BY, observed=True).mean(numeric_only=True).reset_index()
+    save(fmri_force, 'force.fmri.wide.tsv')
 
-    df_fabs = df_corr.melt(id_vars=['subNum', 'chordID', 'chord', 'TN', 'BN', 'session', 'Repetition', 'MD', 'ET'],
-                             value_vars=['thumb_abs', 'index_abs', 'middle_abs', 'ring_abs', 'pinkie_abs'],
-                             var_name='finger', value_name='force_abs')
-    df_fder = df_corr.melt(id_vars=['subNum', 'chordID', 'chord', 'TN', 'BN', 'session', 'Repetition'],
-                             value_vars=['thumb_der', 'index_der', 'middle_der', 'ring_der', 'pinkie_der'],
-                             var_name='finger', value_name='force_der')
-    df_fder_peak = df_corr.melt(id_vars=['subNum', 'chordID', 'chord', 'TN', 'BN', 'session', 'Repetition'],
-                           value_vars=['thumb_der_peak', 'index_der_peak', 'middle_der_peak', 'ring_der_peak',
-                                       'pinkie_der_peak'], var_name='finger', value_name='force_der_peak')
-    df_fder_t2peak = df_corr.melt(id_vars=['subNum', 'chordID', 'chord', 'TN', 'BN', 'session', 'Repetition'],
-                           value_vars=['thumb_der_t2peak', 'index_der_t2peak', 'middle_der_t2peak', 'ring_der_t2peak',
-                                       'pinkie_der_t2peak'], var_name='finger', value_name='force_der_t2peak')
+    # ---- FLONG: trial-wise force, one row per trial x finger ----------------
+    force_long = force_wide_to_long(force_wide)
+    save(force_long, 'force.trial.long.tsv')
 
-    df_force = df_fabs.copy()
-    df_force['force_der'] = df_fder.force_der.to_numpy()
-    df_force['force_der_peak'] = df_fder_peak.force_der_peak.to_numpy()
-    df_force['force_der_t2peak'] = df_fder_t2peak.force_der_t2peak.to_numpy()
-    df_force = df_force.groupby(['subNum', 'chordID', 'chord', 'TN', 'BN', 'session', 'Repetition']).mean(numeric_only=True).reset_index()
-    df_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'force.success.tsv'), sep='\t', index=False)
+    # ---- FSESS / FSESS_REP: trial-wise -> session-wise force ----------------
+    # averaged over fingers as well as trials, since the fingers are stacked
+    sess_force = force_long.groupby(SESSION_BY, observed=True).mean(numeric_only=True).reset_index()
+    save(sess_force, 'force.session.avg.tsv')
 
-    df_sess_force = df_force.groupby(['subNum', 'session', 'chord']).mean(numeric_only=True).reset_index()
-    df_sess_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, f'force.session.success.tsv'), sep='\t', index=False)
-
-    df_rep_fabs = df_fabs.groupby(['subNum', 'session', 'chord', 'Repetition'], observed=True).mean(
-        numeric_only=True).reset_index()
-    df_rep_fder = df_fder.groupby(['subNum', 'session', 'chord', 'Repetition'], observed=True).mean(
-        numeric_only=True).reset_index()
-    df_rep_fder_peak = df_fder_peak.groupby(['subNum', 'session', 'chord', 'Repetition'], observed=True).mean(
-        numeric_only=True).reset_index()
-    df_rep_force = df_rep_fabs.copy()
-    df_rep_force['force_der'] = df_rep_fder.force_der.to_numpy()
-    df_rep_force['force_der_peak'] = df_rep_fder_peak.force_der_peak.to_numpy()
-    df_rep_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, 'force.session.success.repetition.tsv'), sep='\t',
-                        index=False)
-
+    sess_rep_force = force_long.groupby(SESSION_BY + ['Repetition'], observed=True).mean(numeric_only=True).reset_index()
+    save(sess_rep_force, 'force.session.avg.repetition.tsv')
