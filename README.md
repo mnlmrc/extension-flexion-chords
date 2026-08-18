@@ -12,10 +12,10 @@ PCM) is still to be written up.
 
 * 8 chords (`gl.chordID`), 4 assigned as **trained** and 4 as **untrained** per
   participant (`participants.tsv`, columns `trained` / `untrained`.
-* 24 days (`behavioural/day1` … `behavioural/day24`), grouped into weeks; each day is
+* 24 days (`behavioural/day1` … `behavioural/day24`); each day is
   either a `training` or a `scanning` session (`session_type`). Scanning days are
   `gl.sessions = [3, 9, 23]`.
-* Each trial the participant produces one chord with five fingers; force is sampled at
+* Each trial the participant produces one 4-finger chord; force is sampled at
   500 Hz (`gl.fsample['force']`) and each chord is repeated twice in a row
   (`Repetition` 1 vs 2).
 
@@ -38,24 +38,34 @@ flowchart TD
     STTSV --> SUM
 
     TRIAL[("<b>trial-wise behavioural metrics for all participants and sessions:</b><br/>behavioural/behaviour.trial.tsv")]:::data
-    PERF[("<b>session-wise success rate, ET, and MD, split by chord type and repetition:</b><br/>behavioural/behaviour.session.success.tsv<br/>behavioural/behaviour.session.success.repetition.tsv")]:::data
-    PERF_REP[("<b>session-wise success rate, ET, and MD, split by chord type and repetition:</b><br/>behavioural/behaviour.session.success.tsv<br/>behavioural/behaviour.session.success.repetition.tsv")]:::data
-    FLONG[("<b>trial-wise finger force (wide format):</b><br/>behavioural/force.trial.long.tsv")]:::data
-    FSESS[("<b>session-wise force metrics, averaged across fingers, split by chord type and repetition:</b><br/>behavioural/force.session.avg.tsv<br/>behavioural/force.session.avg.repetition.tsv")]:::data
+    
+    PERF[("<b>session-wise success rate, ET, and MD, split by chord type:</b><br/>behavioural/behaviour.session.success.tsv")]:::data
+    PERF_REP[("<b>session-wise success rate, ET, and MD, split by chord type and repetition:</b><br/>behavioural/behaviour.session.success.repetition.tsv")]:::data
+    
+    FWIDE[("<b>trial-wise finger force (wide format):</b><br/>behavioural/force.trial.long.tsv")]:::data
+    FSESS[("<b>session-wise finger force averaged across fingers, split by chord type:</b><br/>behavioural/force.session.avg.tsv")]:::data
+    FSESS_REP[("<b>session-wise finger force averaged across fingers, split by chord type and repetition:</b><br/>behavioural/force.session.avg.repetition.tsv")]:::data
     FMRI[("<b>block-wise force metrics for the scanning sessions (fMRI covariates):</b><br/>behavioural/force.fmri.wide.tsv")]:::data
 
+    %% performance
     SUM --> TRIAL
     TRIAL --> PERF
     TRIAL --> PERF_REP
-    SUM --> FLONG
-    FLONG --> FSESS
-    SUM --> FMRI
+
+    %% force
+    SUM --> FWIDE
+    FWIDE --> FSESS
+    FWIDE --> FSESS_REP
+    FWIDE --> FMRI
+  
 
     %% ---------- figures / downstream ----------
-    NB["notebooks/behaviour.ipynb"]:::code
+    NB_BEHAV["notebooks/behaviour.ipynb"]:::code
 
-    PERF --> NB
-    FSESS --> NB
+    PERF --> NB_BEHAV
+    PERF_REP --> NB_BEHAV
+    FSESS --> NB_BEHAV
+    FSESS_REP --> NB_BEHAV
 
     classDef input fill:#e8eef7,stroke:#5b7fb5,color:#1a2c47;
     classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
