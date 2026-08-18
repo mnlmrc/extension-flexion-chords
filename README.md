@@ -11,8 +11,7 @@ PCM) is still to be written up.
 ## Experimental design
 
 * 8 chords (`gl.chordID`), 4 assigned as **trained** and 4 as **untrained** per
-  participant (`participants.tsv`, columns `trained` / `untrained`, drawn by
-  `assign_trained.py`).
+  participant (`participants.tsv`, columns `trained` / `untrained`.
 * 24 days (`behavioural/day1` … `behavioural/day24`), grouped into weeks; each day is
   either a `training` or a `scanning` session (`session_type`). Scanning days are
   `gl.sessions = [3, 9, 23]`.
@@ -35,17 +34,19 @@ flowchart TD
     ST --> STTSV
 
     %% ---------- summary ----------
-    SUM["scripts/behaviour_summary.py<br/>summarise()"]:::code
+    SUM["scripts/behaviour_summary.py"]:::code
     STTSV --> SUM
 
-    TRIAL[("behaviour.trial.tsv<br/>all trials, all subjects")]:::data
-    PERF[("behaviour.session.success.tsv<br/>+ .repetition.tsv<br/>trialPoint &middot; ET &middot; MD")]:::data
-    FLONG[("force.trial.long.tsv<br/>trial x finger")]:::data
-    FSESS[("force.session.avg.tsv<br/>+ .repetition.tsv")]:::data
-    FMRI[("force.fmri.wide.tsv<br/>scanning days, per block")]:::data
+    TRIAL[("<b>trial-wise behavioural metrics for all participants and sessions:</b><br/>behavioural/behaviour.trial.tsv")]:::data
+    PERF[("<b>session-wise success rate, ET, and MD, split by chord type and repetition:</b><br/>behavioural/behaviour.session.success.tsv<br/>behavioural/behaviour.session.success.repetition.tsv")]:::data
+    PERF_REP[("<b>session-wise success rate, ET, and MD, split by chord type and repetition:</b><br/>behavioural/behaviour.session.success.tsv<br/>behavioural/behaviour.session.success.repetition.tsv")]:::data
+    FLONG[("<b>trial-wise finger force (wide format):</b><br/>behavioural/force.trial.long.tsv")]:::data
+    FSESS[("<b>session-wise force metrics, averaged across fingers, split by chord type and repetition:</b><br/>behavioural/force.session.avg.tsv<br/>behavioural/force.session.avg.repetition.tsv")]:::data
+    FMRI[("<b>block-wise force metrics for the scanning sessions (fMRI covariates):</b><br/>behavioural/force.fmri.wide.tsv")]:::data
 
     SUM --> TRIAL
-    SUM --> PERF
+    TRIAL --> PERF
+    TRIAL --> PERF_REP
     SUM --> FLONG
     FLONG --> FSESS
     SUM --> FMRI
@@ -62,9 +63,8 @@ flowchart TD
     classDef out   fill:#f3e8f0,stroke:#a86b97,color:#3f1f39;
 ```
 
-Blue = raw inputs, green = code, amber = saved tables, purple = figures / downstream
-consumers. All paths are relative to `gl.baseDir`; the summary tables live directly in
-`behavioural/` (`gl.behavDir`).
+Blue = raw task output, green = code, amber = saved tables. All paths are relative to
+`gl.baseDir`; `<sn>` is the participant number, `<bl>` the block number and `<d>` the day.
 
 ### 1. Raw task output
 
