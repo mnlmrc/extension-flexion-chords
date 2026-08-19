@@ -87,13 +87,13 @@ def calc_G(data, cond_vec, part_vec, session='all', repetition='all', centred=Fa
             raise ValueError("cond_vec has no repetition field (expected 'session,repetition,chordID')")
         rep_vec = parts[1].astype(int).to_numpy()
 
-    keep     = runs_to_keep(part_vec.size, session=session, repetition=repetition, rep_vec=rep_vec)
+    keep = runs_to_keep(part_vec.size, session=session, repetition=repetition, rep_vec=rep_vec)
 
     if crossval:
         G_obs, _ = pcm.est_G_crossval(data[keep],
-                                    cond_vec[keep],
-                                    part_vec[keep],
-                                    X=pcm.indicator(part_vec[keep]) if fixed_effect else None)
+                                      cond_vec[keep],
+                                      part_vec[keep],
+                                      X=pcm.indicator(part_vec[keep]) if fixed_effect else None)
     else:
         G_obs, _ = pcm.est_G(data[keep],
                             cond_vec[keep],

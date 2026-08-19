@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import warnings
 
-from EFC_learningfMRI.util import lowpass_fir
+from EFC_learningfMRI.util import lowpass_fir, get_trained_and_untrained
 
 
 FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinkie']
@@ -122,7 +122,7 @@ def _load_block_mov(filename):
     return mov[mov[:, 1] == gl.wait_exec]
 
 
-def _trial_row(force_tmp, dat_row, prev_chordID, trained):
+def _trial_row(force_tmp=None, dat_row=None, prev_chordID=None, trained=None):
     """Compute all single-trial metrics for one trial, returned as one row dict."""
     fsample = gl.fsample['force']
     chordID = dat_row['chordID'][0]
@@ -182,7 +182,7 @@ def single_trial_behaviour(sn=None, session=None):
 
     dat     = pd.read_csv(os.path.join(path, f'efc4_{sn}.dat'), sep='\t')
     pinfo   = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
-    trained = pinfo[pinfo.sn == sn].reset_index()['trained'][0].split('.')
+    trained = get_trained_and_untrained(sn)
 
     assert dat.subNum.unique() == sn
 

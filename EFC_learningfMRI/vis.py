@@ -29,17 +29,17 @@ def custom_legend(fig, labels, colors, loc='outside right center', kind='line'):
     fig.legend(handles=handles, frameon=False, loc=loc)
 
 
-def plot_example_trial(fig, axs, sessions, sn=101, n_block=1, n_trial: list=None):
+def plot_example_trial(fig, axs, sessions, sn=101, n_block: list=None, n_trial: list=None):
 
-    tAx = np.linspace(-1, 3.5, int(gl.fsample['force'] * 4.5))
+    tAx = np.linspace(-1, 4.5, int(gl.fsample['force'] * 5.25))
 
     ch_idx = np.array(gl.diffCols)
 
     for s, sess in enumerate(sessions):
         ax = axs[s]
-        filename = os.path.join(gl.baseDir, 'behavioural', f'day{sess}', f'efc4_{sn}_{n_block:02d}.mov')
+        filename = os.path.join(gl.baseDir, 'behavioural', f'day{sess}', f'efc4_{sn}_{n_block[s]:02d}.mov')
         mov = load_mov(filename)[n_trial[s]]
-        mov = mov[(mov[:, 1] == gl.wait_exec) | (mov[:, 1] == gl.wait_exec - 1)]
+        mov = mov[(mov[:, 1] == gl.wait_exec) | (mov[:, 1] == gl.wait_exec - 1) | (mov[:, 1] == gl.wait_exec + 1)]
         force = mov[:, ch_idx] * gl.fGain
         force_lp = lowpass_butter(force, cutoff=20, fsample=gl.fsample['force'], axis=0)
         ax.plot(tAx, force_lp, lw=2, label=['thumb', 'index', 'middle', 'ring', 'pinkie'])

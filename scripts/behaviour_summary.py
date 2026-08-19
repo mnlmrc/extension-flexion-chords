@@ -95,7 +95,7 @@ def force_wide_to_long(force_wide):
     force_long = None
     for measure in FORCE_MEASURES:
         value_name = f'force_{measure}'
-        melted = force_wide.melt(id_vars=FORCE_ID_COLS, value_vars=FORCE_COLS[measure],
+        melted = force_wide.melt(id_vars=FORCE_ID_COLS + ['trialPoint'], value_vars=FORCE_COLS[measure],
                                  var_name='finger', value_name=value_name)
         if force_long is None:
             force_long = melted
@@ -117,18 +117,17 @@ if __name__ == '__main__':
 
     # ---- PERF / PERF_REP: trial-wise -> session-wise performance ------------
     perf = trial[SESSION_BY + ['Repetition'] + PERF_COLS]
-    save(summarise_trials(perf, SESSION_BY), 'behaviour.session.success.tsv')
-    save(summarise_trials(perf, SESSION_BY + ['Repetition']), 'behaviour.session.success.repetition.tsv')
+    save(summarise_trials(perf, SESSION_BY), 'behaviour.session.tsv')
+    save(summarise_trials(perf, SESSION_BY + ['Repetition']), 'behaviour.session.repetition.tsv')
 
     # ---- FWIDE: trial-wise force, one column per finger ---------------------
     force_wide = trial[FORCE_ID_COLS + ['trialPoint'] + [c for m in FORCE_MEASURES for c in FORCE_COLS[m]]]
-    force_wide = force_wide[force_wide.trialPoint == 1].drop(columns='trialPoint')
     save(force_wide, 'force.trial.wide.tsv')
 
     # ---- FFMRI: trial-wise -> block-wise force, scanning sessions only ------
     fmri_force = force_wide[force_wide.session_type == 'scanning']
     fmri_force = fmri_force.groupby(BLOCK_BY, observed=True).mean(numeric_only=True).reset_index()
-    save(fmri_force, 'force.fmri.wide.tsv')
+    save(fmri_force, 'force.run.wide.tsv')
 
     # ---- FLONG: trial-wise force, one row per trial x finger ----------------
     force_long = force_wide_to_long(force_wide)
@@ -136,8 +135,9 @@ if __name__ == '__main__':
 
     # ---- FSESS / FSESS_REP: trial-wise -> session-wise force ----------------
     # averaged over fingers as well as trials, since the fingers are stacked
-    sess_force = force_long.groupby(SESSION_BY, observed=True).mean(numeric_only=True).reset_index()
+    force_long_succ = force_long[force_long.trialPoint == 1].drop(columns='trialPoint')
+    sess_force      = force_long_succ.groupby(SESSION_BY, observed=True).mean(numeric_only=True).reset_index()
     save(sess_force, 'force.session.avg.tsv')
 
     sess_rep_force = force_long.groupby(SESSION_BY + ['Repetition'], observed=True).mean(numeric_only=True).reset_index()
-    save(sess_rep_force, 'force.session.avg.repetition.tsv')
+    save(sess_rep_force, 'force.session.repetition.avg.tsv')
