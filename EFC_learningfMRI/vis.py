@@ -1,8 +1,10 @@
 import numpy as np
 import PcmPy as pcm
 import seaborn as sb
+from matplotlib import rcParams
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
+from matplotlib.transforms import blended_transform_factory
 from scipy.stats import ttest_rel
 import EFC_learningfMRI.globals as gl
 from EFC_learningfMRI.force import load_mov
@@ -152,6 +154,45 @@ def plot_pcm_corr(fig, axs, df, corr, rois=None, x='SNR', y='r_indiv', hue='chor
             ax.axhline(0 if add_zero is True else add_zero, lw=.8, color='k', ls=':')
 
 
+def plot_mat_sess(fig, axs, mats, sessions=gl.sessions, labels=None, n_trained=4, cmap='viridis',
+                  vmin=None, vmax=None, cbar=True, cbar_label=None, **kwargs):
+    """One square matrix per session, every panel on the same colour scale.
+
+    The shared scale is the point: a change in overall magnitude across sessions
+    shows as a change in colour instead of being normalised away.
+
+    Args:
+        mats:       (n_sess, K, K) array.
+        sessions:   session label per panel; defaults to gl.sessions.
+        labels:     tick labels for the K rows/columns, e.g. the chord IDs in
+                    ``get_trained_and_untrained(sn)`` order.
+        n_trained:  where to draw the trained/untrained divider; None for no divider.
+        cbar_label: label for the single shared colourbar.
+    """
+    M      = np.asarray(mats)
+    K      = M.shape[-1]
+    labels = range(K) if labels is None else labels
+    vmin   = M.min() if vmin is None else vmin
+    vmax   = M.max() if vmax is None else vmax
+
+    for a, sess in enumerate(sessions):
+        ax = axs[a]
+        im = ax.imshow(M[a], cmap=cmap, vmin=vmin, vmax=vmax, **kwargs)
+
+        ax.set_xticks(range(K), labels, rotation=90)
+        ax.set_yticks(range(K), labels if a == 0 else [''] * K)
+        ax.set_title(f'session {sess}')
+        ax.tick_params(length=0)
+
+        # imshow centres the cells on the integers, so the block edge is at n-.5
+        if n_trained:
+            ax.axhline(n_trained - .5, color='k', lw=1)
+            ax.axvline(n_trained - .5, color='k', lw=1)
+
+    if cbar:
+        fig.colorbar(im, ax=list(axs[:len(sessions)]), label=cbar_label, shrink=.6)
+
+
 def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_order=None, palette=None, color=None, add_zero=False, kind='point', roi_col=None, native_scale=True, legend=True, alpha=1, **kwargs):
     kws = {
         'point' : dict(dodge=.2, lw=2, ls='-', errorbar='se', estimator='mean'),
@@ -175,7 +216,7 @@ def plot_im_sess(fig, axs, df, rois=None, x='session', y=None, hue=None, hue_ord
         rois = df[roi_col].unique()
         
     for r, roi in enumerate(rois):
-        ax = axs[r]
+        ax = axs[r] if len(rois) > 1 else axs
         common = dict(data         = df[df[roi_col]==roi], 
                       ax           = ax,
                       x            = x,
@@ -305,10 +346,20 @@ def plot_behav_sess(fig, ax, df, x='session', y=None, hue=None, hue_order=None, 
         return
 
     # decor is specified in session units; with native_scale=False seaborn puts the
-    # sessions on categorical positions instead, so map session -> axis coordinate
-    levels = np.sort(df[x].unique())
+    # sessions on categorical positions instead, so map session -> axis coordinate.
+    # Read the categories off the axis rather than off df: df may cover only a subset
+    # of the sessions already drawn (untrained chords are tested in 8 of 24 sessions),
+    # and seaborn keeps the categories set by the first plot on these axes.
+    ticks  = np.asarray(ax.get_xticks(), dtype=float)
+    try:
+        levels = np.asarray([float(t.get_text()) for t in ax.get_xticklabels()])
+    except ValueError:  # non-numeric tick labels, fall back to the sessions in df
+        levels = np.array([])
+    if levels.size != ticks.size or levels.size == 0:
+        levels, ticks = np.sort(df[x].unique()), np.arange(df[x].nunique())
+    order  = np.argsort(levels)
     to_pos = (lambda v: np.asarray(v, dtype=float)) if native_scale else \
-             (lambda v: np.interp(v, levels, np.arange(len(levels))))
+             (lambda v: np.interp(v, levels[order], ticks[order]))
 
     starts = [w[0] for w in WEEKS.values()]
     for start in starts[1:]:
@@ -328,7 +379,11 @@ def plot_behav_sess(fig, ax, df, x='session', y=None, hue=None, hue_order=None, 
         ax.text(to_pos(sess), ylim0 + .05 * ydiff, 'fMRI', rotation=90, ha='center', va='bottom')
     for week, (first, last) in WEEKS.items():
         ax.text(to_pos((first + last) / 2), xticks, f'{week}', ha='center', va='top', transform=ax.transData)
-    ax.text(.5, 0.075, 'week', ha='center', va='top', transform=fig.transFigure)
+    # 'week' goes under the week numbers, centred on the axes: in figure coordinates it
+    # drifts with the layout (the ylabel pushes the axes centre off the figure centre)
+    ax.annotate('week', xy=(.5, xticks), xycoords=blended_transform_factory(ax.transAxes, ax.transData),
+                xytext=(0, -1.4 * rcParams['font.size']), textcoords='offset points',
+                ha='center', va='top', annotation_clip=False)
 
     if legend and ax.get_legend_handles_labels()[0]:
         ax.legend(frameon=False,)
