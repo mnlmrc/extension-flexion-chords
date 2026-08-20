@@ -95,8 +95,10 @@ def force_by_session_avg():
     sess_force      = force_long_succ.groupby(SESSION_BY, observed=True).mean(numeric_only=True).reset_index()
     sess_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, FSESS), sep='\t', index=False)
 
-    # NB: unlike FSESS this averages over all trials, successful or not
-    sess_rep_force = force_long.groupby(SESSION_BY + ['Repetition'], observed=True).mean(numeric_only=True).reset_index()
+    # Same success filter as FSESS: failed trials have much lower force, and the
+    # success rate differs by repetition (day 1: .33 rep1 vs .39 rep2), so mixing
+    # them in would make the repetition contrast partly a success-rate contrast.
+    sess_rep_force = force_long_succ.groupby(SESSION_BY + ['Repetition'], observed=True).mean(numeric_only=True).reset_index()
     sess_rep_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, FSESS_REP), sep='\t', index=False)
 
 
