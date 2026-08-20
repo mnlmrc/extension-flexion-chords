@@ -107,7 +107,9 @@ def make_G_dataframe_rois(glm=3, atlas_name='ROI', sns=None, ref_session=3, cros
             G = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'G_obs_raw.within_session.{sess}.glm{glm}.{H}.{roi}.npy'))
             rows += _G_rows(G, sn, Hem=H, roi=roi, session=sess)
 
-    return _add_group_reference(rows, ['Hem', 'roi', 'pair'], ref_session, crossval)
+    df = _add_group_reference(rows, ['Hem', 'roi', 'pair'], ref_session, crossval)
+    df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'{atlas_name}.geometry.glm{glm}.tsv'), sep='\t', index=False)
+    return df
 
 
 def make_G_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_session=3, crossval=False):
@@ -128,7 +130,9 @@ def make_G_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_sess
             G = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'G_obs_raw.within_session.{sess}.force.{metric}.npy'))
             rows += _G_rows(G, sn, metric=metric, session=sess)
 
-    return _add_group_reference(rows, ['metric', 'pair'], ref_session, crossval)
+    df = _add_group_reference(rows, ['metric', 'pair'], ref_session, crossval)
+    df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, 'dissimilarity.within_session.force.tsv'), sep='\t', index=False)
+    return df
 
 
 def _make_fname(session, repetition):
@@ -203,10 +207,10 @@ def calc_G_force(sns=gl.participants, metrics=('abs', 'der'),
 # Step name -> function. Each step builds its own input, so they can be run
 # separately: the ROI Gs need the betas, the force Gs only force.run.wide.tsv.
 FUNC = {
-    'G_rois' : calc_G_rois,
-    'G_force': calc_G_force,
+    'G_rois'          : calc_G_rois,
+    'G_force'         : calc_G_force,
     'dataframe_force' : make_G_dataframe_force,
-    'dataframe_rois': make_G_dataframe_rois
+    'dataframe_rois'  : make_G_dataframe_rois
 }
 
 

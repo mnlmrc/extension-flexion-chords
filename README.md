@@ -18,7 +18,7 @@ practise a set of finger chords over 24 days, with fMRI scans on days 3, 9 and 2
 ```mermaid
 flowchart TD
     %% ---------- single trial ----------
-    ST["scripts/behaviour.single_trial_behaviour()"]:::code
+    ST["scripts/behaviour.behaviour_single_session()"]:::code
     STTSV[("<b>trial-wise behavioural metrics for each participant and session:</b><br/>behavioural/day&lt;d&gt;/efc4_&lt;sn&gt;_single_trial.tsv")]:::data
 
     ST --> STTSV
@@ -33,27 +33,24 @@ flowchart TD
 
     TRIAL[("<b>trial-wise behavioural metrics for all participants and sessions:</b><br/>behavioural/behaviour.trial.tsv")]:::data
     
-    PERF[("<b>session-wise success rate, ET, and MD, split by chord type:</b><br/>behavioural/behaviour.session.tsv")]:::data
-    PERF_REP[("<b>session-wise success rate, ET, and MD, split by chord type and repetition:</b><br/>behavioural/behaviour.session.repetition.tsv")]:::data
+    PERF_REP[("<b>session-wise success rate, ET, and MD, split by chord type[, repetition]:</b><br/>behavioural/behaviour.session[.repetition].tsv")]:::data
     
     FWIDE[("<b>trial-wise finger force (wide format):</b><br/>behavioural/force.trial.wide.tsv")]:::data
     FLONG[("<b>trial-wise finger force (long format):</b><br/>behavioural/force.trial.long.tsv")]:::data
-    FSESS[("<b>session-wise finger force averaged across fingers, split by chord type:</b><br/>behavioural/force.session.avg.tsv")]:::data
-    FSESS_REP[("<b>session-wise finger force averaged across fingers, split by chord type and repetition:</b><br/>behavioural/force.session.repetition.avg.tsv")]:::data
+    FSESS_REP[("<b>session-wise finger force averaged across fingers, split by chord type[, repetition]:</b><br/>behavioural/force.session[.repetition].avg.tsv")]:::data
     FFMRI[("<b>run-wise finger force for scanning sessions (wide format):</b><br/>behavioural/force.run.wide.tsv")]:::data
 
     %% ---------- force pattern analysis ----------
     P_GFORCE["scripts/pattern.calc_G_force()"]:::code
     P_DFFORCE["scripts/pattern.make_G_dataframe_force()"]:::code
 
-    GFORCE[("<b>second-moment matrices of finger force per participant, session and repetition (one metric each, trained chords first):</b><br/>pcm/subj&lt;sn&gt;/{G_obs,cov,G_obs_raw,G_obs_noxval}.&lt;epoch&gt;.force.&lt;metric&gt;.npy")]:::data
-    DFFORCE[("<b>pair-wise force geometry (crossnobis + cosine/angle vs. reference session), returned in memory:</b><br/>make_G_dataframe_force() DataFrame")]:::data
+    GFORCE[("<b>8x8 second-moment matrices of 5-finger absolute force and absolute force derivative for each participant, session[, repetition]:</b><br/>pcm/subj&lt;sn&gt;/G_obs_raw.within_session.&lt;session&gt;[.&lt;repetition&gt;].force.&lt;metric&gt;.npy")]:::data
+    DFFORCE[("<b>pair-wise force geometry (crossnobis + cosine/angle vs. reference session):</b><br/>pcm/force.geometry.tsv")]:::data
 
     %% performance
     STTSV --> F_TRIAL
     F_TRIAL --> TRIAL
     TRIAL --> F_SESS
-    F_SESS --> PERF
     F_SESS --> PERF_REP
 
     %% force
@@ -64,7 +61,6 @@ flowchart TD
     FWIDE --> F_FLONG
     F_FLONG --> FLONG
     FLONG --> F_FSESS
-    F_FSESS --> FSESS
     F_FSESS --> FSESS_REP
 
     %% force pattern analysis
@@ -80,7 +76,9 @@ flowchart TD
 Green = code, amber = saved tables; each green node is the function that writes the tables it
 points to. Every step reloads its input from disk, so the arrows are also the order the steps
 have to be run in. All paths are relative to `gl.baseDir`; `<sn>` is the participant number,
-`<bl>` the block number and `<d>` the day.
+`<bl>` the block number and `<d>` the day. `<...>` is a placeholder to fill in; `[...]` marks a
+part of the name that is only present sometimes (e.g. `[.<repetition>]` is dropped when the G is
+not split by repetition).
 
 
 
