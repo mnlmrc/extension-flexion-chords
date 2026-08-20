@@ -13,7 +13,7 @@ practise a set of finger chords over 24 days, with fMRI scans on days 3, 9 and 2
   500 Hz (`gl.fsample['force']`) and each chord is repeated twice in a row
   (`Repetition` 1 vs 2).
 
-## Behavioural data flow
+## Data flow
 
 ```mermaid
 flowchart TD
@@ -42,6 +42,13 @@ flowchart TD
     FSESS_REP[("<b>session-wise finger force averaged across fingers, split by chord type and repetition:</b><br/>behavioural/force.session.repetition.avg.tsv")]:::data
     FFMRI[("<b>run-wise finger force for scanning sessions (wide format):</b><br/>behavioural/force.run.wide.tsv")]:::data
 
+    %% ---------- force pattern analysis ----------
+    P_GFORCE["scripts/pattern.calc_G_force()"]:::code
+    P_DFFORCE["scripts/pattern.make_G_dataframe_force()"]:::code
+
+    GFORCE[("<b>second-moment matrices of finger force per participant, session and repetition (one metric each, trained chords first):</b><br/>pcm/subj&lt;sn&gt;/{G_obs,cov,G_obs_raw,G_obs_noxval}.&lt;epoch&gt;.force.&lt;metric&gt;.npy")]:::data
+    DFFORCE[("<b>pair-wise force geometry (crossnobis + cosine/angle vs. reference session), returned in memory:</b><br/>make_G_dataframe_force() DataFrame")]:::data
+
     %% performance
     STTSV --> F_TRIAL
     F_TRIAL --> TRIAL
@@ -59,6 +66,12 @@ flowchart TD
     FLONG --> F_FSESS
     F_FSESS --> FSESS
     F_FSESS --> FSESS_REP
+
+    %% force pattern analysis
+    FFMRI --> P_GFORCE
+    P_GFORCE --> GFORCE
+    GFORCE --> P_DFFORCE
+    P_DFFORCE --> DFFORCE
 
     classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
     classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
