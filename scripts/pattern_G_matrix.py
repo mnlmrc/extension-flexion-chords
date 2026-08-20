@@ -1,3 +1,4 @@
+import argparse
 import os
 from collections import defaultdict
 import numpy as np
@@ -8,6 +9,125 @@ from EFC_learningfMRI.G_matrix import calc_G
 from EFC_learningfMRI.util import get_trained_and_untrained
 from EFC_learningfMRI.betas import BetasPrewithenedLoader
 import warnings
+import itertools
+
+def _pair_index():
+    """(row, col) indices of the chord pairs, split into the three pair groups.
+
+    Rows/cols 0-3 are the trained chords and 4-7 the untrained ones, the layout
+    every G in the pcm directory uses, so the same indices apply to a neural and
+    a force G alike.
+    """
+    mask                           = np.tri(8, k=-1, dtype=bool)
+    mask_trained                   = mask.copy()
+    mask_untrained                 = mask.copy()
+    mask_trained[4:]               = False
+    mask_untrained[:, :4]          = False
+    mask_trained_untrained         = np.zeros((8, 8), dtype=bool)
+    mask_trained_untrained[:4, 4:] = True
+
+    # (classification, row indices, col indices) for the three chord-pair groups
+    masks = {'trained'          : mask_trained,
+             'untrained'        : mask_untrained,
+             'trained_untrained': mask_trained_untrained}
+    return {chord: np.where(m) for chord, m in masks.items()}
+
+
+def _G_rows(G, sn, **labels):
+    """One row per chord pair of a single 8x8 G: its crossnobis distance and cosine.
+
+    ``labels`` are copied onto every row, and are what identifies the G the pair
+    came from — Hem/roi/session for a neural G, metric/session for a force one.
+    """
+    chords = get_trained_and_untrained(sn)
+    D      = pcm.G_to_dist(G)
+    cos    = pcm.G_to_cosine(G)
+
+    rows = []
+    for chord, (r, c) in _pair_index().items():
+        for ri, ci in zip(r, c):
+            rows.append({'sn'        : sn,
+                         **labels,
+                         'chord'     : chord,
+                         'pair'      : f'{chords[ri]}-{chords[ci]}',
+                         'crossnobis': D[ri, ci],
+                         'cosine'    : cos[ri, ci]})
+    return rows
+
+
+def _add_group_reference(rows, keys, ref_session, crossval):
+    """Assemble the rows and attach the reference-session group geometry.
+
+    ``keys`` identifies a chord pair *within one G family* — ['Hem', 'roi', 'pair']
+    for the neural Gs, ['metric', 'pair'] for the force ones.
+    """
+    df = pd.DataFrame(rows)
+
+    df['pair'] = df.pair.map(lambda s: '-'.join(sorted(s.split('-'))))
+
+    # group-mean geometry: across-subject mean of each chord pair in the reference
+    # session, pooled over trained/untrained/mixed (no 'chord'/'session' in the key,
+    # so all subjects contribute). Merged onto every row, so the *_group columns hold
+    # the ref-session reference for every session.
+    s3 = df[df.session == ref_session]
+    if crossval:
+        # leave-one-subject-out: subtract each subject's own value from the pair sum,
+        # so their reference is the mean over the other subjects. Keyed by subject too,
+        # then merged so it broadcasts across that subject's sessions.
+        ref = s3[keys + ['sn']].copy()
+        for metric in ('crossnobis', 'cosine'):
+            g = s3.groupby(keys)[metric]
+            ref[f'{metric}_group'] = (g.transform('sum') - s3[metric]) / (g.transform('size') - 1)
+        df = df.merge(ref, on=keys + ['sn'], how='left')
+    else:
+        ref = (s3.groupby(keys, as_index=False)
+                 .agg(crossnobis_group=('crossnobis', 'mean'),
+                      cosine_group    =('cosine',     'mean')))
+        df  = df.merge(ref, on=keys, how='left')
+
+    # calculate angle from cosine
+    df['theta']       = np.arccos(df.cosine)
+    df['theta_group'] = np.arccos(df.cosine_group)
+
+    return df
+
+
+def make_G_dataframe_neural(glm, atlas_name='ROI', sns=None, ref_session=3, crossval=False):
+
+    sns  = gl.participants if sns is None else sns
+    rois = gl.rois[atlas_name]
+
+    rows = []
+    for H, roi, sess in itertools.product(gl.Hem, rois, gl.sessions):
+        for sn in sns:
+
+            print(f'doing participant {sn}, session {sess}, {H}, {roi}...')
+
+            G = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'G_obs_raw.within_session.{sess}.glm{glm}.{H}.{roi}.npy'))
+            rows += _G_rows(G, sn, Hem=H, roi=roi, session=sess)
+
+    return _add_group_reference(rows, ['Hem', 'roi', 'pair'], ref_session, crossval)
+
+
+def make_G_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_session=3, crossval=False):
+    """The neural dataframe's counterpart over the force Gs written by pattern_G_matrix.
+
+    Same rows, same columns, with ``metric`` (the force measure) standing in for
+    ``Hem``/``roi``: the force Gs have the identical 8x8 trained-first layout, so
+    every chord pair lines up one-to-one with its neural row.
+    """
+    sns = gl.participants if sns is None else sns
+
+    rows = []
+    for metric, sess in itertools.product(metrics, gl.sessions):
+        for sn in sns:
+
+            print(f'doing participant {sn}, session {sess}, force {metric}...')
+
+            G = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'G_obs_raw.within_session.{sess}.force.{metric}.npy'))
+            rows += _G_rows(G, sn, metric=metric, session=sess)
+
+    return _add_group_reference(rows, ['metric', 'pair'], ref_session, crossval)
 
 
 def _make_fname(session, repetition):
@@ -17,7 +137,6 @@ def _make_fname(session, repetition):
     fname = fname + '.' + str(repetition) if repetition != 'all' else fname
     return fname
 
-FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinkie']
 
 def force_patterns(force, sn, metric, session='all', repetition='all'):
     """Force patterns of one participant, laid out like the ROI betas.
@@ -48,7 +167,7 @@ def force_patterns(force, sn, metric, session='all', repetition='all'):
         condition strings and ``part_vec`` the run numbers, made unique across
         sessions (BN restarts at 1 in every session).
     """
-    cols = [f'{finger}_{metric}' for finger in FINGERS]
+    cols = [f'{finger}_{metric}' for finger in gl.fingers]
 
     df = force[force.subNum == sn]
     if session != 'all':
@@ -71,7 +190,7 @@ def force_patterns(force, sn, metric, session='all', repetition='all'):
     return data, cond_vec, part_vec
 
 
-def calc_G_rois(loader, sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
+def _calc_G_rois(loader, sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
     """G of every ROI and session, with the subjects on the first dimension.
 
     Returns {(hemisphere, roi, session): (n_subj, n_cond, n_cond) array}, where
@@ -84,7 +203,7 @@ def calc_G_rois(loader, sessions=('all', *gl.sessions), repetitions=('all', 1, 2
         for session in sessions:
             for repetition in repetitions:
 
-                print(f'rois, doing participant {sn}...')
+                print(f'rois, doing participant {data.sn}...')
 
                 G        = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=False)
                 cov      = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=True)
@@ -100,8 +219,9 @@ def calc_G_rois(loader, sessions=('all', *gl.sessions), repetitions=('all', 1, 2
                 np.save(os.path.join(save_path, f'cov.{fname}.glm{glm}.{data.Hem}.{data.roi}'), cov)
                 np.save(os.path.join(save_path, f'G_obs_raw.{fname}.glm{glm}.{data.Hem}.{data.roi}'), G_raw)
                 np.save(os.path.join(save_path, f'G_obs_noxval.{fname}.glm{glm}.{data.Hem}.{data.roi}'), G_noxval)
+                
 
-def calc_G_force(sns=gl.participants, metrics=('abs', 'der', 'der_peak'),
+def calc_G_force(sns=gl.participants, metrics=('abs', 'der'),
                  sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
     """The same Gs as calc_G_rois, but over the five fingers' force instead of voxels.
 
@@ -137,14 +257,38 @@ def calc_G_force(sns=gl.participants, metrics=('abs', 'der', 'der_peak'),
                     np.save(os.path.join(save_path, f'G_obs_noxval.{fname}.force.{metric}'), G_noxval)
 
 
+def calc_G_rois(sns=gl.participants, glm=3, sessions=('all', *gl.sessions), repetitions=('all',)):
+    """G_rois: build the betas loader, then the ROI Gs."""
+    loader = BetasPrewithenedLoader(sns=sns, glm=glm)
+    _calc_G_rois(loader, sessions=sessions, repetitions=repetitions)
+
+
+# Step name -> function. Each step builds its own input, so they can be run
+# separately: the ROI Gs need the betas, the force Gs only force.run.wide.tsv.
+FUNC = {
+    'G_rois' : calc_G_rois,
+    'G_force': calc_G_force,
+    'dataframe_force' : make_G_dataframe_force,
+    'dataframe_neural': make_G_dataframe_neural
+}
+
+
+def main(what, **kwargs):
+    """Run one step.
+
+    `kwargs` are forwarded to the step (`glm=`, `metrics=`, `repetitions=`, ...).
+    """
+
+    print(f'pattern_G_matrix: {what}...')
+    FUNC[what](**kwargs)
+
 
 if __name__=='__main__':
-    sns         = gl.participants
-    glm         = 3
-    sessions    = ('all', *gl.sessions)
-    repetitions = ['all'] #, 1, 2]
+    parser = argparse.ArgumentParser(description='Calculate the second moment matrices of the neural and force patterns.')
+    parser.add_argument('--what', default='dataframe_neural', choices=list(FUNC), help='which step to run (default: G_force)')
+    parser.add_argument('--glm', type=int, default=3, help='GLM the betas come from, G_rois only (default: 3)')
+    args = parser.parse_args()
 
-    #loader      = BetasPrewithenedLoader(sns=sns, glm=glm)
-    #calc_G_rois(loader, sessions, repetitions)
-
-    calc_G_force(sns=sns, sessions=sessions, repetitions=repetitions)
+    # glm only reaches G_rois, so it is passed only when that step runs
+    kwargs = {'glm': args.glm} if args.what in ['G_rois', 'dataframe_neural'] else {}
+    main(args.what, **kwargs)

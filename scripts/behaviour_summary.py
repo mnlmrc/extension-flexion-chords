@@ -1,74 +1,67 @@
-"""Aggregate the per-day single-trial behavioural files into the summary tables.
-
-Only successful trials (`trialPoint == 1`) contribute to the
-averages; `trialPoint` itself is averaged over all trials, so it is the success
-rate.
-
-Files generated
----------------
-behaviour.trial.tsv (TRIAL)
-    All single trials of all participants concatenated, with the identifier
-    columns (`ID_COLS`) cast to category and moved to the front. Source table
-    for everything below.
-behaviour.session.success.tsv (PERF)
-    Performance (`PERF_COLS`) averaged per `SESSION_BY` cell.
-behaviour.session.success.repetition.tsv (PERF_REP)
-    Same, additionally split by Repetition.
-force.trial.wide.tsv (FWIDE)
-    Successful single trials with one column per finger x force measure, e.g.
-    `thumb_abs`. Source table for the two force branches below.
-force.fmri.wide.tsv (FFMRI)
-    force.trial.wide restricted to the scanning sessions and averaged per
-    `BLOCK_BY` cell — i.e. one row per block, for use as GLM regressors.
-force.trial.long.tsv (FLONG)
-    force.trial.wide in long format: one row per trial x finger, with columns
-    force_abs, force_der and force_der_peak.
-force.session.avg.tsv (FSESS)
-    force.trial.long averaged (across fingers and trials) per `SESSION_BY` cell.
-force.session.avg.repetition.tsv (FSESS_REP)
-    Same, additionally split by Repetition.
-"""
-
+import argparse
 import os
 
 import pandas as pd
 
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.force import FINGERS
+from EFC_learningfMRI.behaviour import FINGERS
 
-# Trial identifiers: the columns that label a trial rather than measure it.
+# Descriptor columns.
 ID_COLS = ['subNum', 'BN', 'TN', 'Repetition', 'chordID', 'chord', 'session', 'session_type', 'week']
 
 # Performance measures kept in the behaviour.* tables.
 PERF_COLS = ['trialPoint', 'ET', 'MD']
 
-# Force measures, kept as one column per finger in wide format (`thumb_abs`, ...)
-# and as one column per measure in long format (`force_abs`, ...).
+# Force columns
 FORCE_MEASURES = ['abs', 'der', 'der_peak']
 FORCE_COLS = {m: [f'{f}_{m}' for f in FINGERS] for m in FORCE_MEASURES}
 
-# Identifiers kept in the force tables (chordID as well as chord, no trialPoint).
+# Descriptors kept in the force tables.
 FORCE_ID_COLS = ['subNum', 'TN', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
 
-# Groupings: one row per session (the `.repetition` tables append Repetition),
-# and one row per scanning block for the fMRI regressors.
+# Groupings
 SESSION_BY = ['subNum', 'session', 'chord', 'session_type', 'week']
 BLOCK_BY = ['subNum', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
 
+TRIAL     = 'behaviour.trial.tsv'
+PERF      = 'behaviour.session.tsv'
+PERF_REP  = 'behaviour.session.repetition.tsv'
+FWIDE     = 'force.trial.wide.tsv'
+FFMRI     = 'force.run.wide.tsv'
+FLONG     = 'force.trial.long.tsv'
+FSESS     = 'force.session.avg.tsv'
+FSESS_REP = 'force.session.repetition.avg.tsv'
 
-def load_single_trials(participants, ndays=24):
-    """Concatenate the per-day single-trial tables of every participant (STTSV -> TRIAL)."""
+
+def save(df, fname):
+    """Write one summary table to `<baseDir>/<behavDir>/<fname>`."""
+    df.to_csv(os.path.join(gl.baseDir, gl.behavDir, fname), sep='\t', index=False)
+
+
+def load(fname):
+    """Read one summary table back, restoring the identifier columns as categories.
+
+    The cast is what `concatenate_sessions` applies, so a step gets the same
+    dtypes whether it is run on its own or right after the step that wrote its
+    input.
+    """
+    df = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, fname), sep='\t')
+    cat_cols = [c for c in ID_COLS if c in df.columns]
+    return df.astype({c: 'category' for c in cat_cols})
+
+
+def concatenate_sessions(n_sessions=24):
+    """Concatenate single-session dataframes (STTSV -> TRIAL)."""
     path = os.path.join(gl.baseDir, gl.behavDir)
 
+    # concatenate
     trials = []
-    for sn in participants:
-        for day in range(1, ndays + 1):
-            print(f'doing participant {sn}, day {day}')
-            trials.append(pd.read_csv(os.path.join(path, f'day{day}', f'efc4_{sn}_single_trial.tsv'), sep='\t'))
+    for sn in gl.participants:
+        for session in range(1, n_sessions + 1):
+            print(f'doing participant {sn}, session {session}')
+            trials.append(pd.read_csv(os.path.join(path, f'day{session}', f'efc4_{sn}_single_trial.tsv'), sep='\t'))
     trial = pd.concat(trials)
 
-    # identifiers as category, so that groupby(observed=True) keeps only the cells
-    # that actually occur, and up front, so that the table is readable
     cat_cols = [c for c in ID_COLS if c in trial.columns]
     trial = trial.astype({c: 'category' for c in cat_cols})
     return trial[cat_cols + [c for c in trial.columns if c not in cat_cols]]
@@ -104,40 +97,86 @@ def force_wide_to_long(force_wide):
     return force_long
 
 
-def save(df, fname):
-    """Write one summary table to `<baseDir>/<behavDir>/<fname>`."""
-    df.to_csv(os.path.join(gl.baseDir, gl.behavDir, fname), sep='\t', index=False)
+def make_trial(n_sessions=24):
+    """TRIAL: all single trials of all participants."""
+    df = concatenate_sessions(n_sessions)
+    save(df, TRIAL)
+
+
+def make_session():
+    """PERF / PERF_REP: trial-wise -> session-wise performance."""
+    perf     = load(TRIAL)[SESSION_BY + ['Repetition'] + PERF_COLS]
+    df_norep = summarise_trials(perf, SESSION_BY)
+    df_rep   = summarise_trials(perf, SESSION_BY + ['Repetition'])
+    save(df_norep, PERF)
+    save(df_rep, PERF_REP)
+
+
+def make_force_trial_wide():
+    """FWIDE: trial-wise force, one column per finger."""
+    trial = load(TRIAL)
+    force_wide = trial[FORCE_ID_COLS + ['trialPoint'] + [c for m in FORCE_MEASURES for c in FORCE_COLS[m]]]
+    save(force, FWIDE)
+
+
+def make_force_run_wide():
+    """FFMRI: trial-wise -> block-wise force, scanning sessions only."""
+    force_wide = load(FWIDE)
+    force_fmri = force_wide[force_wide.session_type == 'scanning']
+    force_fmri = force_fmri.groupby(BLOCK_BY, observed=True).mean(numeric_only=True).reset_index()
+    save(force_fmri, FFMRI)
+
+
+def make_force_trial_long():
+    """FLONG: trial-wise force, one row per trial x finger."""
+    force_wide = load(FWIDE)
+    force_long = force_wide_to_long(force_wide)
+    save(force_long, FLONG)
+
+
+def make_force_session():
+    """FSESS / FSESS_REP: trial-wise -> session-wise force.
+
+    Averaged over fingers as well as trials, since the fingers are stacked.
+    """
+    force_long = load(FLONG)
+
+    force_long_succ = force_long[force_long.trialPoint == 1].drop(columns='trialPoint')
+    sess_force      = force_long_succ.groupby(SESSION_BY, observed=True).mean(numeric_only=True).reset_index()
+    save(sess_force, FSESS)
+
+    # NB: unlike FSESS this averages over all trials, successful or not
+    sess_rep_force = force_long.groupby(SESSION_BY + ['Repetition'], observed=True).mean(numeric_only=True).reset_index()
+    save(sess_rep_force, FSESS_REP)
+
+
+# Step name -> function, in the order `all` runs them.
+FUNC = {
+    None              : None,
+    'trial'           : make_trial,
+    'session'         : make_session,
+    'force.trial.wide': make_force_trial_wide,
+    'force.run.wide'  : make_force_run_wide,
+    'force.trial.long': make_force_trial_long,
+    'force.session'   : make_force_session,
+}
+
+
+def main(what): 
+    FUNC[what]
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--what', nargs='+', default=None, choices=list(FUNC), help='which step(s) to run (default: all)')
+    args = parser.parse_args()
 
-    # ---- TRIAL: all single trials of all participants -----------------------
-    trial = load_single_trials(gl.participants)
-    save(trial, 'behaviour.trial.tsv')
+    main(args.what)
 
-    # ---- PERF / PERF_REP: trial-wise -> session-wise performance ------------
-    perf = trial[SESSION_BY + ['Repetition'] + PERF_COLS]
-    save(summarise_trials(perf, SESSION_BY), 'behaviour.session.tsv')
-    save(summarise_trials(perf, SESSION_BY + ['Repetition']), 'behaviour.session.repetition.tsv')
-
-    # ---- FWIDE: trial-wise force, one column per finger ---------------------
-    force_wide = trial[FORCE_ID_COLS + ['trialPoint'] + [c for m in FORCE_MEASURES for c in FORCE_COLS[m]]]
-    save(force_wide, 'force.trial.wide.tsv')
-
-    # ---- FFMRI: trial-wise -> block-wise force, scanning sessions only ------
-    fmri_force = force_wide[force_wide.session_type == 'scanning']
-    fmri_force = fmri_force.groupby(BLOCK_BY, observed=True).mean(numeric_only=True).reset_index()
-    save(fmri_force, 'force.run.wide.tsv')
-
-    # ---- FLONG: trial-wise force, one row per trial x finger ----------------
-    force_long = force_wide_to_long(force_wide)
-    save(force_long, 'force.trial.long.tsv')
-
-    # ---- FSESS / FSESS_REP: trial-wise -> session-wise force ----------------
-    # averaged over fingers as well as trials, since the fingers are stacked
-    force_long_succ = force_long[force_long.trialPoint == 1].drop(columns='trialPoint')
-    sess_force      = force_long_succ.groupby(SESSION_BY, observed=True).mean(numeric_only=True).reset_index()
-    save(sess_force, 'force.session.avg.tsv')
-
-    sess_rep_force = force_long.groupby(SESSION_BY + ['Repetition'], observed=True).mean(numeric_only=True).reset_index()
-    save(sess_rep_force, 'force.session.repetition.avg.tsv')
+    if args.what==None:
+        make_trial()
+        make_session()
+        make_force_trial_long()
+        make_force_run_wide()
+        make_force_trial_long()
+        make_force_session()

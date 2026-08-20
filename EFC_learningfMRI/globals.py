@@ -33,6 +33,7 @@ print(f'figure directory found: {figDir}')
 fthresh = 1.2  # threshold to exit the baseline area
 ftarget = 2
 fGain = np.array([1, 1, 1, 1.5, 1.5])
+plan_time = 1.
 hold_time = .6  # in seconds
 
 fsample = {
@@ -53,6 +54,7 @@ chordID_combinations = [
     for trained in itertools.combinations(chordID, 4)
 ]
 
+fingers = ['thumb', 'index', 'middle', 'ring', 'pinkie']
 
 sessions = [3, 9, 23]
 nSess = 3

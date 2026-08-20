@@ -2,14 +2,16 @@ import numpy as np
 import PcmPy as pcm
 import seaborn as sb
 from matplotlib import rcParams
+import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 from matplotlib.transforms import blended_transform_factory
 from scipy.stats import ttest_rel
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.force import load_mov
 from EFC_learningfMRI.util import lowpass_butter
 import os
+import EFC_learningfMRI.util as util
+import pandas as pd
 
 
 def custom_legend(fig, labels, colors, loc='outside right center', kind='line'):
@@ -29,9 +31,32 @@ def custom_legend(fig, labels, colors, loc='outside right center', kind='line'):
     fig.legend(handles=handles, frameon=False, loc=loc)
 
 
-def plot_example_trial(fig, axs, sessions, sn=101, n_block: list=None, n_trial: list=None):
-
+def plot_example_trial(ax, F, title, plot_legend=False, plot_derivative=False):
+    force_lp = lowpass_butter(F, cutoff=5, fsample=gl.fsample['force'], axis=0)
+    #force_lp = F
+    force_der = np.gradient(force_lp, 1 / gl.fsample['force'], axis=0)
     tAx = np.linspace(-1, 4.5, int(gl.fsample['force'] * 5.25))
+    if plot_derivative==False:
+        ax.plot(tAx, force_lp, lw=2, label=['thumb', 'index', 'middle', 'ring', 'pinkie'])
+    else:
+        ax.plot(tAx, force_der, lw=2, label=['thumb', 'index', 'middle', 'ring', 'pinkie'])
+    #ax.set_title(f'Session {sess}')
+    ax.axhspan(-gl.fthresh, gl.fthresh, color='grey', alpha=0.2, lw=0)
+    ax.axvline(0, color='k', lw=.8)
+    ax.axhline(2, color='k', lw=.8, ls=':')
+    ax.axhline(-2, color='k', lw=.8, ls=':')
+    ax.axhline(5, color='k', lw=.8, ls=':')
+    ax.axhline(-5, color='k', lw=.8, ls=':')
+    #ax.set_ylabel('force (N)') if s == 0 else None
+    ax.set_xlabel('time (s)')
+    # ax.set_ylim([-6, 6])
+    # ax.tick_params(axis='y', left=False) if s == 1 else None
+    ax.set_yticks([-5, -2.5, 0, 2.5, 5])
+    ax.legend(bbox_to_anchor=(1, .5), loc='center left', frameon=False) if plot_legend else None
+
+
+
+def plot_example_trials(fig, axs, sessions, sn=101, n_block: list=None, n_trial: list=None, plot_derivative=False):
 
     ch_idx = np.array(gl.diffCols)
 
@@ -40,23 +65,23 @@ def plot_example_trial(fig, axs, sessions, sn=101, n_block: list=None, n_trial: 
         filename = os.path.join(gl.baseDir, 'behavioural', f'day{sess}', f'efc4_{sn}_{n_block[s]:02d}.mov')
         mov = load_mov(filename)[n_trial[s]]
         mov = mov[(mov[:, 1] == gl.wait_exec) | (mov[:, 1] == gl.wait_exec - 1) | (mov[:, 1] == gl.wait_exec + 1)]
-        force = mov[:, ch_idx] * gl.fGain
-        force_lp = lowpass_butter(force, cutoff=20, fsample=gl.fsample['force'], axis=0)
-        ax.plot(tAx, force_lp, lw=2, label=['thumb', 'index', 'middle', 'ring', 'pinkie'])
-        ax.set_title(f'Session {sess}')
-        ax.axhspan(-gl.fthresh, gl.fthresh, color='grey', alpha=0.2, lw=0)
-        ax.axvline(0, color='k', lw=.8)
-        ax.axhline(2, color='k', lw=.8, ls=':')
-        ax.axhline(-2, color='k', lw=.8, ls=':')
-        ax.axhline(5, color='k', lw=.8, ls=':')
-        ax.axhline(-5, color='k', lw=.8, ls=':')
-        ax.set_ylabel('force (N)') if s == 0 else None
-        ax.set_xlabel('time (s)')
-        ax.set_ylim([-6, 6])
-        ax.tick_params(axis='y', left=False) if s == 1 else None
-        ax.set_yticks([-5, -2.5, 0, 2.5, 5])
-        ax.legend(bbox_to_anchor=(1, .5), loc='center left', frameon=False) if s==1 else None
+        F = mov[:, ch_idx] * gl.fGain
 
+        plot_example_trial(ax, F, f'Session {sess}', plot_legend=s==1, plot_derivative=plot_derivative)
+
+        dat = pd.read_csv(os.path.join(gl.baseDir, 'behavioural', f'day{sess}', f'efc4_{sn}.dat'), sep='\t')
+        dat_row = dat[(dat.TN == n_trial[s]) & (dat.BN == n_block[s])].reset_index()
+
+        trained = util.get_trained_and_untrained(sn)
+        
+        trial_row = pd.Series(_trial_row(F, dat_row, trained=trained))
+        print(f'Session {sess}, chordID: {trial_row["chordID"]}')
+        print('Absolute force:')
+        print(trial_row[['thumb_abs', 'index_abs', 'middle_abs', 'ring_abs', 'pinkie_abs']])
+        print('Absolute force derivative:')
+        print(trial_row[['thumb_der', 'index_der', 'middle_der', 'ring_der', 'pinkie_der']])
+        print('\n')
+    
         sb.despine(ax=ax, trim=True, left=(s>0))
 
     fig.suptitle('Example trials')
