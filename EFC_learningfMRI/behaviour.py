@@ -7,40 +7,6 @@ import warnings
 
 from EFC_learningfMRI.util import lowpass_fir, get_trained_and_untrained
 
-
-FINGERS = ['thumb', 'index', 'middle', 'ring', 'pinkie']
-
-
-# Days of the experiment.
-N_SESSIONS = 24
-
-# Descriptor columns.
-ID_COLS = ['subNum', 'BN', 'TN', 'Repetition', 'chordID', 'chord', 'session', 'session_type', 'week']
-
-# Performance measures kept in the behaviour.* tables.
-PERF_COLS = ['trialPoint', 'ET', 'MD']
-
-# Force columns
-FORCE_MEASURES = ['abs', 'der', 'der_peak']
-FORCE_COLS = {m: [f'{f}_{m}' for f in FINGERS] for m in FORCE_MEASURES}
-
-# Descriptors kept in the force tables.
-FORCE_ID_COLS = ['subNum', 'TN', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
-
-# Groupings
-SESSION_BY = ['subNum', 'session', 'chord', 'session_type', 'week']
-BLOCK_BY = ['subNum', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
-
-TRIAL     = 'behaviour.trial.tsv'
-PERF      = 'behaviour.session.tsv'
-PERF_REP  = 'behaviour.session.repetition.tsv'
-FWIDE     = 'force.trial.wide.tsv'
-FFMRI     = 'force.run.wide.tsv'
-FLONG     = 'force.trial.long.tsv'
-FSESS     = 'force.session.avg.tsv'
-FSESS_REP = 'force.session.repetition.avg.tsv'
-
-
 def calc_md(X):
     N, m = X.shape
     F1 = X[0]
@@ -104,6 +70,58 @@ def load_mov(filename):
         raise IOError(f"Could not open {filename}") from e
 
     return np.concatenate(mov, axis=0)
+
+
+def force_patterns(force, sn, metric, session='all', repetition='all'):
+    """Force patterns of one participant, laid out like the ROI betas.
+
+    The five fingers take the place of the voxels, so the returned triple can be
+    handed straight to :func:`calc_G`. The layout mirrors the neural pipeline:
+    chords are relabelled 0-7 with this participant's *trained* chords first (see
+    ``get_trained_and_untrained``), and the conditions are the same
+    ``'session,chord'`` strings ``RegInfo.cond_vec`` builds — so the G comes out
+    8x8 within a session and 24x24 across, with the same rows in the same order
+    as the ROI Gs.
+
+    ``session`` and ``repetition`` are filtered here rather than in ``calc_G``:
+    ``runs_to_keep`` splits the rows into three equal positional blocks, which the
+    force table does not satisfy (failed trials are missing, and session 23 has an
+    extra run). Pass the result to ``calc_G`` with its own filters left at 'all'.
+
+    Args:
+        force:      the table from :func:`load_force`.
+        sn:         participant number.
+        metric:     force measure, one of 'abs', 'der', 'der_peak'.
+        session:    3, 9, 23, or 'all'.
+        repetition: 1, 2, or 'all'. With 'all' the two repetitions of a run are
+                    averaged, giving one pattern per run x chord.
+
+    Returns:
+        (data, cond_vec, part_vec): ``data`` is (n_obs, 5), ``cond_vec`` the
+        condition strings and ``part_vec`` the run numbers, made unique across
+        sessions (BN restarts at 1 in every session).
+    """
+    cols = [f'{finger}_{metric}' for finger in gl.fingers]
+
+    df = force[force.subNum == sn]
+    if session != 'all':
+        df = df[df.session == session]
+    if repetition != 'all':
+        df = df[df.Repetition == repetition]
+
+    # one pattern per run x chord: averages the two repetitions when both are kept,
+    # and is a no-op once a single repetition has been selected
+    df = df.groupby(['session', 'BN', 'chordID'], as_index=False, observed=True)[cols].mean()
+
+    data = df[cols].to_numpy()
+
+    slot_of  = {chord: i for i, chord in enumerate(np.asarray(get_trained_and_untrained(sn), dtype=int))}
+
+    sess_idx = df.session.map({s: i + 1 for i, s in enumerate(gl.sessions)})
+    cond_vec = (sess_idx.astype(str) + ',' + df.chordID.astype(int).map(slot_of).astype(str)).to_numpy()
+    part_vec = (sess_idx * 100 + df.BN).to_numpy()   # BN restarts at 1 every session
+
+    return data, cond_vec, part_vec
 
 
 def find_sustained_threshold_crossing(F, chordID, threshold, fsample, duration_ms=600):
@@ -206,7 +224,7 @@ def analyse_trial(F, chordID, n_ord=4, cutoff=5, fsample=gl.fsample['force']):
     return trial_dict
 
 
-def single_trial_session(sn, session):
+def analyse_session(sn, session):
     """Trial-wise metrics for one participant x session (writes efc4_<sn>_single_trial.tsv)."""
 
     # path to behavioural data
@@ -277,7 +295,7 @@ def single_trial_session(sn, session):
                 'session_type': dat_row['session'],
                 'week'        : dat_row['week'],
             }
-            for i, f in enumerate(FINGERS):
+            for i, f in enumerate(gl.fingers):
                 row[f]          = trial_dict['F_avg'][i]
                 row[f'{f}_abs'] = trial_dict['F_abs_avg'][i]
                 row[f'{f}_der'] = trial_dict['F_der_abs_avg'][i]
@@ -290,12 +308,7 @@ def single_trial_session(sn, session):
     single_trial_metrics.to_csv(os.path.join(path, f'efc4_{sn}_single_trial.tsv'), sep='\t', index=False)
 
 
-def save(df, fname):
-    """Write one summary table to `<baseDir>/<behavDir>/<fname>`."""
-    df.to_csv(os.path.join(gl.baseDir, gl.behavDir, fname), sep='\t', index=False)
-
-
-def load(fname):
+def load(fname, id_cols):
     """Read one summary table back, restoring the identifier columns as categories.
 
     The cast is what `concatenate_sessions` applies, so a step gets the same
@@ -303,11 +316,11 @@ def load(fname):
     input.
     """
     df = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, fname), sep='\t')
-    cat_cols = [c for c in ID_COLS if c in df.columns]
+    cat_cols = [c for c in id_cols if c in df.columns]
     return df.astype({c: 'category' for c in cat_cols})
 
 
-def concatenate_sessions(n_sessions=N_SESSIONS):
+def concatenate_sessions(n_sessions, id_cols):
     """Concatenate single-session dataframes (STTSV -> TRIAL)."""
     path = os.path.join(gl.baseDir, gl.behavDir)
 
@@ -319,12 +332,12 @@ def concatenate_sessions(n_sessions=N_SESSIONS):
             trials.append(pd.read_csv(os.path.join(path, f'day{session}', f'efc4_{sn}_single_trial.tsv'), sep='\t'))
     trial = pd.concat(trials)
 
-    cat_cols = [c for c in ID_COLS if c in trial.columns]
+    cat_cols = [c for c in id_cols if c in trial.columns]
     trial = trial.astype({c: 'category' for c in cat_cols})
     return trial[cat_cols + [c for c in trial.columns if c not in cat_cols]]
 
 
-def summarise_trials_by(trial, by):
+def group_trials_by(trial, by):
     """Average trials within each cell of `by`.
 
     Every measure is averaged over successful trials only, except `trialPoint`,
@@ -335,17 +348,18 @@ def summarise_trials_by(trial, by):
     return success.drop(columns='trialPoint').merge(rate, on=by)
 
 
-def force_wide_to_long(force_wide):
+def force_wide_to_long(force_wide, id_cols, force_cols):
     """Stack the per-finger force columns into one row per trial x finger (FWIDE -> FLONG).
 
-    The measures are melted separately and pasted back together column-wise:
-    each melt stacks the fingers in the same order, so the rows stay aligned.
-    `finger` is named after the first measure melted (`thumb_abs`, ...).
+    `force_cols` maps each measure to its per-finger columns. The measures are
+    melted separately and pasted back together column-wise: each melt stacks the
+    fingers in the same order, so the rows stay aligned. `finger` is named after
+    the first measure melted (`thumb_abs`, ...).
     """
     force_long = None
-    for measure in FORCE_MEASURES:
+    for measure, cols in force_cols.items():
         value_name = f'force_{measure}'
-        melted = force_wide.melt(id_vars=FORCE_ID_COLS + ['trialPoint'], value_vars=FORCE_COLS[measure],
+        melted = force_wide.melt(id_vars=id_cols + ['trialPoint'], value_vars=cols,
                                  var_name='finger', value_name=value_name)
         if force_long is None:
             force_long = melted

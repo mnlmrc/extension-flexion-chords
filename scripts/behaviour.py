@@ -1,15 +1,40 @@
 import argparse
+import os
 
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.behaviour import (
-    BLOCK_BY, FFMRI, FLONG, FORCE_COLS, FORCE_ID_COLS, FORCE_MEASURES, FSESS, FSESS_REP,
-    FWIDE, N_SESSIONS, PERF, PERF_COLS, PERF_REP, SESSION_BY, TRIAL,
-    concatenate_sessions, force_wide_to_long, load, save, single_trial_session,
-    summarise_trials_by,
-)
+import EFC_learningfMRI.behaviour as behaviour
+
+# Days of the experiment.
+N_SESSIONS = 24
+
+# Descriptor columns.
+ID_COLS = ['subNum', 'BN', 'TN', 'Repetition', 'chordID', 'chord', 'session', 'session_type', 'week']
+
+# Performance measures kept in the behaviour.* tables.
+PERF_COLS = ['trialPoint', 'ET', 'MD']
+
+# Force columns
+FORCE_MEASURES = ['abs', 'der',]
+FORCE_COLS = {m: [f'{f}_{m}' for f in gl.fingers] for m in FORCE_MEASURES}
+
+# Descriptors kept in the force tables.
+FORCE_ID_COLS = ['subNum', 'TN', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
+
+# Groupings
+SESSION_BY = ['subNum', 'session', 'chord', 'session_type', 'week']
+BLOCK_BY = ['subNum', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
+
+TRIAL     = 'behaviour.trial.tsv'
+PERF      = 'behaviour.session.tsv'
+PERF_REP  = 'behaviour.session.repetition.tsv'
+FWIDE     = 'force.trial.wide.tsv'
+FFMRI     = 'force.run.wide.tsv'
+FLONG     = 'force.trial.long.tsv'
+FSESS     = 'force.session.avg.tsv'
+FSESS_REP = 'force.session.repetition.avg.tsv'
 
 
-def single_trial_behaviour(sn=None, sessions=None):
+def behaviour_single_session(sn=None, sessions=None):
     """STTSV: parse the raw .dat/.mov files into one table per participant x session.
 
     `sn` defaults to every participant, `sessions` to all `N_SESSIONS` days.
@@ -19,44 +44,44 @@ def single_trial_behaviour(sn=None, sessions=None):
 
     for s in sns:
         for session in sessions:
-            single_trial_session(s, session)
+            behaviour.analyse_session(s, session)
 
 
 def behaviour_by_trial(n_sessions=N_SESSIONS):
     """TRIAL: all single trials of all participants."""
-    df = concatenate_sessions(n_sessions)
-    save(df, TRIAL)
+    df = behaviour.concatenate_sessions(n_sessions, ID_COLS)
+    df.to_csv(os.path.join(gl.baseDir, gl.behavDir, TRIAL), sep='\t', index=False)
 
 
 def performance_by_session():
     """PERF / PERF_REP: trial-wise -> session-wise performance."""
-    perf     = load(TRIAL)[SESSION_BY + ['Repetition'] + PERF_COLS]
-    df_norep = summarise_trials_by(perf, SESSION_BY)
-    df_rep   = summarise_trials_by(perf, SESSION_BY + ['Repetition'])
-    save(df_norep, PERF)
-    save(df_rep, PERF_REP)
+    perf     = behaviour.load(TRIAL, ID_COLS)[SESSION_BY + ['Repetition'] + PERF_COLS]
+    df_norep = behaviour.group_trials_by(perf, SESSION_BY)
+    df_rep   = behaviour.group_trials_by(perf, SESSION_BY + ['Repetition'])
+    df_norep.to_csv(os.path.join(gl.baseDir, gl.behavDir, PERF), sep='\t', index=False)
+    df_rep.to_csv(os.path.join(gl.baseDir, gl.behavDir, PERF_REP), sep='\t', index=False)
 
 
 def force_by_trial_wide():
     """FWIDE: trial-wise force, one column per finger."""
-    trial = load(TRIAL)
+    trial = behaviour.load(TRIAL, ID_COLS)
     force_wide = trial[FORCE_ID_COLS + ['trialPoint'] + [c for m in FORCE_MEASURES for c in FORCE_COLS[m]]]
-    save(force_wide, FWIDE)
+    force_wide.to_csv(os.path.join(gl.baseDir, gl.behavDir, FWIDE), sep='\t', index=False)
 
 
 def force_by_run_wide():
     """FFMRI: trial-wise -> run-wise force, scanning sessions only."""
-    force_wide = load(FWIDE)
+    force_wide = behaviour.load(FWIDE, ID_COLS)
     force_fmri = force_wide[force_wide.session_type == 'scanning']
     force_fmri = force_fmri.groupby(BLOCK_BY, observed=True).mean(numeric_only=True).reset_index()
-    save(force_fmri, FFMRI)
+    force_fmri.to_csv(os.path.join(gl.baseDir, gl.behavDir, FFMRI), sep='\t', index=False)
 
 
 def force_by_trial_long():
     """FLONG: trial-wise force, one row per trial x finger."""
-    force_wide = load(FWIDE)
-    force_long = force_wide_to_long(force_wide)
-    save(force_long, FLONG)
+    force_wide = behaviour.load(FWIDE, ID_COLS)
+    force_long = behaviour.force_wide_to_long(force_wide, FORCE_ID_COLS, FORCE_COLS)
+    force_long.to_csv(os.path.join(gl.baseDir, gl.behavDir, FLONG), sep='\t', index=False)
 
 
 def force_by_session_avg():
@@ -64,20 +89,20 @@ def force_by_session_avg():
 
     Averaged over fingers as well as trials, since the fingers are stacked.
     """
-    force_long = load(FLONG)
+    force_long = behaviour.load(FLONG, ID_COLS)
 
     force_long_succ = force_long[force_long.trialPoint == 1].drop(columns='trialPoint')
     sess_force      = force_long_succ.groupby(SESSION_BY, observed=True).mean(numeric_only=True).reset_index()
-    save(sess_force, FSESS)
+    sess_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, FSESS), sep='\t', index=False)
 
     # NB: unlike FSESS this averages over all trials, successful or not
     sess_rep_force = force_long.groupby(SESSION_BY + ['Repetition'], observed=True).mean(numeric_only=True).reset_index()
-    save(sess_rep_force, FSESS_REP)
+    sess_rep_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, FSESS_REP), sep='\t', index=False)
 
 
 # Step name -> function, in the order the full run does them.
 FUNC = {
-    'single.trial'    : single_trial_behaviour,
+    'single.trial'    : behaviour_single_session,
     'trial'           : behaviour_by_trial,
     'session'         : performance_by_session,
     'force.trial.wide': force_by_trial_wide,
@@ -87,12 +112,10 @@ FUNC = {
 }
 
 
-def main(what=None, sn=None, sessions=None):
-    """Run one step. `sn` and `sessions` only apply to the single-trial step."""
-    if what == 'single.trial':
-        FUNC[what](sn=sn, sessions=sessions)
-    elif what is not None:
-        FUNC[what]()
+def main(what=None, **kwargs):
+    """Run one step. Extra kwargs (`sn`, `sessions`) only apply to the single-trial step."""
+    if what is not None:
+        FUNC[what](**kwargs)
 
 
 if __name__ == '__main__':
@@ -102,13 +125,13 @@ if __name__ == '__main__':
     parser.add_argument('--sessions', nargs='+', type=int, default=None, help='session numbers, single.trial only (default: all sessions)')
     args = parser.parse_args()
 
-    main(args.what, sn=args.sn, sessions=args.sessions)
+    kwargs = {k: v for k, v in vars(args).items() if k != 'what' and v is not None}
+    main(args.what, **kwargs)
 
-    if args.what==None:
-        single_trial_behaviour(sn=args.sn, sessions=args.sessions)
-        behaviour_by_trial()
-        performance_by_session()
-        force_by_trial_wide()
-        force_by_run_wide()
-        force_by_trial_long()
-        force_by_session_avg()
+    if args.what is None:
+        main('trial')
+        main('session')
+        main('force.trial.wide')
+        main('force.run.wide')
+        main('force.trial.long')
+        main('force.session')

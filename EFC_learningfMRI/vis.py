@@ -8,7 +8,6 @@ from matplotlib.patches import Patch
 from matplotlib.transforms import blended_transform_factory
 from scipy.stats import ttest_rel
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.util import lowpass_butter
 import os
 import EFC_learningfMRI.util as util
 import pandas as pd
@@ -31,26 +30,20 @@ def custom_legend(fig, labels, colors, loc='outside right center', kind='line'):
     fig.legend(handles=handles, frameon=False, loc=loc)
 
 
-def plot_example_trial(ax, F, title, plot_legend=False, plot_derivative=False):
-    force_lp = lowpass_butter(F, cutoff=5, fsample=gl.fsample['force'], axis=0)
-    #force_lp = F
+def plot_example_trial(ax, tAx, F, n_ord=4, cutoff=5, plot_legend=False, plot_derivative=False):
+    force_lp = util.lowpass_fir(F, n_ord=n_ord, cutoff=cutoff, fsample=gl.fsample['force'], axis=0)
     force_der = np.gradient(force_lp, 1 / gl.fsample['force'], axis=0)
-    tAx = np.linspace(-1, 4.5, int(gl.fsample['force'] * 5.25))
     if plot_derivative==False:
         ax.plot(tAx, force_lp, lw=2, label=['thumb', 'index', 'middle', 'ring', 'pinkie'])
     else:
         ax.plot(tAx, force_der, lw=2, label=['thumb', 'index', 'middle', 'ring', 'pinkie'])
-    #ax.set_title(f'Session {sess}')
     ax.axhspan(-gl.fthresh, gl.fthresh, color='grey', alpha=0.2, lw=0)
     ax.axvline(0, color='k', lw=.8)
     ax.axhline(2, color='k', lw=.8, ls=':')
     ax.axhline(-2, color='k', lw=.8, ls=':')
     ax.axhline(5, color='k', lw=.8, ls=':')
     ax.axhline(-5, color='k', lw=.8, ls=':')
-    #ax.set_ylabel('force (N)') if s == 0 else None
     ax.set_xlabel('time (s)')
-    # ax.set_ylim([-6, 6])
-    # ax.tick_params(axis='y', left=False) if s == 1 else None
     ax.set_yticks([-5, -2.5, 0, 2.5, 5])
     ax.legend(bbox_to_anchor=(1, .5), loc='center left', frameon=False) if plot_legend else None
 

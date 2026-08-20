@@ -8,6 +8,7 @@ import EFC_learningfMRI.globals as gl
 from EFC_learningfMRI.G_matrix import calc_G
 from EFC_learningfMRI.util import get_trained_and_untrained
 from EFC_learningfMRI.betas import BetasPrewithenedLoader
+from EFC_learningfMRI.behaviour import force_patterns
 import warnings
 import itertools
 
@@ -92,7 +93,7 @@ def _add_group_reference(rows, keys, ref_session, crossval):
     return df
 
 
-def make_G_dataframe_neural(glm, atlas_name='ROI', sns=None, ref_session=3, crossval=False):
+def make_G_dataframe_rois(glm=3, atlas_name='ROI', sns=None, ref_session=3, crossval=False):
 
     sns  = gl.participants if sns is None else sns
     rois = gl.rois[atlas_name]
@@ -135,70 +136,12 @@ def _make_fname(session, repetition):
     fname = 'across_session' if session == 'all' else 'within_session'
     fname = fname + '.' + str(session) if session != 'all' else fname
     fname = fname + '.' + str(repetition) if repetition != 'all' else fname
-    return fname
+    return fname  
 
 
-def force_patterns(force, sn, metric, session='all', repetition='all'):
-    """Force patterns of one participant, laid out like the ROI betas.
-
-    The five fingers take the place of the voxels, so the returned triple can be
-    handed straight to :func:`calc_G`. The layout mirrors the neural pipeline:
-    chords are relabelled 0-7 with this participant's *trained* chords first (see
-    ``get_trained_and_untrained``), and the conditions are the same
-    ``'session,chord'`` strings ``RegInfo.cond_vec`` builds — so the G comes out
-    8x8 within a session and 24x24 across, with the same rows in the same order
-    as the ROI Gs.
-
-    ``session`` and ``repetition`` are filtered here rather than in ``calc_G``:
-    ``runs_to_keep`` splits the rows into three equal positional blocks, which the
-    force table does not satisfy (failed trials are missing, and session 23 has an
-    extra run). Pass the result to ``calc_G`` with its own filters left at 'all'.
-
-    Args:
-        force:      the table from :func:`load_force`.
-        sn:         participant number.
-        metric:     force measure, one of 'abs', 'der', 'der_peak'.
-        session:    3, 9, 23, or 'all'.
-        repetition: 1, 2, or 'all'. With 'all' the two repetitions of a run are
-                    averaged, giving one pattern per run x chord.
-
-    Returns:
-        (data, cond_vec, part_vec): ``data`` is (n_obs, 5), ``cond_vec`` the
-        condition strings and ``part_vec`` the run numbers, made unique across
-        sessions (BN restarts at 1 in every session).
-    """
-    cols = [f'{finger}_{metric}' for finger in gl.fingers]
-
-    df = force[force.subNum == sn]
-    if session != 'all':
-        df = df[df.session == session]
-    if repetition != 'all':
-        df = df[df.Repetition == repetition]
-
-    # one pattern per run x chord: averages the two repetitions when both are kept,
-    # and is a no-op once a single repetition has been selected
-    df = df.groupby(['session', 'BN', 'chordID'], as_index=False, observed=True)[cols].mean()
-
-    data = df[cols].to_numpy()
-
-    slot_of  = {chord: i for i, chord in enumerate(np.asarray(get_trained_and_untrained(sn), dtype=int))}
-
-    sess_idx = df.session.map({s: i + 1 for i, s in enumerate(gl.sessions)})
-    cond_vec = (sess_idx.astype(str) + ',' + df.chordID.astype(int).map(slot_of).astype(str)).to_numpy()
-    part_vec = (sess_idx * 100 + df.BN).to_numpy()   # BN restarts at 1 every session
-
-    return data, cond_vec, part_vec
-
-
-def _calc_G_rois(loader, sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
-    """G of every ROI and session, with the subjects on the first dimension.
-
-    Returns {(hemisphere, roi, session): (n_subj, n_cond, n_cond) array}, where
-    n_cond is 8 within a session and 24 across sessions. Subjects come out in
-    the order of ``loader.sns``.
-    """
-    glm = loader.glm
-    
+def calc_G_rois(sns=gl.participants, glm=3, sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
+    """G_rois: build the betas loader, then the ROI Gs."""
+    loader = BetasPrewithenedLoader(sns=sns, glm=glm)
     for data in loader:
         for session in sessions:
             for repetition in repetitions:
@@ -219,7 +162,7 @@ def _calc_G_rois(loader, sessions=('all', *gl.sessions), repetitions=('all', 1, 
                 np.save(os.path.join(save_path, f'cov.{fname}.glm{glm}.{data.Hem}.{data.roi}'), cov)
                 np.save(os.path.join(save_path, f'G_obs_raw.{fname}.glm{glm}.{data.Hem}.{data.roi}'), G_raw)
                 np.save(os.path.join(save_path, f'G_obs_noxval.{fname}.glm{glm}.{data.Hem}.{data.roi}'), G_noxval)
-                
+
 
 def calc_G_force(sns=gl.participants, metrics=('abs', 'der'),
                  sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
@@ -257,19 +200,13 @@ def calc_G_force(sns=gl.participants, metrics=('abs', 'der'),
                     np.save(os.path.join(save_path, f'G_obs_noxval.{fname}.force.{metric}'), G_noxval)
 
 
-def calc_G_rois(sns=gl.participants, glm=3, sessions=('all', *gl.sessions), repetitions=('all',)):
-    """G_rois: build the betas loader, then the ROI Gs."""
-    loader = BetasPrewithenedLoader(sns=sns, glm=glm)
-    _calc_G_rois(loader, sessions=sessions, repetitions=repetitions)
-
-
 # Step name -> function. Each step builds its own input, so they can be run
 # separately: the ROI Gs need the betas, the force Gs only force.run.wide.tsv.
 FUNC = {
     'G_rois' : calc_G_rois,
     'G_force': calc_G_force,
     'dataframe_force' : make_G_dataframe_force,
-    'dataframe_neural': make_G_dataframe_neural
+    'dataframe_rois': make_G_dataframe_rois
 }
 
 
@@ -279,16 +216,21 @@ def main(what, **kwargs):
     `kwargs` are forwarded to the step (`glm=`, `metrics=`, `repetitions=`, ...).
     """
 
-    print(f'pattern_G_matrix: {what}...')
-    FUNC[what](**kwargs)
+    if what is not None:
+        FUNC[what](**kwargs)
 
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Calculate the second moment matrices of the neural and force patterns.')
-    parser.add_argument('--what', default='dataframe_neural', choices=list(FUNC), help='which step to run (default: G_force)')
-    parser.add_argument('--glm', type=int, default=3, help='GLM the betas come from, G_rois only (default: 3)')
+    parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: dataframe_neural)')
+    parser.add_argument('--glm', type=int, default=None, help='GLM the betas come from, G_rois and dataframe_neural only (default: the step default, 3)')
     args = parser.parse_args()
 
-    # glm only reaches G_rois, so it is passed only when that step runs
-    kwargs = {'glm': args.glm} if args.what in ['G_rois', 'dataframe_neural'] else {}
+    # only the flags actually given are forwarded, so a step never sees a keyword it
+    # does not take (--glm, say, reaches G_rois and dataframe_neural but not the force steps)
+    kwargs = {k: v for k, v in vars(args).items() if k != 'what' and v is not None}
     main(args.what, **kwargs)
+
+    if args.what is None:
+        main('G_force')
+        main('dataframe_force')
