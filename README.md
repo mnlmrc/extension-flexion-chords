@@ -17,61 +17,57 @@ practise a set of finger chords over 24 days, with fMRI scans on days 3, 9 and 2
 
 ```mermaid
 flowchart TD
-    %% ---------- raw ----------
-    RAW_BEHAV[("<b>.mov and .dat files from each participant and sessions:</b><br/>behavioural/day&lt;1..24&gt;/efc4_&lt;sn&gt;.dat<br/>behavioural/day&lt;1..24&gt;/efc4_&lt;sn&gt;_&lt;bl&gt;.mov")]:::input
-
     %% ---------- single trial ----------
-    ST["scripts/behaviour_single_trial.py"]:::code
+    ST["scripts/behaviour.single_trial_behaviour()"]:::code
     STTSV[("<b>trial-wise behavioural metrics for each participant and session:</b><br/>behavioural/day&lt;d&gt;/efc4_&lt;sn&gt;_single_trial.tsv")]:::data
 
-    RAW_BEHAV --> ST
     ST --> STTSV
 
     %% ---------- summary ----------
-    SUM["scripts/behaviour_summary.py"]:::code
-    STTSV --> SUM
+    F_TRIAL["scripts/behaviour.behaviour_by_trial()"]:::code
+    F_SESS["scripts/behaviour.performance_by_session()"]:::code
+    F_FWIDE["scripts/behaviour.force_by_trial_wide()"]:::code
+    F_FRUN["scripts/behaviour.force_by_run_wide()"]:::code
+    F_FLONG["scripts/behaviour.force_by_trial_long()"]:::code
+    F_FSESS["scripts/behaviour.force_by_session_avg()"]:::code
 
     TRIAL[("<b>trial-wise behavioural metrics for all participants and sessions:</b><br/>behavioural/behaviour.trial.tsv")]:::data
     
-    PERF[("<b>session-wise success rate, ET, and MD, split by chord type:</b><br/>behavioural/behaviour.session.success.tsv")]:::data
-    PERF_REP[("<b>session-wise success rate, ET, and MD, split by chord type and repetition:</b><br/>behavioural/behaviour.session.success.repetition.tsv")]:::data
+    PERF[("<b>session-wise success rate, ET, and MD, split by chord type:</b><br/>behavioural/behaviour.session.tsv")]:::data
+    PERF_REP[("<b>session-wise success rate, ET, and MD, split by chord type and repetition:</b><br/>behavioural/behaviour.session.repetition.tsv")]:::data
     
     FWIDE[("<b>trial-wise finger force (wide format):</b><br/>behavioural/force.trial.wide.tsv")]:::data
     FLONG[("<b>trial-wise finger force (long format):</b><br/>behavioural/force.trial.long.tsv")]:::data
     FSESS[("<b>session-wise finger force averaged across fingers, split by chord type:</b><br/>behavioural/force.session.avg.tsv")]:::data
-    FSESS_REP[("<b>session-wise finger force averaged across fingers, split by chord type and repetition:</b><br/>behavioural/force.session.avg.repetition.tsv")]:::data
-    FFMRI[("<b>block-wise finger force for scanning sessions (wide format):</b><br/>behavioural/force.fmri.wide.tsv")]:::data
+    FSESS_REP[("<b>session-wise finger force averaged across fingers, split by chord type and repetition:</b><br/>behavioural/force.session.repetition.avg.tsv")]:::data
+    FFMRI[("<b>run-wise finger force for scanning sessions (wide format):</b><br/>behavioural/force.run.wide.tsv")]:::data
 
     %% performance
-    SUM --> TRIAL
-    TRIAL --> PERF
-    TRIAL --> PERF_REP
+    STTSV --> F_TRIAL
+    F_TRIAL --> TRIAL
+    TRIAL --> F_SESS
+    F_SESS --> PERF
+    F_SESS --> PERF_REP
 
     %% force
-    SUM --> FWIDE
-    FWIDE --> FFMRI
-    FWIDE --> FLONG
-    FLONG --> FSESS
-    FLONG --> FSESS_REP
-    
-  
+    TRIAL --> F_FWIDE
+    F_FWIDE --> FWIDE
+    FWIDE --> F_FRUN
+    F_FRUN --> FFMRI
+    FWIDE --> F_FLONG
+    F_FLONG --> FLONG
+    FLONG --> F_FSESS
+    F_FSESS --> FSESS
+    F_FSESS --> FSESS_REP
 
-    %% ---------- figures / downstream ----------
-    NB_BEHAV["notebooks/behaviour.ipynb"]:::code
-
-    PERF --> NB_BEHAV
-    PERF_REP --> NB_BEHAV
-    FSESS --> NB_BEHAV
-    FSESS_REP --> NB_BEHAV
-
-    classDef input fill:#e8eef7,stroke:#5b7fb5,color:#1a2c47;
     classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
     classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
-    classDef out   fill:#f3e8f0,stroke:#a86b97,color:#3f1f39;
 ```
 
-Blue = raw task output, green = code, amber = saved tables. All paths are relative to
-`gl.baseDir`; `<sn>` is the participant number, `<bl>` the block number and `<d>` the day.
+Green = code, amber = saved tables; each green node is the function that writes the tables it
+points to. Every step reloads its input from disk, so the arrows are also the order the steps
+have to be run in. All paths are relative to `gl.baseDir`; `<sn>` is the participant number,
+`<bl>` the block number and `<d>` the day.
 
 
 
