@@ -13,14 +13,16 @@ practise a set of finger chords over 24 days, with fMRI scans on days 3, 9 and 2
   500 Hz (`gl.fsample['force']`) and each chord is repeated twice in a row
   (`Repetition` 1 vs 2).
 
-## Data flow
+## Behaviour
 
 ```mermaid
 flowchart TD
     %% ---------- single trial ----------
+    RAW_BEHAV[("<b>.dat and .mov files:</b><br/>behavioural/day&lt;d&gt;/efc4_&lt;sn&gt;.dat<br/>behavioural/day&lt;d&gt;/efc4_&lt;sn&gt;_&lt;bn&gt;.dat")]:::data
     ST["scripts/behaviour.behaviour_single_session()"]:::code
     STTSV[("<b>trial-wise behavioural metrics for each participant and session:</b><br/>behavioural/day&lt;d&gt;/efc4_&lt;sn&gt;_single_trial.tsv")]:::data
 
+    RAW_BEHAV --> ST
     ST --> STTSV
 
     %% ---------- summary ----------
@@ -45,7 +47,7 @@ flowchart TD
     P_DFFORCE["scripts/pattern.make_G_dataframe_force()"]:::code
 
     GFORCE[("<b>8x8 second-moment matrices of 5-finger absolute force and absolute force derivative for each participant, session[, repetition]:</b><br/>pcm/subj&lt;sn&gt;/G_obs_raw.within_session.&lt;session&gt;[.&lt;repetition&gt;].force.&lt;metric&gt;.npy")]:::data
-    DFFORCE[("<b>pair-wise force geometry (crossnobis + cosine/angle vs. reference session):</b><br/>pcm/force.geometry.tsv")]:::data
+    DFFORCE[("<b>session-wise crossnobis and angular distance between chord pairs:</b><br/>pcm/dissimilarity.within_session.force.tsv")]:::data
 
     %% performance
     STTSV --> F_TRIAL
@@ -73,12 +75,63 @@ flowchart TD
     classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
 ```
 
-Green = code, amber = saved tables; each green node is the function that writes the tables it
+<!-- Green = code, amber = saved tables; each green node is the function that writes the tables it
 points to. Every step reloads its input from disk, so the arrows are also the order the steps
 have to be run in. All paths are relative to `gl.baseDir`; `<sn>` is the participant number,
 `<bl>` the block number and `<d>` the day. `<...>` is a placeholder to fill in; `[...]` marks a
 part of the name that is only present sometimes (e.g. `[.<repetition>]` is dropped when the G is
-not split by repetition).
+not split by repetition). -->
+
+## Activation
+
+<!-- Starting from the per-participant `contrast.dscalar.nii` (written by
+`scripts/cifti.CiftiCortex.contrast()`), `scripts/activation.py` produces the ROI-averaged
+activation table and the group surface maps. -->
+
+```mermaid
+flowchart LR
+    subgraph ROI ["ROI-based"]
+        direction TB
+        CON[("<b>3D CIFTI contrast maps:</b><br/>glm&lt;glm&gt;/subj&lt;sn&gt;/contrast.dscalar.nii")]:::data
+        A_ROI["scripts/activation.roi_activation()"]:::code
+        ROITSV[("<b>Univariate activation in each ROI:</b><br/>glm&lt;glm&gt;/&lt;atlas&gt;.activation.tsv")]:::data
+
+        CON --> A_ROI
+        A_ROI --> ROITSV
+    end
+
+    subgraph SURF ["Surface-based"]
+        direction TB
+        GIFTI[("<b>surface-projected contrast maps:</b><br/>surfaceWB/subj&lt;sn&gt;/glm&lt;glm&gt;.con.&lt;H&gt;.func.gii")]:::data
+
+        A_SMOOTH["scripts/activation.smooth_contrasts()"]:::code
+
+        SMOOTHD[("<b>smoothened contrast maps:</b><br/>surfaceWB/subj&lt;sn&gt;/glm&lt;glm&gt;.con.session.smooth.dscalar.nii")]:::data
+
+        A_AVG["scripts/activation.average_contrasts()"]:::code
+        GRPD[("<b>group-averaged smoothened contrast map:</b><br/>surfaceWB/glm&lt;glm&gt;.con.session.smooth.dscalar.nii")]:::data
+        A_DIFF["scripts/activation.average_contrasts_difference()"]:::code
+        DIFFD[("<b>group-averaged smoothened contrast map (trained – untrained):</b><br/>surfaceWB/glm&lt;glm&gt;.con.trained_vs_untrained.smooth.dscalar.nii")]:::data
+
+        GIFTI --> A_SMOOTH
+        A_SMOOTH --> SMOOTHD
+        SMOOTHD --> A_AVG
+        A_AVG --> GRPD
+        GRPD --> A_DIFF
+        A_DIFF --> DIFFD
+    end
+
+    classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
+    classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
+    classDef group fill:none,stroke:#999,stroke-dasharray:4 3,color:#333;
+    class ROI,SURF group;
+```
+
+<!-- The ROI step (`roi`) reads `contrast.dscalar.nii` directly. The surface steps (`smooth`,
+`average.smooth.surface`) read the per-hemisphere `glm<glm>.con.<H>.func.gii` giftis; those are
+the same contrast maps projected onto the surface by `surface.project_cifti_to_surface()`, run
+*upstream* of `activation.py` (dashed arrow) — note it keys off the `con` filename stem while the
+ROI branch reads `contrast.dscalar.nii`. -->
 
 
 

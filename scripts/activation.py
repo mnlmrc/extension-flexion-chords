@@ -1,7 +1,8 @@
 import argparse
 
 from EFC_learningfMRI.betas import roi_avg
-from EFC_learningfMRI.surface import smooth_cifti_contrasts, average_smoothed_contrasts
+from EFC_learningfMRI.surface import (smooth_cifti_contrasts, average_smoothed_contrasts,
+                                      average_smoothed_contrasts_difference)
 import EFC_learningfMRI.globals as gl
 
 
@@ -21,12 +22,16 @@ def average_contrasts(sns=gl.participants, glm=3, stat='con'):
     average_smoothed_contrasts(sns=sns, glm=glm, stat=stat)
 
 
-# Step name -> function, in the order the full run does them. The smoothed
-# average reloads what `smooth` writes, so `average.smooth` follows `smooth`.
+def average_contrasts_difference(glm=3, stat='con'):
+    """Group trained - untrained difference from the map written by `average_contrasts`."""
+    average_smoothed_contrasts_difference(glm=glm, stat=stat)
+
+
 FUNC = {
-    'roi'           : roi_activation,
-    'subj.smooth.surface'        : smooth_contrasts,
-    'average.smooth.surface': average_contrasts,
+    'roi'                      : roi_activation,
+    'subj.smooth.surface'      : smooth_contrasts,
+    'average.smooth.surface'   : average_contrasts,
+    'difference.smooth.surface': average_contrasts_difference,
 }
 
 
@@ -52,3 +57,4 @@ if __name__ == '__main__':
         main('roi')
         main('subj.smooth.surface')
         main('average.smooth.surface')
+        main('difference.smooth.surface')

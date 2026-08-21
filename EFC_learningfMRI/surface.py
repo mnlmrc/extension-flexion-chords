@@ -115,8 +115,9 @@ def smooth_cifti_contrasts(sn, glm, stat='con'):
 def average_smoothed_contrasts(sns, glm, stat='con'):
     """Average the smoothed per-participant maps written by :func:`smooth_cifti_contrasts`.
 
-    Writes the group session map and the trained - untrained difference in each
-    session to the surface folder.
+    Writes the group session x (trained / untrained) map to the surface folder. The
+    trained - untrained difference is computed separately by
+    :func:`average_smoothed_contrasts_difference`.
     """
 
     data, cond = [], None
@@ -136,7 +137,19 @@ def average_smoothed_contrasts(sns, glm, stat='con'):
     header = nb.Cifti2Header.from_axes((nb.cifti2.ScalarAxis(cond), brain_axis))
     nb.save(nb.Cifti2Image(dataobj=data, header=header), _session_file(glm, stat, smooth=True))
 
-    # difference between trained and untrained
+
+def average_smoothed_contrasts_difference(glm, stat='con'):
+    """Trained - untrained difference in each session.
+
+    Reloads the group session map written by :func:`average_smoothed_contrasts` and
+    writes the per-session trained - untrained difference to the surface folder.
+    """
+
+    cifti_img  = nb.load(_session_file(glm, stat, smooth=True))
+    cond       = list(cifti_img.header.get_axis(0).name)
+    brain_axis = cifti_img.header.get_axis(1)
+    data       = cifti_img.get_fdata()
+
     diff_cond = [f'sess{s:02d}' for s in gl.sessions]
     data_diff = np.vstack([data[cond.index(f'{c},trained')] - data[cond.index(f'{c},untrained')]
                            for c in diff_cond])

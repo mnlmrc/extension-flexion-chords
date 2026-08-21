@@ -75,6 +75,7 @@ def main(args):
         for sn in args.sns:
             activation.smooth_cifti_contrasts(sn=sn, glm=args.glm)
         activation.average_smoothed_contrasts(sns=args.sns, glm=args.glm)
+        activation.average_smoothed_contrasts_difference(glm=args.glm)
     
     elif args.what == "G_trained_untrained":
         geometry.calc_G(sns=args.sns, glm=args.glm, rois=gl.rois[args.atlas_name], type='trained-untrained')
