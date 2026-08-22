@@ -142,8 +142,94 @@ def fit_component_model(loader):
                 pickle.dump(theta_in, f)
 
 
+@dataclass
+class CorrelationBetweenSessions():
+    """Per-subject Datasets for between-session correlation.
+
+    Betas are prewhitened once per (subject, ROI) by BetasPrewithenedLoader and
+    reused for every session-pair and chord set, so the expensive step runs once.
+    """
+
+    glm: int
+    sns: Sequence[int]  = field(default_factory=lambda: gl.participants)
+    atlas_name: str     = 'ROI'
+    residual_fname: str = 'residual.dtseries.nii'
+    Hem: Sequence[str]  = ('L', 'R')
+
+    @staticmethod
+    def _runs_to_keep(cond_vec, sessions, chord):
+        """Boolean mask over regressors: one chord set within a pair of sessions.
+
+        cond_vec entries are 'session,chord' (chord index 0..7, trained = 0..3).
+        """
+        parts    = pd.Series(cond_vec).str.split(',', expand=True)
+        sessx    = parts[0].astype(int)
+        chordIDx = parts[1].astype(int)
+        in_sess  = sessx.isin(sessions).to_numpy()
+
+        if chord == 'trained':
+            return (chordIDx < 4).to_numpy() & in_sess
+        elif chord == 'untrained':
+            return (chordIDx >= 4).to_numpy() & in_sess
+        raise ValueError(f"chord must be 'trained' or 'untrained', got {chord!r}")
 
 
+    def group_datasets(self, session_pairs, chords):
+        """Per-subject Datasets, cross-validated G and SNR for every group.
+
+        Drives the loader once (one prewhitening per subject/ROI) and slices each
+        subject's betas into every (session-pair, chord) group. Betas are centred
+        across voxels (``axis=1``) so ``G_to_cosine`` reads out a Pearson-style
+        correlation. Returns three dicts keyed by (Hem, roi, session_pair, chord):
+        ``Y[key]`` a list of one pcm Dataset per subject, ``cov[key]`` a
+        (n_subj, 8, 8) array, and ``snr[key]`` a (n_subj,) signal/noise ratio.
+        Subjects follow loader order (``self.sns``).
+
+        SNR is ``mean(diag(G)) / mean(diag(Sig))`` where ``Sig`` is the second
+        output of ``est_G_crossval`` (the noise covariance of the single-run
+        condition estimates): cross-validated signal variance over noise variance.
+        """
+        loader = BetasPrewithenedLoader(self.glm, sns=self.sns, atlas_name=self.atlas_name, residual_fname=self.residual_fname, Hem=self.Hem)
+        Y, cov, snr = defaultdict(list), defaultdict(list), defaultdict(list)
+        for data in loader:
+            for sessions, chord in itertools.product(session_pairs, chords):
+                keep = self._runs_to_keep(data.cond_vec, sessions, chord)
+
+                betas     = data.betas[keep]
+                betas     = betas - betas.mean(axis=1, keepdims=True)   # centre across voxels -> cosine == Pearson r
+                cond_vec  = data.cond_vec[keep]
+                part_vec  = data.part_vec[keep]
+
+                dataset = pcm.dataset.Dataset(betas, obs_descriptors={'cond_vec': cond_vec, 'part_vec': part_vec})
+
+                cov_, Sig_ = pcm.est_G_crossval(dataset.measurements, cond_vec, part_vec, X=pcm.indicator(part_vec))
+
+                Y[data.Hem, data.roi, sessions, chord].append(dataset)
+                cov[data.Hem, data.roi, sessions, chord].append(np.asarray(cov_))
+                snr[data.Hem, data.roi, sessions, chord].append(np.diagonal(cov_).mean() / np.diagonal(Sig_).mean())
+
+        return (Y,
+                {key: np.array(v) for key, v in cov.items()},
+                {key: np.array(v) for key, v in snr.items()})
+
+
+def fit_correlation(Y, model):
+    """Fit the correlation model (individual + group) to a list of Datasets and
+    return per-subject individual r, group r and SNR.
+
+    Note on `cond_effect`: with one block regressor per run, the condition mean is
+    already absorbed by the fixed effect ([Z X] is rank deficient by one per
+    session), so the cond_effect thetas are unidentifiable and sit at their
+    est_theta0 floor. r is identical either way; cond_effect=False just drops two
+    dead parameters. The flag is read off the model so the theta indices used by
+    calc_mle_corr cannot desync from it.
+    """
+    _, theta    = pcm.fit_model_individ(Y, model, fixed_effect='block', fit_scale=False, verbose=True)
+    _, theta_gr = pcm.fit_model_group(Y, model, fixed_effect='block', fit_scale=False, verbose=True)
+
+    r_indiv, r_group, SNR, _, _, _ = calc_mle_corr(model, theta[0], theta_gr[0], cond_effect=model.cond_effect)
+
+    return r_indiv, r_group, SNR
     
 
 

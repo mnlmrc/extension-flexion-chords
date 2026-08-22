@@ -46,8 +46,7 @@ if __name__ == '__main__':
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: all)')
     parser.add_argument('--glm', type=int, default=None, help='GLM the betas/contrasts come from (default: the step default, 3)')
     parser.add_argument('--cond_names', nargs='+', default=('chordID', 'session'), dest='cond_names',
-                        help='condition columns the ROI table is indexed by, roi only '
-                             '(default: the step default, chordID session); may differ across GLMs')
+                        help='condition columns the ROI table is indexed by (default: the step default, chordID session)')
     args = parser.parse_args()
 
     kwargs = {k: v for k, v in vars(args).items() if k != 'what' and v is not None}
