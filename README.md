@@ -123,7 +123,7 @@ flowchart TB
 
     classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
     classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
-    classDef group fill:#3d6d99,stroke:#22456b,stroke-width:1.5px,color:#ffffff;
+    classDef group fill:#3d6d99,stroke:#22456b,stroke-width:1.5px,color:#ffffff, font-size:23px;
     class ROI,SURF group;
 ```
 
