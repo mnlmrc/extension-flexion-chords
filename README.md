@@ -13,7 +13,8 @@ practise a set of finger chords over 24 days, with fMRI scans on days 3, 9 and 2
   500 Hz (`gl.fsample['force']`) and each chord is repeated twice in a row
   (`Repetition` 1 vs 2).
 
-## Behaviour
+## Dataflows
+### Behaviour
 
 ```mermaid
 flowchart TD
@@ -40,14 +41,14 @@ flowchart TD
     FWIDE[("<b>trial-wise finger force (wide format):</b><br/>behavioural/force.trial.wide.tsv")]:::data
     FLONG[("<b>trial-wise finger force (long format):</b><br/>behavioural/force.trial.long.tsv")]:::data
     FSESS_REP[("<b>session-wise finger force averaged across fingers, split by chord type[, repetition]:</b><br/>behavioural/force.session[.repetition].avg.tsv")]:::data
-    FFMRI[("<b>run-wise finger force for scanning sessions (wide format):</b><br/>behavioural/force.run.wide.tsv")]:::data
+    FFMRI[("<b>run-wise finger force for scanning sessions (wide format):</b><br/>behavioural/force.run.wide.tsv<sup>1</sup>")]:::data
 
     %% ---------- force pattern analysis ----------
-    P_GFORCE["scripts/pattern.calc_G_force()"]:::code
-    P_DFFORCE["scripts/pattern.make_G_dataframe_force()"]:::code
+    %%P_GFORCE["scripts/pattern.calc_G_force()"]:::code
+    %%P_DFFORCE["scripts/pattern.make_G_dataframe_force()"]:::code
 
-    GFORCE[("<b>8x8 second-moment matrices of 5-finger absolute force and absolute force derivative for each participant, session[, repetition]:</b><br/>pcm/subj&lt;sn&gt;/G_obs_raw.within_session.&lt;session&gt;[.&lt;repetition&gt;].force.&lt;metric&gt;.npy")]:::data
-    DFFORCE[("<b>session-wise crossnobis and angular distance between chord pairs:</b><br/>pcm/dissimilarity.within_session.force.tsv")]:::data
+    %%GFORCE[("<b>8x8 second-moment matrices of 5-finger absolute force and absolute force derivative for each participant, session[, repetition]:</b><br/>pcm/subj&lt;sn&gt;/G_obs_raw.within_session.&lt;session&gt;[.&lt;repetition&gt;].force.&lt;metric&gt;.npy")]:::data
+    %%DFFORCE[("<b>session-wise crossnobis and angular distance between chord pairs:</b><br/>pcm/dissimilarity.within_session.force.tsv")]:::data
 
     %% performance
     STTSV --> F_TRIAL
@@ -66,14 +67,15 @@ flowchart TD
     F_FSESS --> FSESS_REP
 
     %% force pattern analysis
-    FFMRI --> P_GFORCE
-    P_GFORCE --> GFORCE
-    GFORCE --> P_DFFORCE
-    P_DFFORCE --> DFFORCE
+    %%FFMRI --> P_GFORCE
+    %%P_GFORCE --> GFORCE
+    %%GFORCE --> P_DFFORCE
+    %%P_DFFORCE --> DFFORCE
 
     classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
     classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
 ```
+<sup>1</sup>Used for pattern analysis (see below)
 
 <!-- Green = code, amber = saved tables; each green node is the function that writes the tables it
 points to. Every step reloads its input from disk, so the arrows are also the order the steps
@@ -82,7 +84,7 @@ have to be run in. All paths are relative to `gl.baseDir`; `<sn>` is the partici
 part of the name that is only present sometimes (e.g. `[.<repetition>]` is dropped when the G is
 not split by repetition). -->
 
-## Activation
+### Univariate activation
 
 <!-- Starting from the per-participant `contrast.dscalar.nii` (written by
 `scripts/cifti.CiftiCortex.contrast()`), `scripts/activation.py` produces the ROI-averaged
@@ -133,5 +135,74 @@ the same contrast maps projected onto the surface by `surface.project_cifti_to_s
 *upstream* of `activation.py` (dashed arrow) — note it keys off the `con` filename stem while the
 ROI branch reads `contrast.dscalar.nii`. -->
 
+### Pattern
+
+<!-- `scripts/pattern.py` estimates the second-moment matrices (Gs) of the neural and force
+patterns, then summarises their geometry. The neural branch reads the glm betas/residuals (written
+by `scripts/cifti.py`) prewhitened within each ROI; the force branch reads `force.run.wide.tsv`
+(written by `scripts/behaviour.py`). The dataframe/noise-ceiling/correlation steps reload the
+`G_obs_raw` Gs (or the betas, for `correlation`) from disk, so the arrows are also the run order. -->
+
+```mermaid
+flowchart TB
+    subgraph NEURAL ["Neural (ROI-based)"]
+        direction TB
+        NBETA[("<b>run-wise coefficients from 1st-level GLM, residuals timeseries and ROI masks:</b><br/>glm&lt;glm&gt;/subj&lt;sn&gt;/beta.dscalar.nii<br/>glm&lt;glm&gt;/subj&lt;sn&gt;/residual.dtseries.nii<br/>ROI/subj&lt;sn&gt;/&lt;atlas&gt;.&lt;H&gt;.&lt;roi&gt;.nii")]:::data
+
+        P_GROIS["scripts/pattern.calc_G_rois()<sup>1</sup>"]:::code
+        GROIS[("<b>Second-moment matrix:</b><br/>pcm/subj&lt;sn&gt;/G_obs_raw.&lt;session&gt;.glm&lt;glm&gt;.&lt;H&gt;.&lt;roi&gt;.npy<sup>2</sup>")]:::data
+
+        P_DFROIS["scripts/pattern.make_dataframe_rois()"]:::code
+        DFROIS[("<b>pair-wise geometry (crossnobis, cosine, angle):</b><br/>pcm/dissimilarity.within_session.&lt;atlas&gt;.glm&lt;glm&gt;.tsv")]:::data
+
+        P_NC["scripts/pattern.make_noise_ceiling_dataframe()"]:::code
+        NC[("<b>RSA noise ceiling (lower/upper) per Hem, roi, session:</b><br/>pcm/noise_ceiling.within_session.&lt;atlas&gt;.glm&lt;glm&gt;.tsv")]:::data
+
+        P_CORR["scripts/pattern.correlation_between_sessions()"]:::code
+        CORRMLE[("<b>MLE correlation estimates (individual and group fit) between neural activity patterns for trained and untrained chords:</b><br/>pcm/MLE_correlation.&lt;atlas&gt;.glm&lt;glm&gt;.tsv")]:::data
+    %% CORRXVAL[("<b>cross-validated across-session cosine:</b><br/>pcm/xval_correlation.&lt;atlas&gt;.glm&lt;glm&gt;.tsv")]:::data
+    %% CORRCOV[("<b>across-session cov per session-pair and chord set:</b><br/>pcm/cov.corr_across_sess.glm&lt;glm&gt;.&lt;spair&gt;.&lt;chord&gt;.&lt;H&gt;.&lt;roi&gt;.npy")]:::data
+
+        NBETA --> P_GROIS
+        P_GROIS --> GROIS
+        GROIS --> P_DFROIS
+        P_DFROIS --> DFROIS
+        GROIS --> P_NC
+        P_NC --> NC
+        NBETA --> P_CORR
+        P_CORR --> CORRMLE
+    %% P_CORR --> CORRXVAL
+    %% P_CORR --> CORRCOV
+    end
+
+    subgraph FORCE ["Force"]
+        direction TB
+        FRUN[("<b>run-wise finger force:</b><br/>behavioural/force.run.wide.tsv")]:::data
+
+        P_GFORCE["scripts/pattern.calc_G_force()"]:::code
+        GFORCE[("<b>Second-moment matrices:</b><br/>pcm/subj&lt;sn&gt;/G_obs_raw.&lt;epoch&gt;.force.&lt;metric&gt;.npy<sup>2</sup>")]:::data
+
+        P_DFFORCE["scripts/pattern.make_dataframe_force()"]:::code
+        DFFORCE[("<b>pair-wise geometry (crossnobis, cosine, angle):</b><br/>pcm/dissimilarity.within_session.force.tsv")]:::data
+
+        FRUN --> P_GFORCE
+        P_GFORCE --> GFORCE
+        GFORCE --> P_DFFORCE
+        P_DFFORCE --> DFFORCE
+    end
+
+    classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
+    classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
+    classDef group fill:#3d6d99,stroke:#22456b,stroke-width:1.5px,color:#ffffff, font-size:23px;
+    class NEURAL,FORCE group;
+```
+
+<sup>1</sup>`calc_G_rois` performs multivariate prewhitening before calculating the G matrix.
+
+<sup>2</sup>`calc_G_rois` and `calc_G_force` save `G_obs_raw.*.npy` (cross-validated G matrix, run mean across conditions not removed) and also `G_obs.*.npy` (cross-validated G matrix, run mean across conditions removed), `cov.*.npy` (cross-validated covariance matrix, run mean across conditions removed, voxel-centred), `G_obs_noxal.*.npy` (non-cross-validated G matrix):
+
+<!-- `dataframe_rois` and `noise_ceiling` read only the `G_obs_raw.within_session.*` Gs; `correlation`
+reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_session.<sess>` or
+`across_session`, with an optional `[.<repetition>]`; `<spair>` is a session pair like `3-9`. -->
 
 

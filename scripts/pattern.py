@@ -1,19 +1,16 @@
 import argparse
 import os
-from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Sequence
+import itertools
 import numpy as np
 import PcmPy as pcm
 import pandas as pd
+from scipy.stats import spearmanr
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.G_matrix import calc_G
+from EFC_learningfMRI.G_matrix import calc_G, G_sorted
 from EFC_learningfMRI.util import get_trained_and_untrained
 from EFC_learningfMRI.betas import BetasPrewithenedLoader
 from EFC_learningfMRI.behaviour import force_patterns
-from imaging_pipelines.util import calc_mle_corr
-import warnings
-import itertools
+from EFC_learningfMRI.pcm import CorrelationBetweenSessions, fit_correlation
 
 def _pair_index():
     """(row, col) indices of the chord pairs, split into the three pair groups.
@@ -35,10 +32,11 @@ def _pair_index():
 
 
 def _G_rows(G, sn, **labels):
-    """One row per chord pair of a single 8x8 G: its crossnobis distance and cosine.
+    """One row per chord pair of a single 8x8 G: its crossnobis distance, cosine and angle.
 
     ``labels`` are copied onto every row, and are what identifies the G the pair
     came from — Hem/roi/session for a neural G, metric/session for a force one.
+    The ``pair`` label is order-normalised so both Gs key on the same pair id.
     """
     chords = get_trained_and_untrained(sn)
     D      = pcm.G_to_dist(G)
@@ -50,9 +48,10 @@ def _G_rows(G, sn, **labels):
             rows.append({'sn'        : sn,
                          **labels,
                          'chord'     : chord,
-                         'pair'      : f'{chords[ri]}-{chords[ci]}',
+                         'pair'      : '-'.join(sorted([str(chords[ri]), str(chords[ci])])),
                          'crossnobis': D[ri, ci],
-                         'cosine'    : cos[ri, ci]})
+                         'cosine'    : cos[ri, ci],
+                         'theta'     : np.arccos(cos[ri, ci])})
     return rows
 
 
@@ -86,7 +85,7 @@ def _add_group_reference(df, keys, ref_session=3, crossval=False):
     return df
 
 
-def make_G_dataframe_rois(glm=3, atlas_name='ROI', sns=None, ref_session=3, crossval=False):
+def make_dataframe_rois(glm=3, atlas_name='ROI', sns=None, ref_session=3, crossval=False):
 
     sns  = gl.participants if sns is None else sns
     rois = gl.rois[atlas_name]
@@ -101,14 +100,12 @@ def make_G_dataframe_rois(glm=3, atlas_name='ROI', sns=None, ref_session=3, cros
             rows += _G_rows(G, sn, Hem=H, roi=roi, session=sess)
 
     df = pd.DataFrame(rows)
-    df['theta'] = np.arccos(df.cosine) # calculate angle from cosine
-    df['pair']  = df.pair.map(lambda s: '-'.join(sorted(s.split('-'))))
     df = _add_group_reference(df, ['Hem', 'roi', 'pair'], ref_session, crossval)
-    df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'{atlas_name}.geometry.glm{glm}.tsv'), sep='\t', index=False)
+    df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
     return df
 
 
-def make_G_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_session=3, crossval=False):
+def make_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_session=3, crossval=False):
     """The neural dataframe's counterpart over the force Gs written by pattern_G_matrix.
 
     Same rows, same columns, with ``metric`` (the force measure) standing in for
@@ -127,8 +124,6 @@ def make_G_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_sess
             rows += _G_rows(G, sn, metric=metric, session=sess)
 
     df = pd.DataFrame(rows)
-    df['theta'] = np.arccos(df.cosine) # calculate angle from cosine
-    df['pair']  = df.pair.map(lambda s: '-'.join(sorted(s.split('-'))))
     df = _add_group_reference(df, ['metric', 'pair'], ref_session, crossval)
     df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, 'dissimilarity.within_session.force.tsv'), sep='\t', index=False)
     return df
@@ -258,12 +253,104 @@ def correlation_between_sessions(sns=gl.participants, glm=3, Hem=('L', 'R'), atl
     pd.concat(xval, ignore_index=True).to_csv(os.path.join(path_pcm, f'xval_correlation.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
 
 
+def _rdm_vectors(sns, H, roi, session, glm, prefix='G_obs_raw', order=None):
+    """Vectorised dissimilarity matrix of every participant, on a common chord order.
+
+    Each participant's G is stored in their own trained-first order, so it is put
+    through ``G_sorted`` first: without that, entry k of one participant's vector
+    is a different chord pair than entry k of the next, and the correlations below
+    are meaningless. ``order`` defaults to ``gl.chordID`` (line participants up by
+    chord identity); pass a trained/untrained framing to align by training status.
+
+    Returns an (n_subj, n_pairs) array, the lower triangle of each participant's RDM.
+    """
+    mask = np.tri(len(gl.chordID), k=-1, dtype=bool)
+
+    rdms = []
+    for sn in sns:
+        G   = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}',
+                    f'{prefix}.within_session.{session}.glm{glm}.{H}.{roi}.npy'))
+        G_s = G_sorted(G, sn, order=order)
+        D   = pcm.G_to_dist(G_s)
+        rdms.append(D[mask])
+
+    return np.array(rdms)
+
+
+def _corr(a, b, method='pearson'):
+    """Correlation between two vectorised RDMs."""
+    if method == 'spearman':
+        return spearmanr(a, b)[0]
+    return np.corrcoef(a, b)[0, 1]
+
+
+def _noise_ceiling(rdms, method='pearson'):
+    """Leave-one-participant-out lower bound and the upper bound of the RSA noise ceiling.
+
+    lower: each participant's RDM against the mean of the *other* participants. The
+           group mean is estimated without them, so this is what a model that
+           generalises across participants can be expected to reach.
+    upper: the same, but against the mean of *all* participants, that participant
+           included. The reference is fitted to the participant it is scored on, so
+           it overestimates, and no model should beat it.
+
+    Returns lower, upper: (n_subj,) arrays, one correlation per participant.
+    """
+    n     = len(rdms)
+    if n < 3:
+        raise ValueError(f'need at least 3 participants for a leave-one-out ceiling, got {n}')
+    total = rdms.sum(axis=0)
+
+    lower, upper = [], []
+    for rdm in rdms:
+        others_mean = (total - rdm) / (n - 1)  # group mean leaving this participant out
+        group_mean  = total / n                # group mean including this participant
+
+        lower.append(_corr(rdm, others_mean, method))
+        upper.append(_corr(rdm, group_mean, method))
+
+    return np.array(lower), np.array(upper)
+
+
+def make_noise_ceiling_dataframe(glm=3, atlas_name='ROI', sns=None, prefix='G_obs_raw',
+                                 method='pearson', order=None):
+    """Noise ceiling of the crossnobis RDM for every hemisphere, roi and session.
+
+    One row per participant, so the ceiling of a given roi/Hem/session is the mean
+    of its rows (``df.groupby(['Hem', 'roi', 'session'])[['lower', 'upper']].mean()``).
+    Writes ``noise_ceiling.within_session.<atlas_name>.glm<glm>.tsv`` to the pcm dir.
+    """
+    sns  = gl.participants if sns is None else sns
+    rois = gl.rois[atlas_name]
+
+    rows = []
+    for H, roi, session in itertools.product(gl.Hem, rois, gl.sessions):
+
+        print(f'doing {H}, {roi}, session {session}...')
+
+        rdms         = _rdm_vectors(sns, H, roi, session, glm, prefix=prefix, order=order)
+        lower, upper = _noise_ceiling(rdms, method=method)
+
+        for i, sn in enumerate(sns):
+            rows.append({'sn'     : sn,
+                         'Hem'    : H,
+                         'roi'    : roi,
+                         'session': session,
+                         'lower'  : lower[i],
+                         'upper'  : upper[i]})
+
+    df = pd.DataFrame(rows)
+    df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'noise_ceiling.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
+    return df
+
+
 FUNC = {
     'G_rois'          : calc_G_rois,
     'G_force'         : calc_G_force,
-    'dataframe_force' : make_G_dataframe_force,
-    'dataframe_rois'  : make_G_dataframe_rois,
+    'dataframe_force' : make_dataframe_force,
+    'dataframe_rois'  : make_dataframe_rois,
     'correlation'     : correlation_between_sessions,
+    'noise_ceiling'   : make_noise_ceiling_dataframe,
 }
 
 
