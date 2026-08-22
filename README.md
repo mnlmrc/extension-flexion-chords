@@ -89,7 +89,7 @@ not split by repetition). -->
 activation table and the group surface maps. -->
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph ROI ["ROI-based"]
         direction TB
         CON[("<b>3D CIFTI contrast maps:</b><br/>glm&lt;glm&gt;/subj&lt;sn&gt;/contrast.dscalar.nii")]:::data
@@ -123,7 +123,7 @@ flowchart LR
 
     classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
     classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
-    classDef group fill:none,stroke:#999,stroke-dasharray:4 3,color:#333;
+    classDef group fill:#3d6d99,stroke:#22456b,stroke-width:1.5px,color:#ffffff;
     class ROI,SURF group;
 ```
 
