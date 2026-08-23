@@ -8,7 +8,7 @@ import nitools as nt
 from nitools import spm
 
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.util import load_glm_onset, get_trained_and_untrained
+import EFC_learningfMRI.util as util
 
 # time axis of a segmented trial: 3 samples before onset to 16 after (20 samples).
 _tAx = np.arange(-3, 17)
@@ -26,30 +26,33 @@ def bold_in_roi(SPM, path_glm, path_rois, atlas, H, roi):
     return y_scl, y_hat, y_adj
 
 
-def _save_bold_rois(sn, glm, atlas='ROI', rois=None):
+def _save_bold_rois(sn, glm=3, atlas='ROI'):
     """Save raw, predicted and adjusted BOLD timeseries in each ROI of participant sn."""
-    if rois is None:
-        rois = gl.rois[atlas]
 
-    path_glm  = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
-    path_rois = os.path.join(gl.baseDir, 'ROI', f'subj{sn}')
-    SPM       = spm.SpmGlm(path_glm)
+    rois = gl.rois[atlas]
 
-    SPM.get_info_from_spm_mat()
-
-    for H in gl.Hem:
-        for roi in rois:
-            print(f'doing participant {sn}, {H}, {roi}')
-            y_scl, y_hat, y_adj = bold_in_roi(SPM, path_glm, path_rois, atlas, H, roi)
-
-            np.save(os.path.join(path_glm, f'BOLD.hat.{H}.{roi}.npy'), y_hat)
-            np.save(os.path.join(path_glm, f'BOLD.raw.{H}.{roi}.npy'), y_scl)
-            np.save(os.path.join(path_glm, f'BOLD.adj.{H}.{roi}.npy'), y_adj)
+    
 
 def save_bold_rois(sns=gl.participants, glm=3, atlas='ROI'):
     """Save the per-ROI BOLD timeseries (hat / raw / adj) for each participant."""
+
+    rois = gl.rois[atlas]
+
     for sn in sns:
-        _save_bold_rois(sn, glm=glm, atlas=atlas)
+        path_glm  = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
+        path_rois = os.path.join(gl.baseDir, 'ROI', f'subj{sn}')
+        SPM       = spm.SpmGlm(path_glm)
+
+        SPM.get_info_from_spm_mat()
+
+        for H in gl.Hem:
+            for roi in rois:
+                print(f'doing participant {sn}, {H}, {roi}')
+                y_scl, y_hat, y_adj = bold_in_roi(SPM, path_glm, path_rois, atlas, H, roi)
+
+                np.save(os.path.join(path_glm, f'BOLD.hat.{H}.{roi}.npy'), y_hat)
+                np.save(os.path.join(path_glm, f'BOLD.raw.{H}.{roi}.npy'), y_scl)
+                np.save(os.path.join(path_glm, f'BOLD.adj.{H}.{roi}.npy'), y_adj)
 
 
 def segment_bold(sns=gl.participants, glm=3, atlas='ROI'):
