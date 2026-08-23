@@ -84,6 +84,79 @@ have to be run in. All paths are relative to `gl.baseDir`; `<sn>` is the partici
 part of the name that is only present sometimes (e.g. `[.<repetition>]` is dropped when the G is
 not split by repetition). -->
 
+#### Columns
+
+**`behavioural/day<d>/efc4_<sn>_single_trial.tsv`** — one row per trial.
+
+| Column | Description |
+|---|---|
+| `subNum` | participant number |
+| `BN` | block (run) number |
+| `Repetition` | 1 = first presentation of the chord, 2 = second presentation of the chord |
+| `TN` | trial number |
+| `trialPoint` | 1 = successful trial (cued fingers above `gl.ftarget` for 600 ms, no baseline exit during plan time), 0 = failed |
+| `RT` | reaction time (s): first sample at which any finger leaves the ±`gl.fthresh` baseline area; `NaN` on failed trials |
+| `ET` | execution time (s): from `RT` to the first 600-ms time interval in which the cued fingers hold the instructed chord; `NaN` on failed trials |
+| `MD` | mean deviation of the 5-finger force trajectory from the straight line joining its the force pattern at `RT` and the force pattern at `ET`; `NaN` on failed trials |
+| `chordID` | code for instructed code (thumb→pinkie): 1 = extension, 2 = flexion, 9 = neutral |
+| `chord` | `trained` / `untrained` |
+| `session` | day relative to the start of the experiment for that participant, 1–24 |
+| `session_type` | `pretraining`->participant practiced all chords in the mock scanner (1,2), `scanning`->participant practiced all chords in the MRI scanner (3, 9, 23),  `testing`->participant practiced all chords sitting at the desk (4, 10, 24), `training`->participant practiced trained chords only sitting at the desk (all the rest),  |
+| `week` | week relative to the start of the experiment for that participant, 1–5 |
+| `thumb` … `pinkie` | signed mean force of each finger from `RT` to the end of the trial |
+| `<finger>_abs` | mean **absolute** force of that finger from `RT` to the end of the trial |
+| `<finger>_der` | mean **absolute derivative** of that finger's force from `RT` to the end of the trial |
+
+**`behavioural/behaviour.trial.tsv`** — the single-trial tables of every participant and all 24 days
+concatated. Same columns as `behavioural/day<d>/efc4_<sn>_single_trial.tsv`.
+
+**`behavioural/behaviour.session[.repetition].tsv`** — one row per participant × session × chord type
+(× repetition in the `.repetition` variant).
+
+| Column | Description |
+|---|---|
+| `subNum`, `session`, `session_type`, `week`, `chord`, `Repetition` | as above |
+| `ET` | execution time averaged over the **successful** trials |
+| `MD` | mean deviation averaged over the **successful** trials |
+| `trialPoint` | success rate: averaged over **all** trials of the cell |
+
+**`behavioural/force.trial.wide.tsv`** — one row per trial.
+
+| Column | Description |
+|---|---|
+| `subNum`, `TN`, `BN`, `session`, `chord`, `chordID`, `Repetition`, `session_type`, `week` |  as above |
+| `trialPoint` | 1 = successful trial (cued fingers above `gl.ftarget` for 600 ms, no baseline exit during plan time), 0 = failed |
+| `<finger>_abs` (×5) | mean absolute force of that finger |
+| `<finger>_der` (×5) | mean absolute force derivative of that finger |
+
+**`behavioural/force.run.wide.tsv`** — scanning sessions only, one row per participant × run × session × chordID
+(× repetition in the `.repetition` variant). **Failed trials are included**, as they are not excluded when fitting the GLM.
+
+| Column | Description |
+|---|---|
+| `subNum`, `BN`, `session`, `chord`, `chordID`, `Repetition`, `week`, `session_type` | as above |
+| `trialPoint` | fraction of successful trials |
+| `<finger>_abs` | mean absolute force |
+ `<finger>_der` | mean absolute force derivative |
+
+**`behavioural/force.trial.long.tsv`** — `force.trial.wide.tsv` with the per-finger columns stacked: one row per trial × finger (i.e., five rows/trial).
+
+| Column | Description |
+|---|---|
+| `subNum`, `TN`, `BN`, `session`, `chord`, `chordID`, `Repetition`, `session_type`, `week`, `trialPoint` | as in `force.trial.wide.tsv` |
+| `finger` | which finger the row belongs to: `thumb`, `index`, `middle`, `ring`, `pinkie` |
+| `force_abs` | mean absolute force |
+| `force_der` | mean absolute force derivative |
+
+**`behavioural/force.session[.repetition].avg.tsv`** — one row per participant × session × chord type
+(× repetition), averaged over **successful trials only** and over the five fingers.
+
+| Column | Description |
+|---|---|
+| `subNum`, `session`, `chord`, `session_type`, `week`,`Repetition` | as above |
+| `force_abs` | absolute force averaged over fingers and successful trials |
+| `force_der` | absolute force derivative averaged over fingers and successful trials |
+
 ### Univariate activation
 
 <!-- Starting from the per-participant `contrast.dscalar.nii` (written by
@@ -134,6 +207,22 @@ flowchart TB
 the same contrast maps projected onto the surface by `surface.project_cifti_to_surface()`, run
 *upstream* of `activation.py` (dashed arrow) — note it keys off the `con` filename stem while the
 ROI branch reads `contrast.dscalar.nii`. -->
+
+#### Columns
+
+**`glm<glm>/<atlas>.activation.tsv`** — one row per participant × hemisphere × ROI × chordID × session.
+
+| Column | Description |
+|---|---|
+| `region` | integer label value in the ROI mask |
+| `regionname` | region from `gl.rois[<atlas>]` |
+| `volume` | volume of the ROI in mm³ |
+| `chordID` | chord of that frame (5-digit code, see the behaviour tables) |
+| `session` | 3, 9 or 23 (mapped from `sess03` / `sess09` / `sess23`) |
+| `sn` | participant number |
+| `Hem` | `L` / `R` |
+| `chord` | `trained` / `untrained` |
+| `nanmean` | **the measure**: the contrast vs. baseline value (in a.u.) averaged over the ROI's voxels, ignoring NaNs |
 
 ### Pattern
 
@@ -204,5 +293,54 @@ flowchart TB
 <!-- `dataframe_rois` and `noise_ceiling` read only the `G_obs_raw.within_session.*` Gs; `correlation`
 reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_session.<sess>` or
 `across_session`, with an optional `[.<repetition>]`; `<spair>` is a session pair like `3-9`. -->
+
+#### Columns
+
+**`pcm/dissimilarity.within_session.<atlas>.glm<glm>.tsv`** — one row per participant × hemisphere ×
+ROI × session × chord pair (28 pairs, i.e., the lower triangle of a 8×8 matrix).
+
+| Column | Description |
+|---|---|
+| `sn` | participant number |
+| `Hem` | `L` / `R` |
+| `roi` | region from `gl.rois[<atlas>]` |
+| `session` | 3, 9 or 23 |
+| `chord` | which pair group the pair belongs to: `trained` (both chords trained), `untrained` (both untrained) or `trained_untrained` (one of each) |
+| `pair` | the two chord IDs joined by `-` in sorted order, so the same pair carries the same id for every participant |
+| `crossnobis` | cross-validated Mahalanobis distance between the two chords' patterns (`pcm.G_to_dist` of `G_obs_raw`) |
+| `cosine` | cosine of the angle between the two patterns (`pcm.G_to_cosine`) |
+| `theta` | `arccos(cosine)`, in radians |
+| `crossnobis_group`, `cosine_group` | the same pair's reference value: the across-participant mean in the reference session (`ref_session`, default 3) |
+| `theta_group` | `arccos(cosine_group)` |
+
+**`pcm/dissimilarity.within_session.force.tsv`** — one row per participant × force measure × session × chord pair (28 pairs, i.e., the lower triangle of a 8×8 matrix).
+
+| Column | Description |
+|---|---|
+| `metric` | force measure the G was built from: `abs` (mean absolute force) or `der` (mean absolute force derivative) |
+| `sn`, `session`, `chord`, `pair`, `crossnobis`, `cosine`, `theta`, `*_group` | as in `pcm/dissimilarity.within_session.<atlas>.glm<glm>.tsv` |
+
+**`pcm/noise_ceiling.within_session.<atlas>.glm<glm>.tsv`** — one row per participant × hemisphere ×
+ROI × session.
+
+| Column | Description |
+|---|---|
+| `sn`, `Hem`, `roi`, `session` | as above |
+| `lower` | correlation between this participant's crossnobis RDM and the mean RDM of the *other* participants (leave-one-out) |
+| `upper` | the same correlation, but against the mean RDM of *all* participants, this one included |
+
+**`pcm/MLE_correlation.<atlas>.glm<glm>.tsv`** — one row per participant × hemisphere × ROI ×
+session pair × chord type.
+
+| Column | Description |
+|---|---|
+| `sn` | participant number |
+| `r_group` | correlation from the PCM group fit — a single r shared by all participants, so the value repeats for every `sn` of a cell |
+| `r_indiv` | correlation from that participant's own individual fit |
+| `SNR` | signal-to-noise of the individual fit, `sqrt(sigma2_1 * sigma2_2) / sigma2_e` (the two sessions' signal variances over the noise variance) |
+| `chord` | `trained` / `untrained` |
+| `corr` | session pair: `3-9`, `3-23` or `9-23` |
+| `roi` | region, one of `gl.rois[<atlas>]` |
+| `Hem` | `L` / `R` |
 
 
