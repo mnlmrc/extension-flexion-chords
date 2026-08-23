@@ -305,9 +305,9 @@ reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_sess
 | | `lower` | correlation between this participant's crossnobis RDM and the mean RDM of the *other* participants (leave-one-out) |
 | | `upper` | the same correlation, but against the mean RDM of *all* participants, this one included |
 
-| Dataframe | Column | Description |
+| **`pcm/MLE_correlation.<atlas>.glm<glm>.tsv`**: one row per participant × hemisphere × ROI × session pair × chord type | Column | Description |
 |---|---|---|
-| **`pcm/MLE_correlation.<atlas>.glm<glm>.tsv`**: one row per participant × hemisphere × ROI × session pair × chord type | `sn` | participant number |
+|  | `sn` | participant number |
 | | `r_group` | correlation from the PCM group fit — a single r shared by all participants, so the value repeats for every `sn` of a cell |
 | | `r_indiv` | correlation from that participant's own individual fit |
 | | `SNR` | signal-to-noise of the individual fit, `sqrt(sigma2_1 * sigma2_2) / sigma2_e` (the two sessions' signal variances over the noise variance) |
@@ -315,3 +315,5 @@ reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_sess
 | | `corr` | session pair: `3-9`, `3-23` or `9-23` |
 | | `roi` | region, one of `gl.rois[<atlas>]` |
 | | `Hem` | `L` / `R` |
+
+
