@@ -338,4 +338,42 @@ reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_sess
 | | `roi` | region from `gl.rois[<atlas>]` |
 | | `session` | 3, 9 or 23 |
 
+### BOLD timeseries
+
+```mermaid
+flowchart TD
+    RAW[("<b>SPM.mat, raw EPI files, ROI masks:</b><br/>glm#lt;glm#gt;/subj#lt;sn#gt;/SPM.mat<br/></b>imaging_data/subj#lt;sn#gt;/usubj#lt;sn#gt;_run_#lt;bl#gt;.nii<br/>ROI/subj#lt;sn#gt;/#lt;atlas#gt;.#lt;H#gt;.#lt;roi#gt;.nii")]:::data
+
+    B_TS["scripts/bold.save_bold_rois()"]:::code
+    BOLD[("<b>raw, predicted and adjusted BOLD timeseries:</b><br/>glm#lt;glm#gt;/subj#lt;sn#gt;/BOLD.raw.#lt;H#gt;.#lt;roi#gt;.npy<br/>glm#lt;glm#gt;/subj#lt;sn#gt;/BOLD.hat.#lt;H#gt;.#lt;roi#gt;.npy<br/>glm#lt;glm#gt;/subj#lt;sn#gt;/BOLD.adj.#lt;H#gt;.#lt;roi#gt;.npy")]:::data
+
+    B_SEG["scripts/bold.segment_bold()"]:::code
+    SEG[("<b>trial-segmented, voxel-averaged BOLD timeseries:</b><br/>bold/bold_segmented.tsv")]:::data
+
+    RAW --> B_TS
+    B_TS --> BOLD
+    BOLD --> B_SEG
+    B_SEG --> SEG
+
+    classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
+    classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
+```
+
+The two steps are exposed on the command line via `--what timeseries` and `--what segment`
+(both run in order when `--what` is omitted). Each trial's timecourse spans 20 samples, from 3
+before onset to 16 after (`bold._tAx`).
+
+#### Dataframes
+
+| `bold/bold_segmented.tsv`: one row per participant × hemisphere × ROI × trial × time sample | Column | Description |
+|:---|---|---|
+| | `chordID` | code for the chord produced on that trial (5-digit code, see the behaviour tables) |
+| | `sess` | session the trial comes from (glm onset `day`: 3, 9 or 23) |
+| | `chord` | `trained` (chord in the participant's trained set) / `untrained` |
+| | `time` | sample index relative to trial onset, −3 … 16 |
+| | `signal` | adjusted BOLD averaged over the ROI's voxels at that time sample |
+| | `sn` | participant number |
+| | `roi` | region from `gl.rois[<atlas>]` |
+| | `Hem` | `L` / `R` |
+
 
