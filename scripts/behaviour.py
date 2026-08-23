@@ -25,8 +25,8 @@ SESSION_BY = ['subNum', 'session', 'chord', 'session_type', 'week']
 BLOCK_BY = ['subNum', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
 
 TRIAL     = 'behaviour.trial.tsv'
-PERF      = 'behaviour.session.tsv'
-PERF_REP  = 'behaviour.session.repetition.tsv'
+BSESS      = 'behaviour.session.tsv'
+BSESS_REP  = 'behaviour.session.repetition.tsv'
 FWIDE     = 'force.trial.wide.tsv'
 FFMRI     = 'force.run.wide.tsv'
 FLONG     = 'force.trial.long.tsv'
@@ -55,11 +55,11 @@ def behaviour_by_trial(n_sessions=N_SESSIONS):
 
 def performance_by_session():
     """PERF / PERF_REP: trial-wise -> session-wise performance."""
-    perf     = behaviour.load(TRIAL, ID_COLS)[SESSION_BY + ['Repetition'] + PERF_COLS]
-    df_norep = behaviour.group_trials_by(perf, SESSION_BY)
-    df_rep   = behaviour.group_trials_by(perf, SESSION_BY + ['Repetition'])
-    df_norep.to_csv(os.path.join(gl.baseDir, gl.behavDir, PERF), sep='\t', index=False)
-    df_rep.to_csv(os.path.join(gl.baseDir, gl.behavDir, PERF_REP), sep='\t', index=False)
+    trial    = behaviour.load(TRIAL, ID_COLS)[SESSION_BY + ['Repetition'] + PERF_COLS]
+    df_norep = behaviour.group_trials_by(trial, SESSION_BY)
+    df_rep   = behaviour.group_trials_by(trial, SESSION_BY + ['Repetition'])
+    df_norep.to_csv(os.path.join(gl.baseDir, gl.behavDir, BSESS), sep='\t', index=False)
+    df_rep.to_csv(os.path.join(gl.baseDir, gl.behavDir, BSESS_REP), sep='\t', index=False)
 
 
 def force_by_trial_wide():

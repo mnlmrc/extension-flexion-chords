@@ -103,7 +103,6 @@ def make_dataframe_rois(glm=3, atlas_name='ROI', sns=None, ref_session=3, crossv
     df = pd.DataFrame(rows)
     df = _add_group_reference(df, ['Hem', 'roi', 'pair'], ref_session, crossval)
     df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
-    return df
 
 
 def make_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_session=3, crossval=False):
@@ -127,7 +126,6 @@ def make_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_sessio
     df = pd.DataFrame(rows)
     df = _add_group_reference(df, ['metric', 'pair'], ref_session, crossval)
     df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, 'dissimilarity.within_session.force.tsv'), sep='\t', index=False)
-    return df
 
 
 def _make_fname(session, repetition):

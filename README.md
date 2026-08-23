@@ -36,11 +36,11 @@ flowchart TD
 
     TRIAL[("<b>trial-wise behavioural metrics for all participants and sessions:</b><br/>behavioural/behaviour.trial.tsv")]:::data
     
-    PERF_REP[("<b>session-wise success rate, ET, and MD, split by chord type[, repetition]:</b><br/>behavioural/behaviour.session[.repetition].tsv")]:::data
+    PERF_REP[("<b>session-wise success rate, ET, MD:</b><br/>behavioural/behaviour.session[.repetition].tsv")]:::data
     
     FWIDE[("<b>trial-wise finger force (wide format):</b><br/>behavioural/force.trial.wide.tsv")]:::data
     FLONG[("<b>trial-wise finger force (long format):</b><br/>behavioural/force.trial.long.tsv")]:::data
-    FSESS_REP[("<b>session-wise finger force averaged across fingers, split by chord type[, repetition]:</b><br/>behavioural/force.session[.repetition].avg.tsv")]:::data
+    FSESS_REP[("<b>session-wise finger force averaged across fingers:</b><br/>behavioural/force.session[.repetition].avg.tsv")]:::data
     FFMRI[("<b>run-wise finger force for scanning sessions (wide format):</b><br/>behavioural/force.run.wide.tsv¹")]:::data
 
     %% ---------- force pattern analysis ----------
@@ -223,7 +223,7 @@ flowchart TB
         NBETA[("<b>run-wise coefficients from 1st-level GLM, residuals timeseries and ROI masks:</b><br/>glm#lt;glm#gt;/subj#lt;sn#gt;/beta.dscalar.nii<br/>glm#lt;glm#gt;/subj#lt;sn#gt;/residual.dtseries.nii<br/>ROI/subj#lt;sn#gt;/#lt;atlas#gt;.#lt;H#gt;.#lt;roi#gt;.nii")]:::data
 
         P_GROIS["scripts/pattern.calc_G_rois()¹"]:::code
-        GROIS[("<b>Second-moment matrix:</b><br/>pcm/subj#lt;sn#gt;/G_obs_raw.#lt;session#gt;.glm#lt;glm#gt;.#lt;H#gt;.#lt;roi#gt;.npy²")]:::data
+        GROIS[("<b>Second-moment matrix:</b><br/>pcm/subj#lt;sn#gt;/G_obs_raw.within_session.#lt;session#gt;.glm#lt;glm#gt;.#lt;H#gt;.#lt;roi#gt;.npy²")]:::data
 
         P_DFROIS["scripts/pattern.make_dataframe_rois()"]:::code
         DFROIS[("<b>pair-wise geometry (crossnobis, cosine, angle):</b><br/>pcm/dissimilarity.within_session.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
@@ -263,7 +263,7 @@ flowchart TB
         FRUN[("<b>run-wise finger force:</b><br/>behavioural/force.run.wide.tsv")]:::data
 
         P_GFORCE["scripts/pattern.calc_G_force()"]:::code
-        GFORCE[("<b>Second-moment matrices:</b><br/>pcm/subj#lt;sn#gt;/G_obs_raw.#lt;epoch#gt;.force.#lt;metric#gt;.npy²")]:::data
+        GFORCE[("<b>Second-moment matrices:</b><br/>pcm/subj#lt;sn#gt;/G_obs_raw.within_session.#lt;epoch#gt;.force.#lt;metric#gt;.npy²")]:::data
 
         P_DFFORCE["scripts/pattern.make_dataframe_force()"]:::code
         DFFORCE[("<b>pair-wise geometry (crossnobis, cosine, angle):</b><br/>pcm/dissimilarity.within_session.force.tsv")]:::data
