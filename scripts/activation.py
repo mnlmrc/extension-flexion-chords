@@ -1,30 +1,29 @@
 import argparse
 
-from EFC_learningfMRI.betas import roi_avg
-from EFC_learningfMRI.surface import (smooth_cifti_contrasts, average_smoothed_contrasts,
-                                      average_smoothed_contrasts_difference)
+import EFC_learningfMRI.betas as betas
+import EFC_learningfMRI.surface as surface
 import EFC_learningfMRI.globals as gl
 
 
 def roi_activation(sns=gl.participants, atlas_name='ROI', glm=3, cond_names=('chordID', 'session',)):
     """ROI-averaged activation per participant, condition and region."""
-    roi_avg(sns=sns, atlas_name=atlas_name, glm=glm, cond_names=cond_names)
+    betas.roi_avg(sns=sns, atlas_name=atlas_name, glm=glm, cond_names=cond_names)
 
 
 def smooth_contrasts(sns=gl.participants, glm=3, stat='con'):
     """Smooth each participant's cifti contrast maps on the surface."""
     for sn in sns:
-        smooth_cifti_contrasts(sn=sn, glm=glm, stat=stat)
+        surface.smooth_cifti_contrasts(sn=sn, glm=glm, stat=stat)
 
 
 def average_contrasts(sns=gl.participants, glm=3, stat='con'):
     """Group-average the smoothed contrast maps written by `smooth_contrasts`."""
-    average_smoothed_contrasts(sns=sns, glm=glm, stat=stat)
+    surface.average_smoothed_contrasts(sns=sns, glm=glm, stat=stat)
 
 
 def average_contrasts_difference(glm=3, stat='con'):
     """Group trained - untrained difference from the map written by `average_contrasts`."""
-    average_smoothed_contrasts_difference(glm=glm, stat=stat)
+    surface.average_smoothed_contrasts_difference(glm=glm, stat=stat)
 
 
 FUNC = {

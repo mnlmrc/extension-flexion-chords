@@ -2,7 +2,7 @@ import argparse
 import os
 
 import EFC_learningfMRI.globals as gl
-from imaging_pipelines import rois
+import imaging_pipelines.rois as rois
 
 
 def _make_cortical_rois(sn, glm=3, atlas_name='ROI'):
