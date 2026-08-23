@@ -281,7 +281,7 @@ reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_sess
 #### Dataframes
 
 | Dataframe | Column | Description |
-|---|---|---|
+|:---|:---|---|
 | **`pcm/dissimilarity.within_session.<atlas>.glm<glm>.tsv`**: one row per participant × hemisphere × ROI × session × chord pair (28 pairs, i.e., the lower triangle of a 8×8 matrix) | `sn` | participant number |
 | | `Hem` | `L` / `R` |
 | | `roi` | region from `gl.rois[<atlas>]` |
@@ -306,7 +306,7 @@ reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_sess
 | | `upper` | the same correlation, but against the mean RDM of *all* participants, this one included |
 
 | **`pcm/MLE_correlation.<atlas>.glm<glm>.tsv`**: one row per participant × hemisphere × ROI × session pair × chord type | Column | Description |
-|---|---|---|
+|:---|---|---|
 |  | `sn` | participant number |
 | | `r_group` | correlation from the PCM group fit — a single r shared by all participants, so the value repeats for every `sn` of a cell |
 | | `r_indiv` | correlation from that participant's own individual fit |
