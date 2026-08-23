@@ -7,7 +7,7 @@ import PcmPy as pcm
 import pandas as pd
 from scipy.stats import spearmanr
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.G_matrix import calc_G, G_sorted
+from EFC_learningfMRI.G_matrix import calc_G, G_scaling, G_sorted
 from EFC_learningfMRI.util import get_trained_and_untrained
 from EFC_learningfMRI.betas import BetasPrewithenedLoader
 from EFC_learningfMRI.behaviour import force_patterns
@@ -343,6 +343,44 @@ def make_noise_ceiling_dataframe(glm=3, atlas_name='ROI', sns=None, prefix='G_ob
     return df
 
 
+def make_scaling_dataframe(sns=None, glm=3, atlas_name='ROI', ref_session=3, prefix='G_obs_raw'):
+    """How much of each session's geometry is a pure rescaling of the reference session's.
+
+    For every participant x hemisphere x roi x session, ``G_scaling`` predicts the
+    session's mean dissimilarity from the reference session's, scaled by the ratio of
+    the two sessions' mean activity. Its ``residual`` column (observed - predicted) is
+    what says whether the geometry changed beyond that change in overall activity.
+
+    Run three times per cell: over all 8 chords, and over the trained and the untrained
+    4x4 block on their own (the Gs are stored trained-first, so the blocks are just the
+    leading and trailing quarters). Writes one row per cell x chord set to
+    ``scaling.between_session.glm<glm>.<atlas_name>.tsv`` in the pcm dir.
+    """
+    sns    = gl.participants if sns is None else sns
+    rois   = gl.rois[atlas_name]
+    blocks = {'all': slice(None), 'trained': slice(0, 4), 'untrained': slice(4, None)}
+
+    def load_G(sn, session, H, roi):
+        return np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}',
+                       f'{prefix}.within_session.{session}.glm{glm}.{H}.{roi}.npy'))
+
+    rows = []
+    for session, sn, H, roi in itertools.product(gl.sessions, sns, gl.Hem, rois):
+
+        print(f'doing participant {sn}, session {session}, {H}, {roi}...')
+
+        G_ref = load_G(sn, ref_session, H, roi)
+        G_tar = load_G(sn, session,     H, roi)
+
+        for chord, b in blocks.items():
+            rows.append(G_scaling(G_ref[b, b], G_tar[b, b])
+                        .assign(chord=chord, session=session, Hem=H, roi=roi, sn=sn))
+
+    df = pd.concat(rows, ignore_index=True)
+    df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'scaling.between_session.glm{glm}.{atlas_name}.tsv'), sep='\t', index=False)
+    return df
+
+
 def fit_component_model_rois(sns=gl.participants, glm=3, atlas_name='ROI', residual_fname='residual.dtseries.nii'):
     """Fit the PCM component model per (subject, Hem, roi, session).
 
@@ -399,6 +437,7 @@ FUNC = {
     'dataframe_rois'   : make_dataframe_rois,
     'correlation'      : correlation_between_sessions,
     'noise_ceiling'    : make_noise_ceiling_dataframe,
+    'scaling'          : make_scaling_dataframe,
     'component_fit'    : fit_component_model_rois,
     'component_summary': make_component_model_dataframe,
 }

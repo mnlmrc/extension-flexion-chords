@@ -71,14 +71,14 @@ def segment_bold(sns=gl.participants, glm=3, atlas='ROI'):
                 bold = np.load(os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}', f'BOLD.adj.{H}.{roi}.npy'))
 
                 # retrieve onsets
-                onset, events = load_glm_onset(sn, glm, output_events=True)
+                onset, events = util.load_glm_onset(sn, glm, output_events=True)
 
                 bold_cut = spm.cut(bold, pre=3, at=onset, post=16)  # (n_trials, 20, n_voxels)
 
                 # average over voxels -> one timecourse (20 samples) per trial
                 tc = bold_cut.mean(axis=2)
 
-                trained_untrained = get_trained_and_untrained(sn)
+                trained_untrained = util.get_trained_and_untrained(sn)
 
                 # tag each trial's timecourse with its chord and session
                 trials = pd.DataFrame(tc, columns=_tAx)
@@ -102,7 +102,7 @@ def segment_bold(sns=gl.participants, glm=3, atlas='ROI'):
 
 # Step name -> function. `segment` reloads the BOLD.adj files that `timeseries` writes.
 FUNC = {
-    'timeseries': save_bold,
+    'timeseries': save_bold_rois,
     'segment'   : segment_bold,
 }
 
@@ -125,5 +125,5 @@ if __name__ == '__main__':
     main(args.what, **kwargs)
 
     if args.what is None:
-        main('timeseries', **kwargs)
+        # main('timeseries', **kwargs)
         main('segment', **kwargs)

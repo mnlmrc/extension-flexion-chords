@@ -10,7 +10,7 @@ from scipy.optimize import least_squares
 from scipy.signal import butter, filtfilt, firwin
 from scipy.special import expit
 import EFC_learningfMRI.globals as gl
-from scipy.stats import linregress, t, ttest_rel
+from scipy.stats import linregress, t
 #import EFC_learningfMRI.globals as gl
 
 
@@ -364,25 +364,34 @@ def calc_R2(Y, Yhat):
 
 
 
-def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, roi_col='roi', subject_col='sn', alternative='two-sided'):
-    """Paired t-tests between ``hue`` levels, one per ROI and per level of ``x``.
+def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, roi_col='roi', subject_col='sn', paired=True, alternative='two-sided'):
+    """Paired t-tests between ``hue`` levels, one per level of ``x`` (and per ROI).
 
-    The statistical counterpart of :func:`EFC_learningfMRI.vis.plot_im_sess`: it
-    takes the same long-format table and the same ``rois``/``x``/``y``/``hue``
-    arguments, and tests, within each ROI and each session, the ``y`` values of
-    one ``hue`` level against another. With more than two levels every pair is
-    tested (columns ``A`` and ``B`` say which), so the trained/untrained case is
-    simply the two-level special case::
+    The statistical counterpart of the ``plot_*_sess`` functions in
+    :mod:`EFC_learningfMRI.vis`: it takes the same long-format table and the same
+    ``rois``/``x``/``y``/``hue`` arguments, and tests, within each session, the
+    ``y`` values of one ``hue`` level against another. With more than two levels
+    every pair is tested (columns ``A`` and ``B`` say which), so the
+    trained/untrained case is simply the two-level special case::
 
         ttest = ttest_im_sess(dist_chord_sess, rois, y='crossnobis', hue='chord',
                               hue_order=['trained', 'untrained'])
         print(ttest[['T', 'dof', 'p_val', 'CI95', 'roi', 'session']])
 
+    Set ``roi_col=None`` for a table with no ROI column -- the behavioural ones,
+    say, where the test is over sessions only::
+
+        ttest = ttest_im_sess(perf[perf.session.isin(gl.sessions)], y='ET', hue='chord',
+                              hue_order=['trained', 'untrained'], roi_col=None, subject_col='subNum')
+        print(ttest[['session', 'A', 'B', 'T', 'dof', 'p_val', 'CI95', 'cohen_d']])
+
     Parameters
     ----------
     df : pandas.DataFrame
         Long-format table with one row per subject / ROI / ``x`` / ``hue`` cell.
-        Duplicate rows within a cell raise, rather than being averaged silently.
+        Only the levels of ``x`` present in ``df`` are tested, so restrict the
+        sessions by filtering ``df``. Duplicate rows within a cell raise, rather
+        than being averaged silently.
     rois : list, optional
         ROIs to test, in order (default: all in ``roi_col``).
     x : str, optional
@@ -395,35 +404,42 @@ def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, 
         Levels of ``hue`` to compare, in order; the t-test is signed as the
         first level minus the second (default: order of appearance in ``df``).
     roi_col : str, optional
-        Column holding the ROI names (default ``'roi'``).
+        Column holding the ROI names (default ``'roi'``); ``None`` to test the
+        whole table at once, without splitting it by ROI.
     subject_col : str, optional
         Column identifying the subject, used to pair observations across
-        ``hue`` levels (default ``'sn'``).
+        ``hue`` levels (default ``'sn'``; the behavioural tables use ``'subNum'``).
+    paired : bool, optional
+        Whether to pair the two samples by ``subject_col`` (default True).
     alternative : {'two-sided', 'less', 'greater'}, optional
-        Passed to scipy.
+        Passed to pingouin.
 
     Returns
     -------
     pandas.DataFrame
         One row per ROI / ``x`` level / pair of ``hue`` levels, with columns
-        ``A``, ``B``, ``T``, ``dof``, ``p_val``, ``CI95``, plus the ``roi_col``
-        and ``x`` columns.
+        ``A``, ``B``, ``T``, ``dof``, ``p_val``, ``CI95``, ``cohen_d``, ``BF10``,
+        ``power``, plus the ``x`` column and, unless ``roi_col`` is None, ``roi_col``.
     """
+    import pingouin as pg   # heavy import; only this helper needs it
+
     if y is None or hue is None:
         raise ValueError("y (the values to test) and hue (the levels to compare) are both required")
 
-    if rois is None:
-        rois = df[roi_col].unique()
-
     if hue_order is None:
         hue_order = list(df[hue].unique())
+
+    if roi_col is None:
+        rois = [None]           # one pass over the whole table
+    elif rois is None:
+        rois = df[roi_col].unique()
 
     x_levels = np.sort(df[x].unique())
 
     rows = []
     for roi in rois:
 
-        df_roi = df[df[roi_col]==roi]
+        df_roi = df if roi_col is None else df[df[roi_col]==roi]
 
         for level in x_levels:
 
@@ -433,16 +449,18 @@ def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, 
 
             for a, b in itertools.combinations(hue_levels, 2):
                 pair = piv[[a, b]].dropna()
-                res  = ttest_rel(pair[a], pair[b], alternative=alternative)
-                ci   = res.confidence_interval()
-                rows.append({roi_col : roi,
-                             x       : level,
-                             'A'     : a,
-                             'B'     : b,
-                             'T'     : res.statistic,
-                             'dof'   : res.df,
-                             'p_val' : res.pvalue,
-                             'CI95'  : np.round([ci.low, ci.high], 3)})
+                res  = pg.ttest(pair[a], pair[b], paired=paired, alternative=alternative).iloc[0]
+                row  = {x        : level,
+                        'A'      : a,
+                        'B'      : b,
+                        'T'      : res['T'],
+                        'dof'    : res['dof'],
+                        'p_val'  : res['p_val'],
+                        'CI95'   : res['CI95'],       # of the A - B difference; pingouin rounds it to 2 decimals
+                        'cohen_d': res['cohen_d'],    # unsigned -- the sign of the effect is in T
+                        'BF10'   : res['BF10'],
+                        'power'  : res['power']}
+                rows.append(row if roi_col is None else {roi_col: roi, **row})
 
     return pd.DataFrame(rows)
 

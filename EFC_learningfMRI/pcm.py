@@ -1,5 +1,8 @@
 import PcmPy as pcm
 import os
+from collections import defaultdict
+from dataclasses import dataclass, field
+from typing import Sequence
 import numpy as np
 from EFC_learningfMRI.util import  get_trained_and_untrained, runs_to_keep
 import EFC_learningfMRI.globals as gl

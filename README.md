@@ -231,6 +231,9 @@ flowchart TB
         P_NC["scripts/pattern.make_noise_ceiling_dataframe()"]:::code
         NC[("<b>upper and lower noise ceiling:</b><br/>pcm/noise_ceiling.within_session.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
 
+        P_SCALE["scripts/pattern.make_scaling_dataframe()"]:::code
+        SCALE[("<b>observed vs. scaling-predicted dissimilarity between sessions:</b><br/>pcm/scaling.between_session.glm#lt;glm#gt;.#lt;atlas#gt;.tsv")]:::data
+
         P_CORR["scripts/pattern.correlation_between_sessions()"]:::code
         CORRMLE[("<b>MLE correlation estimates (individual and group fit) between neural activity patterns for trained and untrained chords:</b><br/>pcm/MLE_correlation.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
     %% CORRXVAL[("<b>cross-validated across-session cosine:</b><br/>pcm/xval_correlation.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
@@ -248,6 +251,8 @@ flowchart TB
         P_DFROIS --> DFROIS
         GROIS --> P_NC
         P_NC --> NC
+        GROIS --> P_SCALE
+        P_SCALE --> SCALE
         NBETA --> P_CORR
         P_CORR --> CORRMLE
     %% P_CORR --> CORRXVAL
@@ -286,7 +291,7 @@ flowchart TB
 
 ³`fit_component_model_rois` prewhitens the betas per ROI before fitting the component model.
 
-<!-- `dataframe_rois` and `noise_ceiling` read only the `G_obs_raw.within_session.*` Gs; `correlation`
+<!-- `dataframe_rois`, `noise_ceiling` and `scaling` read only the `G_obs_raw.within_session.*` Gs; `correlation`
 reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_session.<sess>` or
 `across_session`, with an optional `[.<repetition>]`; `<spair>` is a session pair like `3-9`.
 `component_fit` reads the betas/residuals directly plus the `G_obs.within_session.3.*` Gs; `component_summary` reads the `component_model.theta_in.*` pickles. -->
@@ -317,6 +322,17 @@ reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_sess
 | | `sn`, `Hem`, `roi`, `session` | as above |
 | | `lower` | correlation between this participant's crossnobis RDM and the mean RDM of the *other* participants (leave-one-out) |
 | | `upper` | the same correlation, but against the mean RDM of *all* participants, this one included |
+
+| `pcm/scaling.between_session.glm<glm>.<atlas>.tsv`: one row per participant × hemisphere × ROI × session × chord set | Column | Description |
+|:---|---|---|
+| | `sn`, `Hem`, `roi`, `session` | as above |
+| | `chord` | which chords the row was computed over: `all` (the full 8×8 G), `trained` or `untrained` (the corresponding 4×4 block) |
+| | `act_ref`, `act_target` | mean activity, `sqrt(diag(G))` averaged over chords, in the reference session (`ref_session`, default 3) and in `session` |
+| | `scale` | `act_target / act_ref`: how much overall activity changed between the two sessions |
+| | `diss_ref` | mean dissimilarity (lower triangle of `sqrt(pcm.G_to_dist(G))`) in the reference session |
+| | `diss_target_observed` | the same mean dissimilarity in `session` |
+| | `diss_pred` | `scale * diss_ref`: the dissimilarity expected in `session` if the geometry only got rescaled |
+| | `residual` | **the measure**: `diss_target_observed - diss_pred`, i.e. the change in geometry left over once the change in overall activity is accounted for |
 
 | `pcm/MLE_correlation.<atlas>.glm<glm>.tsv`: one row per participant × hemisphere × ROI × session pair × chord type | Column | Description |
 |:---|---|---|
