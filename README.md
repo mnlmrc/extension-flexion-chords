@@ -229,12 +229,18 @@ flowchart TB
         DFROIS[("<b>pair-wise geometry (crossnobis, cosine, angle):</b><br/>pcm/dissimilarity.within_session.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
 
         P_NC["scripts/pattern.make_noise_ceiling_dataframe()"]:::code
-        NC[("<b>RSA noise ceiling (lower/upper) per Hem, roi, session:</b><br/>pcm/noise_ceiling.within_session.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
+        NC[("<b>upper and lower noise ceiling:</b><br/>pcm/noise_ceiling.within_session.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
 
         P_CORR["scripts/pattern.correlation_between_sessions()"]:::code
         CORRMLE[("<b>MLE correlation estimates (individual and group fit) between neural activity patterns for trained and untrained chords:</b><br/>pcm/MLE_correlation.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
     %% CORRXVAL[("<b>cross-validated across-session cosine:</b><br/>pcm/xval_correlation.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
     %% CORRCOV[("<b>across-session cov per session-pair and chord set:</b><br/>pcm/cov.corr_across_sess.glm#lt;glm#gt;.#lt;spair#gt;.#lt;chord#gt;.#lt;H#gt;.#lt;roi#gt;.npy")]:::data
+
+        P_CFIT["scripts/pattern.fit_component_model_rois()³"]:::code
+        CTHETA[("<b>component-model log-weights:</b><br/>pcm/subj#lt;sn#gt;/component_model.theta_in.#lt;atlas#gt;.glm#lt;glm#gt;.#lt;session#gt;.#lt;H#gt;.#lt;roi#gt;.p")]:::data
+
+        P_CSUM["scripts/pattern.make_component_model_dataframe()"]:::code
+        CMODEL[("<b>component weights:</b><br/>pcm/component_model.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
 
         NBETA --> P_GROIS
         P_GROIS --> GROIS
@@ -246,6 +252,10 @@ flowchart TB
         P_CORR --> CORRMLE
     %% P_CORR --> CORRXVAL
     %% P_CORR --> CORRCOV
+        NBETA --> P_CFIT
+        P_CFIT --> CTHETA
+        CTHETA --> P_CSUM
+        P_CSUM --> CMODEL
     end
 
     subgraph FORCE ["Force"]
@@ -274,9 +284,12 @@ flowchart TB
 
 ²`calc_G_rois` and `calc_G_force` save `G_obs_raw.*.npy` (cross-validated G matrix, run mean across conditions not removed) and also `G_obs.*.npy` (cross-validated G matrix, run mean across conditions removed), `cov.*.npy` (cross-validated covariance matrix, run mean across conditions removed, voxel-centred), `G_obs_noxal.*.npy` (non-cross-validated G matrix):
 
+³`fit_component_model_rois` prewhitens the betas per ROI before fitting the component model.
+
 <!-- `dataframe_rois` and `noise_ceiling` read only the `G_obs_raw.within_session.*` Gs; `correlation`
 reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_session.<sess>` or
-`across_session`, with an optional `[.<repetition>]`; `<spair>` is a session pair like `3-9`. -->
+`across_session`, with an optional `[.<repetition>]`; `<spair>` is a session pair like `3-9`.
+`component_fit` reads the betas/residuals directly plus the `G_obs.within_session.3.*` Gs; `component_summary` reads the `component_model.theta_in.*` pickles. -->
 
 #### Dataframes
 
@@ -315,5 +328,14 @@ reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_sess
 | | `corr` | session pair: `3-9`, `3-23` or `9-23` |
 | | `roi` | region, one of `gl.rois[<atlas>]` |
 | | `Hem` | `L` / `R` |
+
+| `pcm/component_model.<atlas>.glm<glm>.tsv`: one row per participant × hemisphere × ROI × session × component | Column | Description |
+|:---|---|---|
+| | `weight` | the fitted component weight, `exp(theta_in)`: how strongly that component contributes to the ROI's second-moment matrix |
+| | `component` | which component the weight belongs to: `type`, `trained`, `untrained`, `finger`, `pattern`, `flexion`, `base` (the session-3 group G), or `noise` (trailing noise-scale params) |
+| | `sn` | participant number |
+| | `Hem` | `L` / `R` |
+| | `roi` | region from `gl.rois[<atlas>]` |
+| | `session` | 3, 9 or 23 |
 
 

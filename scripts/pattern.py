@@ -1,5 +1,6 @@
 import argparse
 import os
+import pickle
 import itertools
 import numpy as np
 import PcmPy as pcm
@@ -10,7 +11,7 @@ from EFC_learningfMRI.G_matrix import calc_G, G_sorted
 from EFC_learningfMRI.util import get_trained_and_untrained
 from EFC_learningfMRI.betas import BetasPrewithenedLoader
 from EFC_learningfMRI.behaviour import force_patterns
-from EFC_learningfMRI.pcm import CorrelationBetweenSessions, fit_correlation
+from EFC_learningfMRI.pcm import CorrelationBetweenSessions, fit_correlation, fit_component_model, make_models
 
 def _pair_index():
     """(row, col) indices of the chord pairs, split into the three pair groups.
@@ -344,13 +345,64 @@ def make_noise_ceiling_dataframe(glm=3, atlas_name='ROI', sns=None, prefix='G_ob
     return df
 
 
+def fit_component_model_rois(sns=gl.participants, glm=3, atlas_name='ROI', residual_fname='residual.dtseries.nii'):
+    """Fit the PCM component model per (subject, Hem, roi, session).
+
+    Prewhitens the betas once per (subject, roi) with BetasPrewithenedLoader, then
+    fits the component model (with the session-3 group G appended as a 'base'
+    component) and pickles each fit's ``theta_in`` next to the participant's Gs, as
+    ``component_model.theta_in.<atlas_name>.glm<glm>.<session>.<Hem>.<roi>.p`` --
+    which component_summary reads back.
+    """
+    loader = BetasPrewithenedLoader(sns=sns, glm=glm, atlas_name=atlas_name, residual_fname=residual_fname)
+    fit_component_model(loader)
+
+
+def make_component_model_dataframe(sns=None, glm=3, atlas_name='ROI'):
+    """Collect the component weights fitted by component_fit into one dataframe.
+
+    Reads each pickled ``theta_in``, exponentiates to component weights (trailing
+    params are noise scales), and writes one long-form row per component to
+    ``component_model.<atlas_name>.glm<glm>.tsv`` in the pcm dir.
+    """
+    sns           = gl.participants if sns is None else sns
+    _, comp_names = make_models(sns[0])          # component names don't depend on the subject
+    comp_names    = comp_names + ['base']
+
+    df = pd.DataFrame()
+    for sn, session, H, roi in itertools.product(sns, gl.sessions, gl.Hem, gl.rois[atlas_name]):
+
+        path = os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}',
+            f'component_model.theta_in.{atlas_name}.glm{glm}.{session}.{H}.{roi}.p')
+        with open(path, 'rb') as f:
+            theta_in = pickle.load(f)
+
+        weight = np.asarray(np.exp(theta_in)).ravel()
+        if len(weight) > len(comp_names):                    # trailing params are noise scales
+            labels = comp_names + ['noise'] * (len(weight) - len(comp_names))
+        else:
+            labels = comp_names[:len(weight)]
+
+        df_tmp = pd.DataFrame({'weight': weight, 'component': labels})
+        df_tmp['sn']      = sn
+        df_tmp['Hem']     = H
+        df_tmp['roi']     = roi
+        df_tmp['session'] = session
+        df = pd.concat([df, df_tmp], ignore_index=True)
+
+    df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'component_model.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
+    return df
+
+
 FUNC = {
-    'G_rois'          : calc_G_rois,
-    'G_force'         : calc_G_force,
-    'dataframe_force' : make_dataframe_force,
-    'dataframe_rois'  : make_dataframe_rois,
-    'correlation'     : correlation_between_sessions,
-    'noise_ceiling'   : make_noise_ceiling_dataframe,
+    'G_rois'           : calc_G_rois,
+    'G_force'          : calc_G_force,
+    'dataframe_force'  : make_dataframe_force,
+    'dataframe_rois'   : make_dataframe_rois,
+    'correlation'      : correlation_between_sessions,
+    'noise_ceiling'    : make_noise_ceiling_dataframe,
+    'component_fit'    : fit_component_model_rois,
+    'component_summary': make_component_model_dataframe,
 }
 
 
