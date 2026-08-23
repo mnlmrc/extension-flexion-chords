@@ -375,10 +375,6 @@ flowchart TD
     classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
 ```
 
-The two steps are exposed on the command line via `--what timeseries` and `--what segment`
-(both run in order when `--what` is omitted). Each trial's timecourse spans 20 samples, from 3
-before onset to 16 after (`bold._tAx`).
-
 #### Dataframes
 
 | `bold/bold_segmented.tsv`: one row per participant × hemisphere × ROI × trial × time sample | Column | Description |
