@@ -84,7 +84,7 @@ have to be run in. All paths are relative to `gl.baseDir`; `<sn>` is the partici
 part of the name that is only present sometimes (e.g. `[.<repetition>]` is dropped when the G is
 not split by repetition). -->
 
-#### Columns
+#### Dataframes
 
 **`behavioural/day<d>/efc4_<sn>_single_trial.tsv`** — one row per trial.
 
@@ -208,7 +208,7 @@ the same contrast maps projected onto the surface by `surface.project_cifti_to_s
 *upstream* of `activation.py` (dashed arrow) — note it keys off the `con` filename stem while the
 ROI branch reads `contrast.dscalar.nii`. -->
 
-#### Columns
+#### Dataframes
 
 **`glm<glm>/<atlas>.activation.tsv`** — one row per participant × hemisphere × ROI × chordID × session.
 
@@ -294,7 +294,7 @@ flowchart TB
 reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_session.<sess>` or
 `across_session`, with an optional `[.<repetition>]`; `<spair>` is a session pair like `3-9`. -->
 
-#### Columns
+#### Dataframes
 
 **`pcm/dissimilarity.within_session.<atlas>.glm<glm>.tsv`** — one row per participant × hemisphere ×
 ROI × session × chord pair (28 pairs, i.e., the lower triangle of a 8×8 matrix).
