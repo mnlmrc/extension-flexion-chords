@@ -7,11 +7,11 @@ import PcmPy as pcm
 import pandas as pd
 from scipy.stats import spearmanr
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.G_matrix import calc_G, G_scaling, G_sorted
-from EFC_learningfMRI.util import get_trained_and_untrained
-from EFC_learningfMRI.betas import BetasPrewithenedLoader
-from EFC_learningfMRI.behaviour import force_patterns
-from EFC_learningfMRI.pcm import CorrelationBetweenSessions, fit_correlation, fit_component_model, make_models
+import EFC_learningfMRI.G_matrix as G_matrix
+import EFC_learningfMRI.util as util
+import EFC_learningfMRI.betas as betas
+import EFC_learningfMRI.behaviour as behaviour
+import EFC_learningfMRI.pcm as efc_pcm
 
 def _pair_index():
     """(row, col) indices of the chord pairs, split into the three pair groups.
@@ -39,7 +39,7 @@ def _G_rows(G, sn, **labels):
     came from — Hem/roi/session for a neural G, metric/session for a force one.
     The ``pair`` label is order-normalised so both Gs key on the same pair id.
     """
-    chords = get_trained_and_untrained(sn)
+    chords = util.get_trained_and_untrained(sn)
     D      = pcm.G_to_dist(G)
     cos    = pcm.G_to_cosine(G)
 
@@ -138,17 +138,17 @@ def _make_fname(session, repetition):
 
 def calc_G_rois(sns=gl.participants, glm=3, sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
     """G_rois: build the betas loader, then the ROI Gs."""
-    loader = BetasPrewithenedLoader(sns=sns, glm=glm)
+    loader = betas.BetasPrewithenedLoader(sns=sns, glm=glm)
     for data in loader:
         for session in sessions:
             for repetition in repetitions:
 
                 print(f'rois, doing participant {data.sn}...')
 
-                G        = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=False)
-                cov      = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=True)
-                G_raw    = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=False, fixed_effect=False)
-                G_noxval = calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=False, fixed_effect=False, crossval=False)
+                G        = G_matrix.calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=False)
+                cov      = G_matrix.calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=True)
+                G_raw    = G_matrix.calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=False, fixed_effect=False)
+                G_noxval = G_matrix.calc_G(data.betas, data.cond_vec, data.part_vec, session, repetition=repetition, centred=False, fixed_effect=False, crossval=False)
 
                 save_path = os.path.join(gl.baseDir, gl.pcmDir, f'subj{data.sn}')
                 os.makedirs(save_path, exist_ok=True)
@@ -179,12 +179,12 @@ def calc_G_force(sns=gl.participants, metrics=('abs', 'der'),
 
                     print(f'force {metric}, doing participant {sn}...')
 
-                    data, cond_vec, part_vec = force_patterns(force, sn, metric, session=session, repetition=repetition)
+                    data, cond_vec, part_vec = behaviour.force_patterns(force, sn, metric, session=session, repetition=repetition)
 
-                    G        = calc_G(data, cond_vec, part_vec, centred=False)
-                    cov      = calc_G(data, cond_vec, part_vec, centred=True)
-                    G_raw    = calc_G(data, cond_vec, part_vec, centred=False, fixed_effect=False)
-                    G_noxval = calc_G(data, cond_vec, part_vec, centred=False, fixed_effect=False, crossval=False)
+                    G        = G_matrix.calc_G(data, cond_vec, part_vec, centred=False)
+                    cov      = G_matrix.calc_G(data, cond_vec, part_vec, centred=True)
+                    G_raw    = G_matrix.calc_G(data, cond_vec, part_vec, centred=False, fixed_effect=False)
+                    G_noxval = G_matrix.calc_G(data, cond_vec, part_vec, centred=False, fixed_effect=False, crossval=False)
 
                     save_path = os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}')
                     os.makedirs(save_path, exist_ok=True)
@@ -213,7 +213,7 @@ def correlation_between_sessions(sns=gl.participants, glm=3, Hem=('L', 'R'), atl
     corrs    = list(itertools.combinations([1, 2, 3], 2))
     chords   = ['trained', 'untrained']
 
-    correlation  = CorrelationBetweenSessions(glm, sns=sns, atlas_name=atlas_name, Hem=Hem, residual_fname=residual_fname)
+    correlation  = efc_pcm.CorrelationBetweenSessions(glm, sns=sns, atlas_name=atlas_name, Hem=Hem, residual_fname=residual_fname)
     Y, cov, snr  = correlation.group_datasets(corrs, chords)
 
     mle, xval = [], []
@@ -223,7 +223,7 @@ def correlation_between_sessions(sns=gl.participants, glm=3, Hem=('L', 'R'), atl
         spair    = f'{sessions[0]}-{sessions[1]}'
 
         # PCM correlation model (MLE) -- keeps the model's own SNR
-        r_indiv, r_group, SNR = fit_correlation(Y_, Mflex)
+        r_indiv, r_group, SNR = efc_pcm.fit_correlation(Y_, Mflex)
         mle.append(pd.DataFrame({'sn'     : sns,
                                  'r_group': r_group,
                                  'r_indiv': r_indiv,
@@ -269,7 +269,7 @@ def _rdm_vectors(sns, H, roi, session, glm, prefix='G_obs_raw', order=None):
     for sn in sns:
         G   = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}',
                     f'{prefix}.within_session.{session}.glm{glm}.{H}.{roi}.npy'))
-        G_s = G_sorted(G, sn, order=order)
+        G_s = G_matrix.G_sorted(G, sn, order=order)
         D   = pcm.G_to_dist(G_s)
         rdms.append(D[mask])
 
@@ -390,8 +390,8 @@ def fit_component_model_rois(sns=gl.participants, glm=3, atlas_name='ROI', resid
     ``component_model.theta_in.<atlas_name>.glm<glm>.<session>.<Hem>.<roi>.p`` --
     which component_summary reads back.
     """
-    loader = BetasPrewithenedLoader(sns=sns, glm=glm, atlas_name=atlas_name, residual_fname=residual_fname)
-    fit_component_model(loader)
+    loader = betas.BetasPrewithenedLoader(sns=sns, glm=glm, atlas_name=atlas_name, residual_fname=residual_fname)
+    efc_pcm.fit_component_model(loader)
 
 
 def make_component_model_dataframe(sns=None, glm=3, atlas_name='ROI'):
@@ -402,7 +402,7 @@ def make_component_model_dataframe(sns=None, glm=3, atlas_name='ROI'):
     ``component_model.<atlas_name>.glm<glm>.tsv`` in the pcm dir.
     """
     sns           = gl.participants if sns is None else sns
-    _, comp_names = make_models(sns[0])          # component names don't depend on the subject
+    _, comp_names = efc_pcm.make_models(sns[0])          # component names don't depend on the subject
     comp_names    = comp_names + ['base']
 
     df = pd.DataFrame()

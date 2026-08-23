@@ -1,25 +1,25 @@
 import argparse
 
-from EFC_learningfMRI.betas import CiftiCortex
+import EFC_learningfMRI.betas as betas
 import EFC_learningfMRI.globals as gl
 
 
 def beta(sns=gl.participants, glm=3):
     """Write each participant's beta maps as cifti."""
     for sn in sns:
-        CiftiCortex(sn, glm).beta()
+        betas.CiftiCortex(sn, glm).beta()
 
 
 def contrast(sns=gl.participants, glm=3):
     """Write each participant's contrast maps as cifti."""
     for sn in sns:
-        CiftiCortex(sn, glm).contrast()
+        betas.CiftiCortex(sn, glm).contrast()
 
 
 def residual(sns=gl.participants, glm=3):
     """Write each participant's residual maps as cifti."""
     for sn in sns:
-        CiftiCortex(sn, glm).residual()
+        betas.CiftiCortex(sn, glm).residual()
 
 
 # Step name -> function. Each step is independent, built straight from the glm betas.
