@@ -129,7 +129,6 @@ class Searchlight():
             self.residual_fname = 'ResMS.nii'
 
 
-
     def _searchlight_subject_univarite_pw(self, sn):
         """Run the metric over one subject's searchlight and save one gifti per
         hemisphere and session (metrics as columns).
@@ -153,7 +152,7 @@ class Searchlight():
             for session in self.sessions:
                 print(f'running searchlight {H}, session {session}...')
 
-                keep           = runs_to_keep(reginfo.part_vec.size, session=session)
+                keep           = runs_to_keep(reginfo.cond_vec, session=session)
                 function_args  = {'cond_vec': reginfo.cond_vec[keep], 
                                   'part_vec': reginfo.part_vec[keep],
                                   'session' : session}
@@ -216,7 +215,7 @@ class Searchlight():
             for session in self.sessions:
                 print(f'running searchlight {H}, session {session}...')
 
-                keep          = runs_to_keep(reginfo.part_vec.size, session=session)
+                keep          = runs_to_keep(reginfo.cond_vec, session=session)
                 data          = np.vstack([beta_cand[keep], resid_cand])   # betas on top of residuals
                 function_args = {'cond_vec': reginfo.cond_vec[keep],
                                  'part_vec': reginfo.part_vec[keep],

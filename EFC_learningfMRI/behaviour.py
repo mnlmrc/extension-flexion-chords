@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 import warnings
 
-from EFC_learningfMRI.util import lowpass_fir, get_trained_and_untrained
+from EFC_learningfMRI.util import lowpass_fir, get_trained_and_untrained, make_cond_vec, session_index
 
 def calc_md(X):
     N, m = X.shape
@@ -83,10 +83,11 @@ def force_patterns(force, sn, metric, session='all', repetition='all'):
     8x8 within a session and 24x24 across, with the same rows in the same order
     as the ROI Gs.
 
-    ``session`` and ``repetition`` are filtered here rather than in ``calc_G``:
-    ``runs_to_keep`` splits the rows into three equal positional blocks, which the
-    force table does not satisfy (failed trials are missing, and session 23 has an
-    extra run). Pass the result to ``calc_G`` with its own filters left at 'all'.
+    ``session`` and ``repetition`` are filtered here rather than in ``calc_G``: the
+    repetitions have to be averaged after the selection, not before. Pass the result
+    to ``calc_G`` with its own filters left at 'all' — filtering twice is harmless
+    (``runs_to_keep`` reads the session off ``cond_vec``, so it handles the force
+    table's uneven runs), but it is the averaging here that does the work.
 
     Args:
         force:      the table from :func:`load_force`.
@@ -117,8 +118,8 @@ def force_patterns(force, sn, metric, session='all', repetition='all'):
 
     slot_of  = {chord: i for i, chord in enumerate(np.asarray(get_trained_and_untrained(sn), dtype=int))}
 
-    sess_idx = df.session.map({s: i + 1 for i, s in enumerate(gl.sessions)})
-    cond_vec = (sess_idx.astype(str) + ',' + df.chordID.astype(int).map(slot_of).astype(str)).to_numpy()
+    sess_idx = df.session.map(session_index)
+    cond_vec = make_cond_vec(sess_idx, df.chordID.astype(int).map(slot_of))
     part_vec = (sess_idx * 100 + df.BN).to_numpy()   # BN restarts at 1 every session
 
     return data, cond_vec, part_vec
@@ -296,7 +297,7 @@ def analyse_session(sn, session):
                 'week'        : dat_row['week'],
             }
             for i, f in enumerate(gl.fingers):
-                row[f]          = trial_dict['F_avg'][i]
+                row[f'{f}_raw'] = trial_dict['F_avg'][i]
                 row[f'{f}_abs'] = trial_dict['F_abs_avg'][i]
                 row[f'{f}_der'] = trial_dict['F_der_abs_avg'][i]
 

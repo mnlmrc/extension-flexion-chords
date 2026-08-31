@@ -25,18 +25,13 @@ def bold_in_roi(SPM, path_glm, path_rois, atlas, H, roi):
 
     return y_scl, y_hat, y_adj
 
-
-def _save_bold_rois(sn, glm=3, atlas='ROI'):
-    """Save raw, predicted and adjusted BOLD timeseries in each ROI of participant sn."""
-
-    rois = gl.rois[atlas]
-
     
 
-def save_bold_rois(sns=gl.participants, glm=3, atlas='ROI'):
+def save_bold_rois(sns=gl.participants, glm=3, atlas='ROI', rois=None):
     """Save the per-ROI BOLD timeseries (hat / raw / adj) for each participant."""
 
-    rois = gl.rois[atlas]
+    if rois is None:
+        rois = gl.rois[atlas]
 
     for sn in sns:
         path_glm  = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
@@ -117,7 +112,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Save per-ROI BOLD timeseries and segment them into a tidy table.')
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: all)')
     parser.add_argument('--glm', type=int, default=None, help='GLM the BOLD/onsets come from (default: the step default, 3)')
-    parser.add_argument('--sn', nargs='+', type=int, default=None, dest='sns', help='participant numbers (default: all participants)')
+    parser.add_argument('--sns', nargs='+', type=int, default=None, help='participant numbers (default: all participants)')
+    parser.add_argument('--rois', nargs='+', type=str, default=None, help='which rois of atlas to use (default: all)')
     parser.add_argument('--atlas', default=None, help='atlas whose ROIs to use (default: the step default, ROI)')
     args = parser.parse_args()
 
@@ -125,5 +121,6 @@ if __name__ == '__main__':
     main(args.what, **kwargs)
 
     if args.what is None:
+        pass
         # main('timeseries', **kwargs)
-        main('segment', **kwargs)
+        # main('segment', **kwargs)

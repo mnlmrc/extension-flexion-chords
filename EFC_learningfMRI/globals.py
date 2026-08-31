@@ -43,7 +43,7 @@ fsample = {
 
 nblocks = 8
 
-participants = [101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113, 114, 117]
+participants = [101, 102, 103, 104, 105, 106, 107, 108, 110, 111, 112, 113, 114, 116, 117]
 
 chordID = np.sort(np.array([21911, 92122, 91211, 22911, 21291, 12129, 12291, 11911]))
 
@@ -58,6 +58,8 @@ fingers = ['thumb', 'index', 'middle', 'ring', 'pinkie']
 
 sessions = [3, 9, 23]
 nSess = 3
+nRuns = 10  # nominal runs per session -- the offset between sessions in the events files' BN
+
 diffCols = [18, 19, 20, 21, 22]
 wait_exec = 4
 

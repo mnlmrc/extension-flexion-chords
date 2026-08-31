@@ -40,14 +40,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Write cifti beta, contrast and residual maps.')
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: all)')
     parser.add_argument('--glm', type=int, default=None, help='GLM the betas come from (default: the step default, 3)')
-    parser.add_argument('--sn', nargs='+', type=int, default=None, dest='sns',
-                        help='participant numbers (default: all participants)')
+    parser.add_argument('--sns', nargs='+', type=int, default=[116], help='participant numbers (default: all participants)')
     args = parser.parse_args()
 
     kwargs = {k: v for k, v in vars(args).items() if k != 'what' and v is not None}
     main(args.what, **kwargs)
 
     if args.what is None:
-        main('beta', **kwargs)
+        main('beta',     **kwargs)
         main('contrast', **kwargs)
         main('residual', **kwargs)

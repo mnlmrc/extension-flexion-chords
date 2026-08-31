@@ -11,27 +11,6 @@ import EFC_learningfMRI.globals as gl
 from EFC_learningfMRI.util import get_trained_and_untrained
 
 
-def project_cifti_to_surface(sn, glm, stat='rep_suppr'):
-
-    cifti = nb.load(os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}', f'{stat}.dscalar.nii'))
-    vol = nt.volume_from_cifti(cifti, struct_names=gl.struct_cortex)
-    cols = cifti.header.get_axis(0).name
-
-    whiteL = os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}', f'subj{sn}.L.white.32k.surf.gii')
-    pialL = os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}', f'subj{sn}.L.pial.32k.surf.gii')
-    surfdataL = flatmap.vol_to_surf(vol, inner_surf_gifti=whiteL, outer_surf_gifti=pialL)
-    giftiL  = nt.make_func_gifti(surfdataL,column_names=cols, anatomical_struct='CortexLeft')
-
-    nb.save(giftiL, os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}', f'glm{glm}.{stat}.L.func.gii'))
-
-    whiteR = os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}', f'subj{sn}.R.white.32k.surf.gii')
-    pialR = os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}', f'subj{sn}.R.pial.32k.surf.gii')
-    surfdataR = flatmap.vol_to_surf(vol, inner_surf_gifti=whiteR, outer_surf_gifti=pialR)
-    giftiR  = nt.make_func_gifti(surfdataR,column_names=cols, anatomical_struct='CortexRight')
-
-    nb.save(giftiR, os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}', f'glm{glm}.{stat}.R.func.gii'))
-
-
 def _chord_of(col):
     """Chord ID (a 5-digit sequence) encoded in a CIFTI scalar-row name, e.g. 'sess03_21911,...'."""
     match = re.search(r'\d{5}', col)

@@ -26,7 +26,7 @@ def save_spm_as_mat7(sn, glm):
 
 
 if __name__=='__main__':
-    sns = [117]
+    sns = [116]
     glm = 3
 
     for sn in sns:

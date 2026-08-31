@@ -5,13 +5,14 @@ import itertools
 import numpy as np
 import PcmPy as pcm
 import pandas as pd
+import inspect
 from scipy.stats import spearmanr
 import EFC_learningfMRI.globals as gl
 import EFC_learningfMRI.G_matrix as G_matrix
 import EFC_learningfMRI.util as util
 import EFC_learningfMRI.betas as betas
 import EFC_learningfMRI.behaviour as behaviour
-import EFC_learningfMRI.pcm as efc_pcm
+import EFC_learningfMRI.pcm as pcm_
 
 def _pair_index():
     """(row, col) indices of the chord pairs, split into the three pair groups.
@@ -86,7 +87,7 @@ def _add_group_reference(df, keys, ref_session=3, crossval=False):
     return df
 
 
-def make_dataframe_rois(glm=3, atlas_name='ROI', sns=None, ref_session=3, crossval=False):
+def make_rois_distance_dataframe(glm=3, atlas_name='ROI', sns=None, ref_session=3, crossval=False):
 
     sns  = gl.participants if sns is None else sns
     rois = gl.rois[atlas_name]
@@ -105,7 +106,7 @@ def make_dataframe_rois(glm=3, atlas_name='ROI', sns=None, ref_session=3, crossv
     df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
 
 
-def make_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_session=3, crossval=False):
+def make_force_distance_dataframe(metrics=('raw', 'abs', 'der'), sns=gl.participants, ref_session=3, crossval=False):
     """The neural dataframe's counterpart over the force Gs written by pattern_G_matrix.
 
     Same rows, same columns, with ``metric`` (the force measure) standing in for
@@ -128,6 +129,70 @@ def make_dataframe_force(metrics=('abs', 'der'), sns=gl.participants, ref_sessio
     df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, 'dissimilarity.within_session.force.tsv'), sep='\t', index=False)
 
 
+def _ancova_beta(df, metric):
+    """Trained - untrained difference in ``metric``, adjusted for the group geometry.
+
+    Returns (beta, slope actually used).
+    """
+    y = df[metric].to_numpy()
+    g = df[f'{metric}_group'].to_numpy()
+    c = df.chord.map({'trained'  : .5, 
+                      'untrained': -.5}).to_numpy()
+    X = np.c_[g, c, np.ones(len(df))]
+    B = np.linalg.pinv(X) @ y
+
+    return B[0], B[1], B[2]
+
+
+def make_ancova_dataframe(glm=3, atlas_name='ROI', rois=None, sns=gl.participants, metrics=('crossnobis', 'theta')):
+
+    """Trained vs untrained, with the reference-session geometry regressed out.
+
+    Which chords a participant trained is counterbalanced, but the chord pairs
+    themselves are not equally distinct to begin with -- pairs that share no fingers
+    sit further apart in every participant -- so whichever four chords a participant
+    happened to be given carries an intrinsic trained-untrained difference that has
+    nothing to do with training. ``*_group`` (the across-participant mean of that pair
+    in ``ref_session``, pooled over training status, so it is training-neutral) is that
+    intrinsic geometry, and this is the ANCOVA that takes it out: one adjusted
+    trained-untrained difference per participant x Hem x roi x session x metric, to be
+    tested against zero across participants..
+
+    The reference is rebuilt from the tsv rather than taken from its ``*_group``
+    columns, so ``crossval``/``ref_session`` can be changed without recomputing the Gs.
+    ``crossval=True`` (leave-one-participant-out) is the default here: with the
+    participant inside their own reference, the covariate shares noise with y, which
+    inflates the slope in ``ref_session`` only -- exactly the session the across-session
+    comparison hangs on.
+
+    """
+    if rois is None:
+        rois = gl.rois[atlas_name]
+
+    df = pd.read_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t')
+    df = df[df.chord.isin(['trained', 'untrained'])]
+
+    rows = []
+    for sn, H, roi, session, metric in itertools.product(sns, gl.Hem, rois, gl.sessions, metrics):
+
+        print(f'ancova, participant {sn}, {metric}, {H}, {roi}, session {session}...')
+
+        cell = df[(df.sn==sn) & (df.Hem == H) & (df.roi == roi) & (df.session == session)]
+
+        slope, adjusted, intercept = _ancova_beta(cell, metric)
+
+        rows.append({'sn'       : sn,
+                     'Hem'      : H,
+                     'roi'      : roi,
+                     'session'  : session,
+                     'metric'   : metric,
+                     'adjusted' : adjusted,
+                     'slope'    : slope,
+                     'intercept': intercept})
+
+    pd.DataFrame(rows).to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity_ancova.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
+
+
 def _make_fname(session, repetition):
     """The 'within_session.3.1' / 'across_session' part of a G filename."""
     fname = 'across_session' if session == 'all' else 'within_session'
@@ -136,7 +201,7 @@ def _make_fname(session, repetition):
     return fname  
 
 
-def calc_G_rois(sns=gl.participants, glm=3, sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
+def calc_G_rois(sns=gl.participants, glm=3, sessions=gl.sessions, repetitions=['all']):
     """G_rois: build the betas loader, then the ROI Gs."""
     loader = betas.BetasPrewithenedLoader(sns=sns, glm=glm)
     for data in loader:
@@ -161,8 +226,7 @@ def calc_G_rois(sns=gl.participants, glm=3, sessions=('all', *gl.sessions), repe
                 np.save(os.path.join(save_path, f'G_obs_noxval.{fname}.glm{glm}.{data.Hem}.{data.roi}'), G_noxval)
 
 
-def calc_G_force(sns=gl.participants, metrics=('abs', 'der'),
-                 sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
+def calc_G_force(sns=gl.participants, metrics=('raw', 'abs', 'der'), sessions=('all', *gl.sessions), repetitions=('all', 1, 2)):
     """The same Gs as calc_G_rois, but over the five fingers' force instead of voxels.
 
     Fingers take the place of the voxels, so the matrices come out with the same
@@ -210,20 +274,19 @@ def correlation_between_sessions(sns=gl.participants, glm=3, Hem=('L', 'R'), atl
     """
     path_pcm = os.path.join(gl.baseDir, gl.pcmDir)
     Mflex    = pcm.CorrelationModel("flex", num_items=4, corr=None, cond_effect=True)
-    corrs    = list(itertools.combinations([1, 2, 3], 2))
+    corrs    = list(itertools.combinations(gl.sessions, 2))   # real session numbers, e.g. (3, 9)
     chords   = ['trained', 'untrained']
 
-    correlation  = efc_pcm.CorrelationBetweenSessions(glm, sns=sns, atlas_name=atlas_name, Hem=Hem, residual_fname=residual_fname)
+    correlation  = pcm_.CorrelationBetweenSessions(glm, sns=sns, atlas_name=atlas_name, Hem=Hem, residual_fname=residual_fname)
     Y, cov, snr  = correlation.group_datasets(corrs, chords)
 
     mle, xval = [], []
-    for (H, roi, n_sess, chord), Y_ in Y.items():
+    for (H, roi, sessions, chord), Y_ in Y.items():
 
-        sessions = gl.sessions[n_sess[0] - 1], gl.sessions[n_sess[1] - 1]
-        spair    = f'{sessions[0]}-{sessions[1]}'
+        spair = f'{sessions[0]}-{sessions[1]}'
 
         # PCM correlation model (MLE) -- keeps the model's own SNR
-        r_indiv, r_group, SNR = efc_pcm.fit_correlation(Y_, Mflex)
+        r_indiv, r_group, SNR = pcm_.fit_correlation(Y_, Mflex)
         mle.append(pd.DataFrame({'sn'     : sns,
                                  'r_group': r_group,
                                  'r_indiv': r_indiv,
@@ -234,7 +297,7 @@ def correlation_between_sessions(sns=gl.participants, glm=3, Hem=('L', 'R'), atl
                                  'Hem'    : H,}))
 
         # cross-validated cosine -- matched-chord diagonal + diag(G)/diag(Sig) SNR
-        G_group = cov[H, roi, n_sess, chord]
+        G_group = cov[H, roi, sessions, chord]
         np.save(os.path.join(path_pcm, f'cov.corr_across_sess.glm{glm}.{spair}.{chord}.{H}.{roi}.npy'), G_group)
 
         r_xval = pcm.G_to_cosine(G_group)
@@ -242,7 +305,7 @@ def correlation_between_sessions(sns=gl.participants, glm=3, Hem=('L', 'R'), atl
         xval.append(pd.DataFrame({'sn'     : sns,
                                   'r_indiv': r_avg,
                                   'r_group': r_avg.mean(),
-                                  'SNR'    : snr[H, roi, n_sess, chord],
+                                  'SNR'    : snr[H, roi, sessions, chord],
                                   'corr'   : spair,
                                   'chord'  : chord,
                                   'roi'    : roi,
@@ -340,7 +403,6 @@ def make_noise_ceiling_dataframe(glm=3, atlas_name='ROI', sns=None, prefix='G_ob
 
     df = pd.DataFrame(rows)
     df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'noise_ceiling.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
-    return df
 
 
 def make_scaling_dataframe(sns=None, glm=3, atlas_name='ROI', ref_session=3, prefix='G_obs_raw'):
@@ -360,66 +422,60 @@ def make_scaling_dataframe(sns=None, glm=3, atlas_name='ROI', ref_session=3, pre
     rois   = gl.rois[atlas_name]
     blocks = {'all': slice(None), 'trained': slice(0, 4), 'untrained': slice(4, None)}
 
-    def load_G(sn, session, H, roi):
-        return np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}',
-                       f'{prefix}.within_session.{session}.glm{glm}.{H}.{roi}.npy'))
-
     rows = []
     for session, sn, H, roi in itertools.product(gl.sessions, sns, gl.Hem, rois):
 
         print(f'doing participant {sn}, session {session}, {H}, {roi}...')
 
-        G_ref = load_G(sn, ref_session, H, roi)
-        G_tar = load_G(sn, session,     H, roi)
+        G_ref = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'{prefix}.within_session.{ref_session}.glm{glm}.{H}.{roi}.npy'))
+        G_tar = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'{prefix}.within_session.{session}.glm{glm}.{H}.{roi}.npy'))
 
         for chord, b in blocks.items():
-            rows.append(G_scaling(G_ref[b, b], G_tar[b, b])
+            rows.append(G_matrix.G_scaling(G_ref[b, b], G_tar[b, b])
                         .assign(chord=chord, session=session, Hem=H, roi=roi, sn=sn))
 
     df = pd.concat(rows, ignore_index=True)
     df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'scaling.between_session.glm{glm}.{atlas_name}.tsv'), sep='\t', index=False)
-    return df
 
 
 def fit_component_model_rois(sns=gl.participants, glm=3, atlas_name='ROI', residual_fname='residual.dtseries.nii'):
     """Fit the PCM component model per (subject, Hem, roi, session).
 
     Prewhitens the betas once per (subject, roi) with BetasPrewithenedLoader, then
-    fits the component model (with the session-3 group G appended as a 'base'
-    component) and pickles each fit's ``theta_in`` next to the participant's Gs, as
+    fits the component model (which includes the session-3 mean-deviation
+    component, 'md') and pickles each fit's ``theta_in`` next to the participant's Gs, as
     ``component_model.theta_in.<atlas_name>.glm<glm>.<session>.<Hem>.<roi>.p`` --
     which component_summary reads back.
     """
     loader = betas.BetasPrewithenedLoader(sns=sns, glm=glm, atlas_name=atlas_name, residual_fname=residual_fname)
-    efc_pcm.fit_component_model(loader)
+    pcm_.fit_component_model(loader)
 
 
-def make_component_model_dataframe(sns=None, glm=3, atlas_name='ROI'):
+def make_component_weight_dataframe(sns=None, glm=3, atlas_name='ROI'):
     """Collect the component weights fitted by component_fit into one dataframe.
 
-    Reads each pickled ``theta_in``, exponentiates to component weights (trailing
-    params are noise scales), and writes one long-form row per component to
+    Reads each pickled ``theta_in``, takes the component model's theta (the other
+    models' thetas have different lengths, so the list cannot be arrayed as a whole),
+    exponentiates it to weights -- one per component, then the scale and the noise --
+    and writes one long-form row per component to
     ``component_model.<atlas_name>.glm<glm>.tsv`` in the pcm dir.
     """
     sns           = gl.participants if sns is None else sns
-    _, comp_names = efc_pcm.make_models(sns[0])          # component names don't depend on the subject
-    comp_names    = comp_names + ['base']
+    M, comp_names = pcm_.make_models(sns[0])
 
     df = pd.DataFrame()
     for sn, session, H, roi in itertools.product(sns, gl.sessions, gl.Hem, gl.rois[atlas_name]):
 
-        path = os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}',
-            f'component_model.theta_in.{atlas_name}.glm{glm}.{session}.{H}.{roi}.p')
+        path = os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'component_model.theta_in.{atlas_name}.glm{glm}.{session}.{H}.{roi}.p')
         with open(path, 'rb') as f:
-            theta_in = pickle.load(f)
+            theta_in = pickle.load(f)[0][:-1]
 
-        weight = np.asarray(np.exp(theta_in)).ravel()
-        if len(weight) > len(comp_names):                    # trailing params are noise scales
-            labels = comp_names + ['noise'] * (len(weight) - len(comp_names))
-        else:
-            labels = comp_names[:len(weight)]
+        # theta_in holds one theta per model and they have different lengths, so it cannot be
+        # arrayed as a whole -- take the component model's: one log weight per component,
+        # then the log scale and the log noise
+        weight = np.exp(np.array(theta_in))
 
-        df_tmp = pd.DataFrame({'weight': weight, 'component': labels})
+        df_tmp = pd.DataFrame({'weight': weight.squeeze(), 'component': comp_names})
         df_tmp['sn']      = sn
         df_tmp['Hem']     = H
         df_tmp['roi']     = roi
@@ -427,19 +483,41 @@ def make_component_model_dataframe(sns=None, glm=3, atlas_name='ROI'):
         df = pd.concat([df, df_tmp], ignore_index=True)
 
     df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'component_model.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
-    return df
+
+
+def make_likelihood_dataframe(sns=gl.participants, glm=3, atlas_name='ROI'):
+
+    rois = gl.rois[atlas_name]
+
+    LL = pd.DataFrame()
+    for sn, session, H, roi in itertools.product(sns, gl.sessions, gl.Hem, rois):
+        path = os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'component_model.T_in.{atlas_name}.glm{glm}.{session}.{H}.{roi}.p')
+        with open(path, 'rb') as f:
+            T_in = pickle.load(f)
+        
+        ll            = T_in.likelihood
+        ll['sn']      = sn
+        ll['session'] = session
+        ll['Hem']     = H
+        ll['roi']     = roi
+
+        LL = pd.concat([LL, ll])
+
+    LL.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'likelihood.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
 
 
 FUNC = {
-    'G_rois'           : calc_G_rois,
-    'G_force'          : calc_G_force,
-    'dataframe_force'  : make_dataframe_force,
-    'dataframe_rois'   : make_dataframe_rois,
-    'correlation'      : correlation_between_sessions,
-    'noise_ceiling'    : make_noise_ceiling_dataframe,
-    'scaling'          : make_scaling_dataframe,
-    'component_fit'    : fit_component_model_rois,
-    'component_summary': make_component_model_dataframe,
+    'G_rois'                     : calc_G_rois,
+    'G_force'                    : calc_G_force,
+    'correlation'                : correlation_between_sessions,
+    'fit_component_model_rois'   : fit_component_model_rois,
+    'dataframe_distance_force'   : make_force_distance_dataframe,
+    'dataframe_distance_rois'    : make_rois_distance_dataframe,
+    'dataframe_distance_ancova'  : make_ancova_dataframe,
+    'dataframe_noise_ceiling'    : make_noise_ceiling_dataframe,
+    'dataframe_scaling'          : make_scaling_dataframe,
+    'dataframe_component_weight' : make_component_weight_dataframe,
+    'dataframe_likelihood'       : make_likelihood_dataframe,
 }
 
 
@@ -450,15 +528,20 @@ def main(what, **kwargs):
     """
 
     if what is not None:
-        FUNC[what](**kwargs)
-
+        func = FUNC[what] # select function
+        accepted = inspect.signature(func).parameters # find what parameters are acceptable
+        func(**{k: v for k, v in kwargs.items() if k in accepted}) # run the function
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Calculate the second moment matrices of the neural and force patterns.')
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: dataframe_neural)')
     parser.add_argument('--glm', type=int, default=None, help='GLM the betas come from, G_rois and dataframe_neural only (default: the step default, 3)')
+    parser.add_argument('--sns', nargs='+', type=int, default=gl.participants, help='participant ids to include in the analysis')
     args = parser.parse_args()
 
     kwargs = {k: v for k, v in vars(args).items() if k != 'what' and v is not None}
     main(args.what, **kwargs)
+
+    if args.what is None:
+        calc_G_rois(sns=[116])
 

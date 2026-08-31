@@ -73,21 +73,14 @@ def calc_G(data, cond_vec, part_vec, session='all', repetition='all', centred=Fa
     array rather than centring in place, so the same betas can be reused for
     another session.
 
-    ``repetition`` restricts the estimate to a single repetition; it is read out of
-    ``cond_vec``, so it only works for a glm whose regressors carry a repetition
-    field (``'session,repetition,chordID'``, e.g. glm2).
+    ``session`` and ``repetition`` are both read out of ``cond_vec`` (see
+    ``runs_to_keep``); ``repetition`` therefore only works for a glm whose regressors
+    carry a repetition field (``'session,repetition,chordID'``, e.g. glm2).
     """
     if centred:
         data = data - data.mean(axis=1, keepdims=True)
 
-    rep_vec = None
-    if repetition != 'all':
-        parts = pd.Series(cond_vec).str.split(',', expand=True)
-        if parts.shape[1] < 3:
-            raise ValueError("cond_vec has no repetition field (expected 'session,repetition,chordID')")
-        rep_vec = parts[1].astype(int).to_numpy()
-
-    keep = runs_to_keep(part_vec.size, session=session, repetition=repetition, rep_vec=rep_vec)
+    keep = runs_to_keep(cond_vec, session=session, repetition=repetition)
 
     if crossval:
         G_obs, _ = pcm.est_G_crossval(data[keep],

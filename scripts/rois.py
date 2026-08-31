@@ -67,8 +67,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Build cortical ROIs and hemisphere masks from the surfaces.')
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: all)')
     parser.add_argument('--glm', type=int, default=None, help='GLM whose mask.nii bounds the ROIs (default: the step default, 3)')
-    parser.add_argument('--sn', nargs='+', type=int, default=None, dest='sns',
-                        help='participant numbers (default: all participants)')
+    parser.add_argument('--sns', nargs='+', type=int, default=[116], help='participant numbers (default: all participants)')
     parser.add_argument('--atlas_name', default=None, help='atlas, make_rois only (default: the step default, ROI)')
     args = parser.parse_args()
 

@@ -1,0 +1,28 @@
+[submodule "external/nitools"]
+	path = external/nitools
+	url = https://github.com/DiedrichsenLab/nitools.git
+	branch = develop_marco
+[submodule "external/Functional_Fusion"]
+	path = external/Functional_Fusion
+	url = https://github.com/DiedrichsenLab/Functional_Fusion.git
+	branch = main
+[submodule "external/PcmPy"]
+	path = external/PcmPy
+	url = https://github.com/DiedrichsenLab/PcmPy.git
+	branch = develop_marco
+[submodule "external/surfAnalysisPy"]
+	path = external/surfAnalysisPy
+	url = https://github.com/DiedrichsenLab/surfAnalysisPy.git
+	branch = master
+[submodule "external/AnatSearchlight"]
+	path = external/AnatSearchlight
+	url = https://github.com/DiedrichsenLab/AnatSearchlight.git
+	branch = main
+[submodule "external/imaging_pipelines"]
+	path = external/imaging_pipelines
+	url = https://github.com/mnlmrc/imaging_pipelines.git
+	branch = main
+[submodule "external/rsatoolbox"]
+	path = external/rsatoolbox
+	url = https://github.com/mnlmrc/rsatoolbox.git
+	branch = develop

@@ -3,6 +3,73 @@
 Analysis code for the extension–flexion chord (EFC) learning fMRI study: participants
 practise a set of finger chords over 24 days, with fMRI scans on days 3, 9 and 23.
 
+## Setup
+
+Requires Python 3.10. Nothing needs to be installed from this repo -- the lab
+dependencies are pinned as git submodules under `external/` and put on
+`PYTHONPATH`.
+
+```bash
+git clone --recurse-submodules https://github.com/mnlmrc/EFC_learningfMRI.git
+cd EFC_learningfMRI
+python3.10 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+./setup_env.sh               # makes the project and external/ importable
+```
+
+If you already cloned without `--recurse-submodules`:
+
+```bash
+git submodule update --init --recursive
+```
+
+`setup_env.sh` is run **once**, not per shell. It writes a `.pth` file into the
+virtualenv's `site-packages`, which Python reads at every interpreter start, so
+imports resolve identically from the terminal, the VS Code run button, the
+debugger, notebook kernels, subprocesses and cluster jobs -- from any working
+directory. Re-run it if you move the repo or recreate the venv.
+
+### Pinned dependencies
+
+Each submodule is pinned to an exact commit, so everyone runs the same code.
+The branch each pin was taken from is recorded in [.gitmodules](.gitmodules):
+
+| Package | Repo | Branch |
+| --- | --- | --- |
+| `nitools` | DiedrichsenLab/nitools | `develop_marco` |
+| `PcmPy` | DiedrichsenLab/PcmPy | `develop_marco` |
+| `Functional_Fusion` | DiedrichsenLab/Functional_Fusion | `main` |
+| `surfAnalysisPy` | DiedrichsenLab/surfAnalysisPy | `master` |
+| `AnatSearchlight` | DiedrichsenLab/AnatSearchlight | `main` |
+| `imaging_pipelines` | mnlmrc/imaging_pipelines | `main` |
+| `rsatoolbox` | mnlmrc/rsatoolbox | `develop` |
+
+`git status` reports a submodule as modified whenever it drifts off its pin, so
+accidental drift is visible rather than silent.
+
+To move a dependency to newer upstream code, update it and commit the new pin:
+
+```bash
+cd external/PcmPy && git checkout develop_marco && git pull && cd ../..
+git add external/PcmPy && git commit -m "Bump PcmPy"
+```
+
+Two notes on how the paths resolve:
+
+* `external/` itself is on `PYTHONPATH` because `surfAnalysisPy` and
+  `imaging_pipelines` keep their modules at the repo root, so their *parent*
+  must be importable.
+* The generated `.pth` uses an `import` line so it can *prepend* to `sys.path`.
+  A plain path line would be appended after `site-packages`, where the
+  `neuroimagingtools` release that `SUITPy` depends on would shadow the pinned
+  `external/nitools`.
+
+`rsatoolbox` is the one exception: it is installed from PyPI via
+[requirements.txt](requirements.txt) rather than taken from `external/`, because
+the fork has a Cython extension that must be compiled. To use the fork, run
+`pip install -e external/rsatoolbox` (needs a C compiler). Only `depreciated/`
+imports it.
+
 ## Experimental design
 
 * 8 chords (`gl.chordID`), 4 assigned as **trained** and 4 as **untrained** per
@@ -143,6 +210,40 @@ not split by repetition). -->
 | | `force_abs` | absolute force averaged over fingers and successful trials |
 | | `force_der` | absolute force derivative averaged over fingers and successful trials |
 
+### BOLD timeseries
+
+```mermaid
+flowchart TD
+    RAW[("<b>SPM.mat, raw EPI files, ROI masks:</b><br/>glm#lt;glm#gt;/subj#lt;sn#gt;/SPM.mat<br/></b>imaging_data/subj#lt;sn#gt;/usubj#lt;sn#gt;_run_#lt;bl#gt;.nii<br/>ROI/subj#lt;sn#gt;/#lt;atlas#gt;.#lt;H#gt;.#lt;roi#gt;.nii")]:::data
+
+    B_TS["scripts/bold.save_bold_rois()"]:::code
+    BOLD[("<b>raw, predicted and adjusted BOLD timeseries:</b><br/>glm#lt;glm#gt;/subj#lt;sn#gt;/BOLD.raw.#lt;H#gt;.#lt;roi#gt;.npy<br/>glm#lt;glm#gt;/subj#lt;sn#gt;/BOLD.hat.#lt;H#gt;.#lt;roi#gt;.npy<br/>glm#lt;glm#gt;/subj#lt;sn#gt;/BOLD.adj.#lt;H#gt;.#lt;roi#gt;.npy")]:::data
+
+    B_SEG["scripts/bold.segment_bold()"]:::code
+    SEG[("<b>trial-segmented, voxel-averaged BOLD timeseries:</b><br/>bold/bold_segmented.tsv")]:::data
+
+    RAW --> B_TS
+    B_TS --> BOLD
+    BOLD --> B_SEG
+    B_SEG --> SEG
+
+    classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
+    classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
+```
+
+#### Dataframes
+
+| `bold/bold_segmented.tsv`: one row per participant × hemisphere × ROI × trial × time sample | Column | Description |
+|:---|---|---|
+| | `chordID` | code for the chord produced on that trial (5-digit code, see the behaviour tables) |
+| | `sess` | session the trial comes from (glm onset `day`: 3, 9 or 23) |
+| | `chord` | `trained` (chord in the participant's trained set) / `untrained` |
+| | `time` | sample index relative to trial onset, −3 … 16 |
+| | `signal` | adjusted BOLD averaged over the ROI's voxels at that time sample |
+| | `sn` | participant number |
+| | `roi` | region from `gl.rois[<atlas>]` |
+| | `Hem` | `L` / `R` |
+
 ### Univariate activation
 
 <!-- Starting from the per-participant `contrast.dscalar.nii` (written by
@@ -242,8 +343,13 @@ flowchart TB
         P_CFIT["scripts/pattern.fit_component_model_rois()³"]:::code
         CTHETA[("<b>component-model log-weights:</b><br/>pcm/subj#lt;sn#gt;/component_model.theta_in.#lt;atlas#gt;.glm#lt;glm#gt;.#lt;session#gt;.#lt;H#gt;.#lt;roi#gt;.p")]:::data
 
-        P_CSUM["scripts/pattern.make_component_model_dataframe()"]:::code
+        P_CSUM["scripts/pattern.make_component_weight_dataframe()"]:::code
         CMODEL[("<b>component weights:</b><br/>pcm/component_model.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
+
+        CTIN[("<b>individual-fit model log-likelihoods:</b><br/>pcm/subj#lt;sn#gt;/component_model.T_in.#lt;atlas#gt;.glm#lt;glm#gt;.#lt;session#gt;.#lt;H#gt;.#lt;roi#gt;.p")]:::data
+
+        P_LIKE["scripts/pattern.make_likelihood_dataframe()"]:::code
+        LIKE[("<b>log-likelihood of every model:</b><br/>pcm/likelihood.#lt;atlas#gt;.glm#lt;glm#gt;.tsv")]:::data
 
         NBETA --> P_GROIS
         P_GROIS --> GROIS
@@ -261,6 +367,9 @@ flowchart TB
         P_CFIT --> CTHETA
         CTHETA --> P_CSUM
         P_CSUM --> CMODEL
+        P_CFIT --> CTIN
+        CTIN --> P_LIKE
+        P_LIKE --> LIKE
     end
 
     subgraph FORCE ["Force"]
@@ -294,7 +403,10 @@ flowchart TB
 <!-- `dataframe_rois`, `noise_ceiling` and `scaling` read only the `G_obs_raw.within_session.*` Gs; `correlation`
 reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_session.<sess>` or
 `across_session`, with an optional `[.<repetition>]`; `<spair>` is a session pair like `3-9`.
-`component_fit` reads the betas/residuals directly plus the `G_obs.within_session.3.*` Gs; `component_summary` reads the `component_model.theta_in.*` pickles. -->
+`fit_component_model_rois` reads the betas/residuals directly plus the session-3 force Gs
+(`G_obs_raw.within_session.3.force.*`, so the FORCE branch has to have run first);
+`make_component_weight_dataframe` reads the `component_model.theta_in.*` pickles and
+`make_likelihood_dataframe` the `component_model.T_in.*` ones. -->
 
 #### Dataframes
 
@@ -354,38 +466,12 @@ reads the betas/residuals directly (not the saved Gs). `<epoch>` is `within_sess
 | | `roi` | region from `gl.rois[<atlas>]` |
 | | `session` | 3, 9 or 23 |
 
-### BOLD timeseries
-
-```mermaid
-flowchart TD
-    RAW[("<b>SPM.mat, raw EPI files, ROI masks:</b><br/>glm#lt;glm#gt;/subj#lt;sn#gt;/SPM.mat<br/></b>imaging_data/subj#lt;sn#gt;/usubj#lt;sn#gt;_run_#lt;bl#gt;.nii<br/>ROI/subj#lt;sn#gt;/#lt;atlas#gt;.#lt;H#gt;.#lt;roi#gt;.nii")]:::data
-
-    B_TS["scripts/bold.save_bold_rois()"]:::code
-    BOLD[("<b>raw, predicted and adjusted BOLD timeseries:</b><br/>glm#lt;glm#gt;/subj#lt;sn#gt;/BOLD.raw.#lt;H#gt;.#lt;roi#gt;.npy<br/>glm#lt;glm#gt;/subj#lt;sn#gt;/BOLD.hat.#lt;H#gt;.#lt;roi#gt;.npy<br/>glm#lt;glm#gt;/subj#lt;sn#gt;/BOLD.adj.#lt;H#gt;.#lt;roi#gt;.npy")]:::data
-
-    B_SEG["scripts/bold.segment_bold()"]:::code
-    SEG[("<b>trial-segmented, voxel-averaged BOLD timeseries:</b><br/>bold/bold_segmented.tsv")]:::data
-
-    RAW --> B_TS
-    B_TS --> BOLD
-    BOLD --> B_SEG
-    B_SEG --> SEG
-
-    classDef code  fill:#eef3ea,stroke:#7a9a5f,color:#2a3a1e;
-    classDef data  fill:#f7f1e8,stroke:#c39b56,color:#4a3818;
-```
-
-#### Dataframes
-
-| `bold/bold_segmented.tsv`: one row per participant × hemisphere × ROI × trial × time sample | Column | Description |
+| `pcm/likelihood.<atlas>.glm<glm>.tsv`: one row per participant × hemisphere × ROI × session, in the order the cells are looped over (`itertools.product(sns, gl.sessions, gl.Hem, rois)`) — **the rows carry no `sn` / `Hem` / `roi` / `session` columns**, so they can only be identified by position | Column | Description |
 |:---|---|---|
-| | `chordID` | code for the chord produced on that trial (5-digit code, see the behaviour tables) |
-| | `sess` | session the trial comes from (glm onset `day`: 3, 9 or 23) |
-| | `chord` | `trained` (chord in the participant's trained set) / `untrained` |
-| | `time` | sample index relative to trial onset, −3 … 16 |
-| | `signal` | adjusted BOLD averaged over the ROI's voxels at that time sample |
-| | `sn` | participant number |
-| | `roi` | region from `gl.rois[<atlas>]` |
-| | `Hem` | `L` / `R` |
+| | `null` | log-likelihood of the null model (no structure): the reference every other model is read against |
+| | `type`, `trained`, `untrained`, `finger`, `pattern`, `flexion` | log-likelihood of each single-component fixed model, fitted on its own |
+| | `force_raw`, `force_abs`, `force_der` | log-likelihood of the fixed models whose G is the session-3 force G (signed force, absolute force, absolute force derivative) |
+| | `component` | log-likelihood of the `ComponentModel` combining all nine components, each with its own weight |
+| | `ceil` | log-likelihood of the free model: the upper noise ceiling of the individual fits |
 
 

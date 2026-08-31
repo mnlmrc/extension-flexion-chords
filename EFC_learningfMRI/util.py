@@ -14,6 +14,82 @@ from scipy.stats import linregress, t
 #import EFC_learningfMRI.globals as gl
 
 
+# --- the cond_vec label format -------------------------------------------------
+# A cond_vec entry is a ','-joined string of integer fields:
+#
+#     'session,chord'             e.g. glm3, whose regressors carry no repetition
+#     'session,repetition,chord'  e.g. glm2, whose regressors do
+#
+# `session` is the 1-based index of the session in gl.sessions (3 -> 1, 9 -> 2,
+# 23 -> 3), NOT the session number itself; `chord` is the 0-based slot in the
+# participant's trained-first chord order (see get_trained_and_untrained), so
+# slots 0-3 are trained and 4-7 untrained for every participant.
+#
+# make_cond_vec and parse_cond_vec below are the only code that knows this — build
+# and read labels through them rather than formatting or splitting strings by hand,
+# so a two-field label can never be read as if it were a three-field one.
+COND_SEP  = ','
+N_TRAINED = 4     # slots 0..N_TRAINED-1 are the trained chords
+
+
+def session_index(session):
+    """1-based index a real IMAGING session number (3, 9, 23) has in a cond_vec label."""
+    index = {s: i + 1 for i, s in enumerate(gl.sessions)}
+    if session not in index:
+        raise ValueError(f"session must be one of {sorted(index)}, got {session!r}")
+    return index[session]
+
+
+def make_cond_vec(session, chord, repetition=None):
+    """Assemble cond_vec labels from their fields.
+
+    Args:
+        session:    1-based session index per row (see :func:`session_index`).
+        chord:      0-based trained-first chord slot per row.
+        repetition: repetition label per row, or None for a glm that has none.
+
+    Returns:
+        Array of ``len(session)`` label strings e.g. session 3, repetition 1, trained chord, 3,1,<int from 0-3, 4-7 for untrianed>.
+    """
+    fields = [session, chord] if repetition is None else [session, repetition, chord]
+    cols   = [pd.Series(np.asarray(f)).reset_index(drop=True).astype(str) for f in fields]
+    return cols[0].str.cat(cols[1:], sep=COND_SEP).to_numpy()
+
+
+def parse_cond_vec(cond_vec):
+    """Split cond_vec labels back into their integer fields.
+
+    Returns:
+        DataFrame with one row per label and the integer columns ``session`` and
+        ``chord``, plus ``repetition`` when (and only when) the labels carry that
+        field. Callers that need the repetition must therefore check for the
+        column rather than assume a position — which is the point of parsing here
+        instead of splitting on ``,`` at the call site.
+    """
+    if np.ndim(cond_vec) == 0:
+        raise TypeError('cond_vec must be the array of condition labels, not a row count: '
+                        'the session is read off the labels so participants with unequal '
+                        f'runs per session are split correctly (got {cond_vec!r})')
+
+    parts = pd.Series(np.asarray(cond_vec)).str.split(COND_SEP, expand=True)
+
+    if parts.shape[1] == 2:
+        parts.columns = ['session', 'chord']
+    elif parts.shape[1] == 3:
+        parts.columns = ['session', 'repetition', 'chord']
+    else:
+        raise ValueError(f"a cond_vec label has 2 or 3 {COND_SEP!r}-separated fields "
+                         f"('session,chord' or 'session,repetition,chord'), got "
+                         f"{np.asarray(cond_vec).ravel()[0]!r}")
+
+    return parts.astype(int)
+
+
+def _is_all(value):
+    """True for the ``'all'`` sentinel, without comparing an array to a string."""
+    return isinstance(value, str) and value == 'all'
+
+
 @dataclass
 class RegInfo:
     """The reginfo.tsv of one subject/glm, parsed into partition and condition vectors.
@@ -59,17 +135,15 @@ class RegInfo:
     def cond_vec(self):
         """
         transform condition labels into number for correct ordering in G matrix
-        """
-        session  = self.condition[1].map(gl.sess_mapping)
-        chordID  = self.condition[0].astype(int).map(self.make_chord_mapping)
 
-        if self.condition.shape[1] > 2:
-            repetition = self.condition[2]
-            cond_vec   = session.astype(str) + ',' + repetition.astype(str) + ',' + chordID.astype(str)
-        else:
-            cond_vec = session.astype(str) + ',' + chordID.astype(str)
-        
-        return cond_vec.to_numpy()
+        The labels themselves are assembled by :func:`make_cond_vec`, which is what
+        :func:`parse_cond_vec` reads back.
+        """
+        session    = self.condition[1].map(gl.sess_mapping)
+        chordID    = self.condition[0].astype(int).map(self.make_chord_mapping)
+        repetition = self.condition[2] if self.condition.shape[1] > 2 else None
+
+        return make_cond_vec(session, chordID, repetition)
 
 
 def parse_regressor_name(name, sep=','):
@@ -116,49 +190,53 @@ def get_trained_and_untrained(sn):
     return chords
 
 
-def runs_to_keep(totRuns, session='all', repetition='all', rep_vec=None):
-    """Boolean mask over ``totRuns`` regressor rows, selecting a session and/or repetition.
+def runs_to_keep(cond_vec, session='all', repetition='all', chord='all'):
+    """Boolean mask over regressor rows, selecting a session, repetition and/or chord set.
 
-    The two filters are independent and combined with AND, so you can ask for one,
-    the other, or both.
+    The only reader of the cond_vec format is :func:`parse_cond_vec`, so a filter
+    here cannot disagree with how the labels were built.
 
     Args:
-        totRuns:    number of rows the mask covers, e.g. ``part_vec.size``.
-        session:    3, 9 or 23 to keep only that session's rows, or ``'all'``.
-                    Sessions are assumed to split the rows into three equal blocks.
-        repetition: repetition label to keep, or ``'all'``. Needs ``rep_vec``.
-        rep_vec:    repetition label per row, length ``totRuns``. Only required
-                    when ``repetition != 'all'``.
+        cond_vec:   condition label per regressor row, e.g. ``RegInfo(sn, glm).cond_vec``.
+        session:    3, 9 or 23 to keep only that session's rows, a sequence of them to
+                    keep a group of sessions (a session pair, say), or ``'all'``.
+        repetition: repetition label to keep, or ``'all'``. Only works for a glm whose labels carry a repetition field ('session,repetition,chord', e.g. glm2).
+        chord:      ``'trained'`` (slots 0-3) or ``'untrained'`` (slots 4-7) to keep one
+                    chord set, or ``'all'``.
 
     Returns:
-        Boolean array of length ``totRuns``, True for rows passing both filters.
+        Boolean array of length ``len(cond_vec)``, True for rows passing every filter.
     """
-    session_dict = {3: 0, 9: 1, 23: 2}
+    cond = parse_cond_vec(cond_vec)
+    keep = np.ones(len(cond), dtype=bool)
 
-    if session == 'all':
-        keep_sess = np.ones(totRuns, dtype=bool)
-    else:
-        if session not in session_dict:
-            raise ValueError(f"session must be 'all' or one of {sorted(session_dict)}, got {session!r}")
-        block                                        = session_dict[session]
-        nRuns                                        = totRuns // 3
-        keep_sess                                    = np.zeros(totRuns, dtype=bool)
-        keep_sess[block * nRuns:(block + 1) * nRuns] = True
+    if not _is_all(session):
+        wanted = [session_index(s) for s in np.atleast_1d(session).tolist()]
+        keep  &= cond.session.isin(wanted).to_numpy()
+        if not keep.any():
+            raise ValueError(f'no rows match session {session!r}; cond_vec holds sessions '
+                             f'{sorted(cond.session.unique().tolist())} (1-based)')
 
-    if repetition == 'all':
-        keep_rep = np.ones(totRuns, dtype=bool)
-    else:
-        if rep_vec is None:
-            raise ValueError('rep_vec must be passed if a specific repetition is requested')
-        rep_vec = np.asarray(rep_vec)
-        if rep_vec.size != totRuns:
-            raise ValueError(f'rep_vec has {rep_vec.size} entries but totRuns is {totRuns}')
-        keep_rep = rep_vec == repetition
-        if not keep_rep.any():
+    if not _is_all(repetition):
+        if 'repetition' not in cond:
+            raise ValueError("cond_vec has no repetition field (expected 'session,repetition,chord')")
+        keep &= (cond.repetition == repetition).to_numpy()
+        if not keep.any():
             raise ValueError(f'no rows match repetition {repetition!r}; '
-                             f'rep_vec holds {np.unique(rep_vec).tolist()}')
+                             f'cond_vec holds {sorted(cond.repetition.unique().tolist())}')
 
-    return keep_sess & keep_rep
+    if not _is_all(chord):
+        if chord == 'trained':
+            keep &= (cond.chord < N_TRAINED).to_numpy()
+        elif chord == 'untrained':
+            keep &= (cond.chord >= N_TRAINED).to_numpy()
+        else:
+            raise ValueError(f"chord must be 'all', 'trained' or 'untrained', got {chord!r}")
+        if not keep.any():
+            raise ValueError(f'no rows match chord {chord!r} in session {session!r}; '
+                             f'cond_vec holds slots {sorted(cond.chord.unique().tolist())}')
+
+    return keep
 
 
 def add_chord_column(df, chordID_col='chordID', sn_col='sn', out_col='chord'):
@@ -364,7 +442,7 @@ def calc_R2(Y, Yhat):
 
 
 
-def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, roi_col='roi', subject_col='sn', paired=True, alternative='two-sided'):
+def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, roi_col='roi', subject_col='sn', paired=True, alternative='two-sided', popmean=0):
     """Paired t-tests between ``hue`` levels, one per level of ``x`` (and per ROI).
 
     The statistical counterpart of the ``plot_*_sess`` functions in
@@ -377,6 +455,13 @@ def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, 
         ttest = ttest_im_sess(dist_chord_sess, rois, y='crossnobis', hue='chord',
                               hue_order=['trained', 'untrained'])
         print(ttest[['T', 'dof', 'p_val', 'CI95', 'roi', 'session']])
+
+    Leave ``hue`` out to test the ``y`` values themselves against ``popmean``
+    (a one-sample t-test per ROI / ``x`` level), which is how a quantity with no
+    contrast to take -- a noise ceiling, a correlation -- is tested against zero::
+
+        ttest = ttest_im_sess(nc[nc.Hem == 'L'], rois, y='lower', alternative='greater')
+        print(ttest[['roi', 'session', 'T', 'dof', 'p_val', 'CI95']])
 
     Set ``roi_col=None`` for a table with no ROI column -- the behavioural ones,
     say, where the test is over sessions only::
@@ -398,8 +483,9 @@ def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, 
         Column whose levels are tested separately (default ``'session'``).
     y : str
         Column holding the values to test.
-    hue : str
-        Column whose levels are compared against each other.
+    hue : str, optional
+        Column whose levels are compared against each other; ``None`` for a
+        one-sample test of ``y`` against ``popmean``.
     hue_order : list, optional
         Levels of ``hue`` to compare, in order; the t-test is signed as the
         first level minus the second (default: order of appearance in ``df``).
@@ -410,9 +496,13 @@ def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, 
         Column identifying the subject, used to pair observations across
         ``hue`` levels (default ``'sn'``; the behavioural tables use ``'subNum'``).
     paired : bool, optional
-        Whether to pair the two samples by ``subject_col`` (default True).
+        Whether to pair the two samples by ``subject_col`` (default True);
+        ignored by the one-sample test.
     alternative : {'two-sided', 'less', 'greater'}, optional
         Passed to pingouin.
+    popmean : float, optional
+        Value the one-sample test compares against (default 0); ignored when
+        ``hue`` is given.
 
     Returns
     -------
@@ -420,13 +510,16 @@ def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, 
         One row per ROI / ``x`` level / pair of ``hue`` levels, with columns
         ``A``, ``B``, ``T``, ``dof``, ``p_val``, ``CI95``, ``cohen_d``, ``BF10``,
         ``power``, plus the ``x`` column and, unless ``roi_col`` is None, ``roi_col``.
+        The one-sample rows carry ``A = y`` and ``B = popmean``.
     """
     import pingouin as pg   # heavy import; only this helper needs it
 
-    if y is None or hue is None:
-        raise ValueError("y (the values to test) and hue (the levels to compare) are both required")
+    if y is None:
+        raise ValueError("y (the values to test) is required")
 
-    if hue_order is None:
+    one_sample = hue is None    # nothing to contrast against, so test y against popmean
+
+    if hue_order is None and not one_sample:
         hue_order = list(df[hue].unique())
 
     if roi_col is None:
@@ -443,39 +536,72 @@ def ttest_im_sess(df, rois=None, x='session', y=None, hue=None, hue_order=None, 
 
         for level in x_levels:
 
-            df_level   = df_roi[df_roi[x]==level]
-            piv        = df_level.pivot(index=subject_col, columns=hue, values=y)
-            hue_levels = [h for h in hue_order if h in piv.columns]
+            df_level = df_roi[df_roi[x]==level]
 
-            for a, b in itertools.combinations(hue_levels, 2):
-                pair = piv[[a, b]].dropna()
-                res  = pg.ttest(pair[a], pair[b], paired=paired, alternative=alternative).iloc[0]
-                row  = {x        : level,
-                        'A'      : a,
-                        'B'      : b,
-                        'T'      : res['T'],
-                        'dof'    : res['dof'],
-                        'p_val'  : res['p_val'],
-                        'CI95'   : res['CI95'],       # of the A - B difference; pingouin rounds it to 2 decimals
-                        'cohen_d': res['cohen_d'],    # unsigned -- the sign of the effect is in T
-                        'BF10'   : res['BF10'],
-                        'power'  : res['power']}
+            # (A, B, sample_A, sample_B) per test; pingouin takes a scalar as the
+            # second argument, which is what makes the one-sample case the same call
+            if one_sample:
+                vals = df_level.set_index(subject_col)[y]
+                if vals.index.has_duplicates:
+                    raise ValueError(f'more than one row per {subject_col} in {x}={level}'
+                                     + ('' if roi_col is None else f', {roi_col}={roi}'))
+                tests = [(y, popmean, vals.dropna(), popmean)]
+            else:
+                piv        = df_level.pivot(index=subject_col, columns=hue, values=y)
+                hue_levels = [h for h in hue_order if h in piv.columns]
+                tests      = []
+                for a, b in itertools.combinations(hue_levels, 2):
+                    pair = piv[[a, b]].dropna()
+                    tests.append((a, b, pair[a], pair[b]))
+
+            for a, b, sample_a, sample_b in tests:
+                res = pg.ttest(sample_a, sample_b, paired=paired and not one_sample, alternative=alternative).iloc[0]
+                row = {x        : level,
+                       'A'      : a,
+                       'B'      : b,
+                       'T'      : res['T'],
+                       'dof'    : res['dof'],
+                       'p_val'  : res['p_val'],
+                       'CI95'   : res['CI95'],       # of the A - B difference (of the mean, one-sample); pingouin rounds it to 2 decimals
+                       'cohen_d': res['cohen_d'],    # unsigned -- the sign of the effect is in T
+                       'BF10'   : res.get('BF10', np.nan),   # pingouin only reports it for the two-sided test
+                       'power'  : res.get('power', np.nan)}
                 rows.append(row if roi_col is None else {roi_col: roi, **row})
 
     return pd.DataFrame(rows)
 
 
 def load_glm_onset(sn, glm, output_events=False):
-    pinfo     = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
-    func_runs = pinfo.loc[pinfo.participant_id == f"subj{sn}", "FuncRuns_day3"].iloc[0].split('.')
-    func_runs = np.array(func_runs, dtype=int)
-    func_runs = np.array([func_runs + func_runs.size * i for i in range(3)]).flatten()
-    events    = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, 'day3', f'efc4_subj{sn}_glm{glm}_events.tsv'), sep='\t')
-    events    = events[(events.BN.isin(func_runs)) & (events.chordID != 99999)]
-    BN        = events.BN.to_numpy() - 1
-    onset_b   = events.Onset.to_numpy()
-    onset     = (np.round(onset_b * gl.TR) + BN * gl.nTR).astype(int)
-    onset     = np.sort(onset)
+    """Trial onsets of participant `sn`, in TRs of the glm's concatenated timeseries.
+
+    The events file numbers the blocks with a fixed offset of `gl.nRuns` per session -- run
+    r of session i is BN = r + i * gl.nRuns -- while the runs that actually made it into the
+    glm are listed session by session in the `FuncRuns_day<day>` columns of participants.tsv,
+    and those differ between days (subj116, for one, kept 7 runs on day 9 and 10 on the other
+    two). The glm stacks the runs it kept back to back, so a trial's onset is set by the
+    position of its run among the kept ones, not by its BN.
+    """
+    pinfo  = pd.read_csv(os.path.join(gl.baseDir, 'participants.tsv'), sep='\t')
+    prow   = pinfo.loc[pinfo.participant_id == f"subj{sn}"].iloc[0]
+
+    events = pd.read_csv(os.path.join(gl.baseDir, gl.behavDir, 'day3', f'efc4_subj{sn}_glm{glm}_events.tsv'), sep='\t')
+    events = events[events.chordID != 99999]
+
+    # (day, BN) -> position of that run in the concatenated timeseries. Only the sessions
+    # this glm covers count towards the position (glm 4, for one, is day 3 only).
+    runs = []
+    for i, day in enumerate(gl.sessions):
+        func_runs = str(prow[f"FuncRuns_day{day}"])
+        for run in np.sort(np.array(func_runs.split('.'), dtype=int)):
+            runs.append({'day': day, 'BN': run + i * gl.nRuns, 'run_idx': len(runs)})
+
+    events = events.merge(pd.DataFrame(runs), on=['day', 'BN'])   # inner join drops the runs left out of the glm
+    onset  = (np.round(events.Onset.to_numpy() * gl.TR) + events.run_idx.to_numpy() * gl.nTR).astype(int)
+
+    order  = np.argsort(onset)                                    # keep events row i paired with onset i
+    events = events.drop(columns='run_idx').iloc[order].reset_index(drop=True)
+    onset  = onset[order]
+
     if output_events:
         return onset, events
     else:

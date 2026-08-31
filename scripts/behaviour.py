@@ -14,7 +14,7 @@ ID_COLS = ['subNum', 'BN', 'TN', 'Repetition', 'chordID', 'chord', 'session', 's
 PERF_COLS = ['trialPoint', 'ET', 'MD']
 
 # Force columns
-FORCE_MEASURES = ['abs', 'der',]
+FORCE_MEASURES = ['raw', 'abs', 'der',]
 FORCE_COLS = {m: [f'{f}_{m}' for f in gl.fingers] for m in FORCE_MEASURES}
 
 # Descriptors kept in the force tables.
@@ -25,8 +25,8 @@ SESSION_BY = ['subNum', 'session', 'chord', 'session_type', 'week']
 BLOCK_BY = ['subNum', 'BN', 'session', 'chord', 'chordID', 'Repetition', 'session_type', 'week']
 
 TRIAL     = 'behaviour.trial.tsv'
-BSESS      = 'behaviour.session.tsv'
-BSESS_REP  = 'behaviour.session.repetition.tsv'
+BSESS     = 'behaviour.session.tsv'
+BSESS_REP = 'behaviour.session.repetition.tsv'
 FWIDE     = 'force.trial.wide.tsv'
 FFMRI     = 'force.run.wide.tsv'
 FLONG     = 'force.trial.long.tsv'
@@ -34,17 +34,17 @@ FSESS     = 'force.session.avg.tsv'
 FSESS_REP = 'force.session.repetition.avg.tsv'
 
 
-def behaviour_single_session(sn=None, sessions=None):
+def behaviour_single_session(sns=gl.participants, sessions=None):
     """STTSV: parse the raw .dat/.mov files into one table per participant x session.
 
     `sn` defaults to every participant, `sessions` to all `N_SESSIONS` days.
     """
-    sns      = gl.participants if sn is None else [sn]
+    # sns      = gl.participants if sn is None else [sn]
     sessions = range(1, N_SESSIONS + 1) if sessions is None else sessions
 
-    for s in sns:
+    for sn in sns:
         for session in sessions:
-            behaviour.analyse_session(s, session)
+            behaviour.analyse_session(sn, session)
 
 
 def behaviour_by_trial(n_sessions=N_SESSIONS):
@@ -104,7 +104,7 @@ def force_by_session_avg():
 
 # Step name -> function, in the order the full run does them.
 FUNC = {
-    'single.trial'    : behaviour_single_session,
+    'single_session'  : behaviour_single_session,
     'trial'           : behaviour_by_trial,
     'session'         : performance_by_session,
     'force.trial.wide': force_by_trial_wide,
@@ -131,6 +131,7 @@ if __name__ == '__main__':
     main(args.what, **kwargs)
 
     if args.what is None:
+        # main('single_session')
         main('trial')
         main('session')
         main('force.trial.wide')
