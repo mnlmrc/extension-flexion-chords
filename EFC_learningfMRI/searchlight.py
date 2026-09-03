@@ -24,15 +24,49 @@ def make_searchlight(sn):
     searchlight_surf(white, pial, mask, savedir, maxradius=10, maxvoxels=100)
 
 
-def calc_avg_crossnobis(data, cond_vec, part_vec, session):
-    """Default searchlight metric: crossnobis distance, overall / trained / untrained.
+# Column names each metric writes into its gifti, in the order calc_avg_distance
+# returns them. The pooling below finds the two chord-group columns by their
+# '-trained'/'-untrained' suffix, so a new metric only has to keep that suffix.
+METRIC_LABELS = {
+    'crossnobis': ('encoding', 'encoding-trained', 'encoding-untrained'),
+    'theta'     : ('theta',    'theta-trained',    'theta-untrained'),
+}
+METRICS = tuple(METRIC_LABELS)
+
+
+def G_to_distance(G, metric='crossnobis'):
+    """Chord x chord dissimilarity matrix of a second moment matrix ``G``.
+
+    ``'crossnobis'`` is the squared crossvalidated Mahalanobis distance (pattern
+    separation, which grows with the overall activity), ``'theta'`` the angle
+    between the two patterns (pattern geometry, invariant to how strongly the
+    region is driven). Both are read off the same ``G``, so a searchlight can
+    compute either without redoing the (expensive) crossvalidated estimate.
+    """
+    if metric == 'crossnobis':
+        return pcm.G_to_dist(G)
+    elif metric == 'theta':
+        return np.arccos(pcm.G_to_cosine(G))     # G_to_cosine already clips to [-1, 1]
+    raise ValueError(f'metric must be one of {METRICS}, got {metric!r}')
+
+
+def calc_avg_distance(data, cond_vec, part_vec, session, metric='crossnobis'):
+    """Default searchlight metric: distance between chords, overall / trained / untrained.
 
     Returns three scalars (mean distance over all chord pairs, over the trained
     block and over the untrained block), so it pairs with three ``metric_labels``.
+    ``metric`` selects the dissimilarity (see :func:`G_to_distance`).
     """
-    data  = data[:, ~np.isnan(data).any(axis=0)]
+    data = data[:, ~np.isnan(data).any(axis=0)]
+    if data.shape[1] == 0:
+        return np.nan, np.nan, np.nan
+
     G_obs = calc_G(data, cond_vec, part_vec, session)
-    D     = pcm.G_to_dist(G_obs)
+    if not np.isfinite(G_obs).all():
+        # edge searchlights can leave G undefined; G_to_cosine raises on non-finite input
+        return np.nan, np.nan, np.nan
+
+    D = G_to_distance(G_obs, metric=metric)
     tot, trained, untrained = split_trained_untrained(D)
     return tot, trained.mean(), untrained.mean()
 
@@ -53,15 +87,15 @@ def _whiten_mnn(B, R, eps=1e-8):
     return B @ W
 
 
-def calc_avg_crossnobis_mnn(data, cond_vec, part_vec, session, n_cond):
-    """Crossnobis with searchlight-local multivariate noise normalization (MNN).
+def calc_avg_distance_mnn(data, cond_vec, part_vec, session, n_cond, metric='crossnobis'):
+    """:func:`calc_avg_distance` with searchlight-local multivariate noise normalization (MNN).
 
     ``data`` stacks this session's raw betas (first ``n_cond`` rows) on top of the
     residual timeseries (remaining rows), both sampled for the same searchlight. The
     betas are whitened by the searchlight-local noise covariance (Sigma^-1/2, Ledoit-Wolf)
-    before the usual crossnobis, following Walther et al. (2016). Estimating the
+    before the distance is computed, following Walther et al. (2016). Estimating the
     covariance within each ~100-voxel sphere keeps it tiny, so no global voxel x voxel
-    matrix is ever formed -- see :func:`calc_avg_crossnobis` for the non-whitened version.
+    matrix is ever formed -- see :func:`calc_avg_distance` for the non-whitened version.
     """
     betas = data[:n_cond]
     resid = data[n_cond:]
@@ -74,7 +108,7 @@ def calc_avg_crossnobis_mnn(data, cond_vec, part_vec, session, n_cond):
         return np.nan, np.nan, np.nan
 
     betas_white = _whiten_mnn(betas[:, ok], resid[:, ok])   # (n_cond, V_ok), Sigma^-1/2 whitened
-    return calc_avg_crossnobis(betas_white, cond_vec, part_vec, session)
+    return calc_avg_distance(betas_white, cond_vec, part_vec, session, metric=metric)
 
 
 def _residuals_at_candidate_voxels(R_all, bmf, voxel_indx, struct):
@@ -113,7 +147,7 @@ class Searchlight():
         covariance (multivariate noise normalization) instead of being prewhitened once with
         ``ResMS``. The residual file is chosen accordingly (the ``residual.dtseries.nii`` timeseries
         for MNN, the ``ResMS.nii`` volume otherwise) and ``metric_fn`` must accept the stacked
-        betas+residuals (e.g. :func:`calc_avg_crossnobis_mnn`).
+        betas+residuals (e.g. :func:`calc_avg_distance_mnn`).
         """
         self.sns             = gl.participants if sns is None else sns
         self.glm             = glm
@@ -241,5 +275,56 @@ class Searchlight():
                 self._searchlight_subject_multivarite_pw(sn)
             else:
                 self._searchlight_subject_univarite_pw(sn)
+
+
+def _trained_untrained_columns(cols):
+    """Indices of the trained and untrained columns of a searchlight gifti.
+
+    Found by suffix rather than by a hard-coded name, so the same pooling serves
+    every metric in ``METRIC_LABELS`` ('encoding-trained', 'theta-trained', ...).
+    """
+    trained   = [i for i, c in enumerate(cols) if c.endswith('-trained')]
+    untrained = [i for i, c in enumerate(cols) if c.endswith('-untrained')]
+    if len(trained) != 1 or len(untrained) != 1:
+        raise ValueError(f'expected exactly one -trained and one -untrained column, got {cols}')
+    return trained[0], untrained[0]
+
+
+def pool_searchlight(sns=None, glm=None, fname='searchlight_crossnobis', sessions=gl.sessions):
+    """Average the per-subject searchlight maps into group maps, per hemisphere and session.
+
+    Writes two files per hemisphere and session, in ``surfDir`` next to the subject
+    folders they are pooled from:
+
+    ``<fname>.<session>.glm<glm>.<H>.func.gii``
+        group mean of every metric column (nan-safe, so a subject missing a searchlight
+        centre does not blank it for everyone).
+    ``<fname>_diff.<session>.glm<glm>.<H>.func.gii``
+        group mean of each subject's trained-minus-untrained difference, i.e. the
+        learning contrast, computed within subject before averaging.
+    """
+    sns         = gl.participants if sns is None else sns
+    struct_dict = dict(zip(gl.Hem, gl.struct_cortex))
+
+    for H in gl.Hem:
+        struct = struct_dict[H]
+        for session in sessions:
+            data, data_diff = [], []
+            for sn in sns:
+                fpath = os.path.join(gl.baseDir, gl.surfDir, f'subj{sn}', f'{fname}.{session}.glm{glm}.{H}.func.gii')
+                gifti = nb.load(fpath)
+                cols  = nt.get_gifti_column_names(gifti)
+                tr_col, untr_col = _trained_untrained_columns(cols)
+                data_ = nt.get_gifti_data_matrix(gifti)
+                data.append(data_)
+                data_diff.append(data_[:, tr_col] - data_[:, untr_col])
+
+            group = np.nanmean(np.stack(data, axis=0), axis=0)
+            gifti = nt.make_func_gifti(group, anatomical_struct=struct, column_names=cols)
+            nb.save(gifti, os.path.join(gl.baseDir, gl.surfDir, f'{fname}.{session}.glm{glm}.{H}.func.gii'))
+
+            group_diff = np.nanmean(np.stack(data_diff, axis=0), axis=0)
+            gifti      = nt.make_func_gifti(group_diff, anatomical_struct=struct, column_names=['trained-untrained'])
+            nb.save(gifti, os.path.join(gl.baseDir, gl.surfDir, f'{fname}_diff.{session}.glm{glm}.{H}.func.gii'))
 
 
