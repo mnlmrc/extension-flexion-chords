@@ -61,7 +61,7 @@ def calc_avg_distance(data, cond_vec, part_vec, session, metric='crossnobis'):
     if data.shape[1] == 0:
         return np.nan, np.nan, np.nan
 
-    G_obs = calc_G(data, cond_vec, part_vec, session)
+    G_obs = calc_G(data, cond_vec, part_vec, session, fixed_effect=False)
     if not np.isfinite(G_obs).all():
         # edge searchlights can leave G undefined; G_to_cosine raises on non-finite input
         return np.nan, np.nan, np.nan
