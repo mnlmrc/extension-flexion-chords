@@ -144,7 +144,7 @@ def _ancova_beta(df, metric):
     return B[0], B[1], B[2]
 
 
-def make_ancova_dataframe(glm=3, atlas_name='ROI', rois=None, sns=gl.participants, metrics=('crossnobis', 'theta')):
+def make_ancova_dataframe(glm=3, atlas_name='ROI', rois=None, sns=gl.participants, metrics=('crossnobis', 'cosine')):
 
     """Trained vs untrained, with the reference-session geometry regressed out.
 

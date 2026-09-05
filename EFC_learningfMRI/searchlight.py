@@ -2,9 +2,9 @@ import argparse
 from imaging_pipelines.searchlight import searchlight_surf
 from sklearn.covariance import ledoit_wolf
 import EFC_learningfMRI.globals as gl
-from EFC_learningfMRI.betas import RegInfo, load_betas, load_residuals
-from EFC_learningfMRI.G_matrix import calc_G
-from EFC_learningfMRI.util import runs_to_keep, split_trained_untrained
+import EFC_learningfMRI.betas as betas
+import EFC_learningfMRI.G_matrix as G_matrix
+import EFC_learningfMRI.util as util
 import AnatSearchlight.searchlight as sl
 from joblib import Parallel, delayed
 import nibabel as nb
@@ -34,22 +34,6 @@ METRIC_LABELS = {
 METRICS = tuple(METRIC_LABELS)
 
 
-def G_to_distance(G, metric='crossnobis'):
-    """Chord x chord dissimilarity matrix of a second moment matrix ``G``.
-
-    ``'crossnobis'`` is the squared crossvalidated Mahalanobis distance (pattern
-    separation, which grows with the overall activity), ``'theta'`` the angle
-    between the two patterns (pattern geometry, invariant to how strongly the
-    region is driven). Both are read off the same ``G``, so a searchlight can
-    compute either without redoing the (expensive) crossvalidated estimate.
-    """
-    if metric == 'crossnobis':
-        return pcm.G_to_dist(G)
-    elif metric == 'theta':
-        return np.arccos(pcm.G_to_cosine(G))     # G_to_cosine already clips to [-1, 1]
-    raise ValueError(f'metric must be one of {METRICS}, got {metric!r}')
-
-
 def calc_avg_distance(data, cond_vec, part_vec, session, metric='crossnobis'):
     """Default searchlight metric: distance between chords, overall / trained / untrained.
 
@@ -61,13 +45,21 @@ def calc_avg_distance(data, cond_vec, part_vec, session, metric='crossnobis'):
     if data.shape[1] == 0:
         return np.nan, np.nan, np.nan
 
-    G_obs = calc_G(data, cond_vec, part_vec, session, fixed_effect=False)
+    G_obs = G_matrix.calc_G(data, cond_vec, part_vec, session, fixed_effect=False)
+
     if not np.isfinite(G_obs).all():
         # edge searchlights can leave G undefined; G_to_cosine raises on non-finite input
         return np.nan, np.nan, np.nan
 
-    D = G_to_distance(G_obs, metric=metric)
-    tot, trained, untrained = split_trained_untrained(D)
+    if metric == 'crossnobis':
+        D = pcm.G_to_dist(G_obs)
+    elif metric == 'cosine':
+        D = pcm.G_to_cosine(G_obs)
+    elif metric == 'theta':
+        D = np.arccos(pcm.G_to_cosine(G_obs))     # G_to_cosine already clips to [-1, 1]
+
+    tot, trained, untrained = util.split_trained_untrained(D)
+
     return tot, trained.mean(), untrained.mean()
 
 
@@ -97,18 +89,18 @@ def calc_avg_distance_mnn(data, cond_vec, part_vec, session, n_cond, metric='cro
     covariance within each ~100-voxel sphere keeps it tiny, so no global voxel x voxel
     matrix is ever formed -- see :func:`calc_avg_distance` for the non-whitened version.
     """
-    betas = data[:n_cond]
+    beta  = data[:n_cond]
     resid = data[n_cond:]
 
     # keep only voxels usable for whitening: present in the cifti (finite residuals),
     # with non-degenerate noise, and non-empty betas. Edge searchlights can lose them
     # all, which would make the covariance undefined -- return NaN there.
-    ok = np.isfinite(resid).all(axis=0) & (resid.var(axis=0) > 1e-10) & ~np.isnan(betas).all(axis=0)
+    ok = np.isfinite(resid).all(axis=0) & (resid.var(axis=0) > 1e-10) & ~np.isnan(beta).all(axis=0)
     if ok.sum() < 2:
         return np.nan, np.nan, np.nan
 
-    betas_white = _whiten_mnn(betas[:, ok], resid[:, ok])   # (n_cond, V_ok), Sigma^-1/2 whitened
-    return calc_avg_distance(betas_white, cond_vec, part_vec, session, metric=metric)
+    beta_white = _whiten_mnn(beta[:, ok], resid[:, ok])     # (n_cond, V_ok), Sigma^-1/2 whitened
+    return calc_avg_distance(beta_white, cond_vec, part_vec, session, metric=metric)
 
 
 def _residuals_at_candidate_voxels(R_all, bmf, voxel_indx, struct):
@@ -172,10 +164,10 @@ class Searchlight():
         """
 
         print('loading and prewhitening betas...')
-        reginfo   = RegInfo(sn, self.glm)
-        betas     = load_betas(sn, self.glm)                             # volume image (X, Y, Z, n_cond)
-        residuals = load_residuals(sn, self.glm, self.residual_fname)    # ResMS volume
-        beta_pw   = betas.get_fdata() / np.sqrt(residuals.get_fdata()[:, :, :, None])   # univariate prewhitening
+        reginfo   = betas.RegInfo(sn, self.glm)
+        beta_img  = betas.load_betas(sn, self.glm)                             # volume image (X, Y, Z, n_cond)
+        residuals = betas.load_residuals(sn, self.glm, self.residual_fname)    # ResMS volume
+        beta_pw   = beta_img.get_fdata() / np.sqrt(residuals.get_fdata()[:, :, :, None])   # univariate prewhitening
 
         n_out = len(self.metric_labels)
         for H in gl.Hem:
@@ -186,11 +178,11 @@ class Searchlight():
             for session in self.sessions:
                 print(f'running searchlight {H}, session {session}...')
 
-                keep           = runs_to_keep(reginfo.cond_vec, session=session)
+                keep           = util.runs_to_keep(reginfo.cond_vec, session=session)
                 function_args  = {'cond_vec': reginfo.cond_vec[keep], 
                                   'part_vec': reginfo.part_vec[keep],
                                   'session' : session}
-                beta_vol       = nb.Nifti2Image(beta_pw[:, :, :, keep], affine=betas.affine, header=betas.header)
+                beta_vol       = nb.Nifti2Image(beta_pw[:, :, :, keep], affine=beta_img.affine, header=beta_img.header)
 
                 result = np.asarray(SL.run_parallel(beta_vol, self.metric_fn, function_args=function_args, nargout=n_out))
                 result = result[:, None] if result.ndim == 1 else result   # (n_centers, n_out)
@@ -229,11 +221,11 @@ class Searchlight():
         """
 
         print('loading betas and residual timeseries...')
-        reginfo   = RegInfo(sn, self.glm)
-        betas     = load_betas(sn, self.glm)                             # volume image (X, Y, Z, n_cond)
-        beta_data = betas.get_fdata(dtype=np.float32)                    # raw betas, whitened per searchlight
-        res_cifti = load_residuals(sn, self.glm, self.residual_fname)    # residual.dtseries.nii (cifti)
-        R_all     = np.asarray(res_cifti.dataobj, dtype=np.float32)      # (n_timepoints, n_grayordinates)
+        reginfo   = betas.RegInfo(sn, self.glm)
+        beta_img  = betas.load_betas(sn, self.glm)                             # volume image (X, Y, Z, n_cond)
+        beta_data = beta_img.get_fdata(dtype=np.float32)                       # raw betas, whitened per searchlight
+        res_cifti = betas.load_residuals(sn, self.glm, self.residual_fname)    # residual.dtseries.nii (cifti)
+        R_all     = np.asarray(res_cifti.dataobj, dtype=np.float32)            # (n_timepoints, n_grayordinates)
         bmf       = res_cifti.header.get_axis(1)
 
         n_out = len(self.metric_labels)
@@ -249,7 +241,7 @@ class Searchlight():
             for session in self.sessions:
                 print(f'running searchlight {H}, session {session}...')
 
-                keep          = runs_to_keep(reginfo.cond_vec, session=session)
+                keep          = util.runs_to_keep(reginfo.cond_vec, session=session)
                 data          = np.vstack([beta_cand[keep], resid_cand])   # betas on top of residuals
                 function_args = {'cond_vec': reginfo.cond_vec[keep],
                                  'part_vec': reginfo.part_vec[keep],

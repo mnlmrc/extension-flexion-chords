@@ -58,6 +58,11 @@ def searchlight_theta(sns=gl.participants, glm=GLM, sessions=gl.sessions, multiv
     searchlight_distance(sns=sns, glm=glm, metric='theta',
                          sessions=sessions, multivariate_pw=multivariate_pw)
 
+def searchlight_cosine(sns=gl.participants, glm=GLM, sessions=gl.sessions, multivariate_pw=True):
+    """THETA: angular distance (arccos of the cosine similarity) between chords."""
+    searchlight_distance(sns=sns, glm=glm, metric='cosine',
+                         sessions=sessions, multivariate_pw=multivariate_pw)
+
 
 def make_group_maps(sns=gl.participants, glm=GLM, metric='crossnobis', sessions=gl.sessions):
     """SUMMARY: pool one metric's subject maps into group maps.

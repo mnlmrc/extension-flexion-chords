@@ -123,7 +123,7 @@ def main(what=None, **kwargs):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: all)')
-    parser.add_argument('--sn', type=int, default=None, help='participant number, single.trial only (default: all participants)')
+    parser.add_argument('--sns', nargs='+', type=int, default=gl.participants, help='participant number, single.trial only (default: all participants)')
     parser.add_argument('--sessions', nargs='+', type=int, default=None, help='session numbers, single.trial only (default: all sessions)')
     args = parser.parse_args()
 

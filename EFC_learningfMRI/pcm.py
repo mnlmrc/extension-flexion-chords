@@ -97,9 +97,9 @@ def make_models(sn):
 
     order = np.array(get_trained_and_untrained(sn)).astype(int)
 
-    G_force_raw = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.raw.npy')), sn, order)
-    G_force_abs = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.abs.npy')), sn, order)
-    G_force_der = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.der.npy')), sn, order)
+    # G_force_raw = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.raw.npy')), sn, order)
+    # G_force_abs = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.abs.npy')), sn, order)
+    # G_force_der = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.der.npy')), sn, order)
 
     G_finger, G_pattern, G_flexion = subj_spec_models(order=order)
 

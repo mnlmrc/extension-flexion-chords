@@ -6,7 +6,7 @@ import pandas as pd
 import nibabel as nb
 import nitools as nt
 from nitools import spm
-
+import inspect
 import EFC_learningfMRI.globals as gl
 import EFC_learningfMRI.util as util
 
@@ -105,7 +105,9 @@ FUNC = {
 def main(what=None, **kwargs):
     """Run one step. `kwargs` (`sns`, `glm`, `atlas`) are forwarded to the step."""
     if what is not None:
-        FUNC[what](**kwargs)
+        func = FUNC[what] # select function
+        accepted = inspect.signature(func).parameters # find what parameters are acceptable
+        func(**{k: v for k, v in kwargs.items() if k in accepted}) # run the function
 
 
 if __name__ == '__main__':

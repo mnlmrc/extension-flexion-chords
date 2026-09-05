@@ -1,5 +1,5 @@
 import argparse
-
+import inspect
 import EFC_learningfMRI.betas as betas
 import EFC_learningfMRI.surface as surface
 import EFC_learningfMRI.globals as gl
@@ -30,17 +30,23 @@ def average_contrasts_difference(sns=None, glm=3, stat='con'):
 
 
 FUNC = {
-    'avg_activation_in_rois'     : roi_activation,
+    'avg_activation_rois'     : roi_activation,
     'smooth_contrast_in_subjs'   : smooth_contrasts,
     'smoothened_avg_contrast'    : average_contrasts,
     'smoothened_avg_diff_tr_untr': average_contrasts_difference,
 }
 
 
-def main(what=None, **kwargs):
-    """Run one step."""
+def main(what, **kwargs):
+    """Run one step.
+
+    `kwargs` are forwarded to the step (`glm=`, `metrics=`, `repetitions=`, ...).
+    """
+
     if what is not None:
-        FUNC[what](**kwargs)
+        func = FUNC[what] # select function
+        accepted = inspect.signature(func).parameters # find what parameters are acceptable
+        func(**{k: v for k, v in kwargs.items() if k in accepted}) # run the function
 
 
 if __name__ == '__main__':
