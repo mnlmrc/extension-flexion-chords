@@ -52,8 +52,9 @@ def _G_rows(G, sn, **labels):
                          'chord'     : chord,
                          'pair'      : '-'.join(sorted([str(chords[ri]), str(chords[ci])])),
                          'crossnobis': D[ri, ci],
-                         'cosine'    : cos[ri, ci],
-                         'theta'     : np.arccos(cos[ri, ci])})
+                         'cosine'    : 1 - cos[ri, ci],
+                         #'theta'     : np.arccos(cos[ri, ci])
+                         })
     return rows
 
 
@@ -138,10 +139,10 @@ def _ancova_beta(df, metric):
     g = df[f'{metric}_group'].to_numpy()
     c = df.chord.map({'trained'  : .5, 
                       'untrained': -.5}).to_numpy()
-    X = np.c_[g, c, np.ones(len(df))]
+    X = np.c_[g, c,] # np.ones(len(df))]
     B = np.linalg.pinv(X) @ y
 
-    return B[0], B[1], B[2]
+    return B[0], B[1] #, B[2]
 
 
 def make_ancova_dataframe(glm=3, atlas_name='ROI', rois=None, sns=gl.participants, metrics=('crossnobis', 'cosine')):
@@ -179,7 +180,7 @@ def make_ancova_dataframe(glm=3, atlas_name='ROI', rois=None, sns=gl.participant
 
         cell = df[(df.sn==sn) & (df.Hem == H) & (df.roi == roi) & (df.session == session)]
 
-        slope, adjusted, intercept = _ancova_beta(cell, metric)
+        slope, adjusted = _ancova_beta(cell, metric)
 
         rows.append({'sn'       : sn,
                      'Hem'      : H,
@@ -188,7 +189,8 @@ def make_ancova_dataframe(glm=3, atlas_name='ROI', rois=None, sns=gl.participant
                      'metric'   : metric,
                      'adjusted' : adjusted,
                      'slope'    : slope,
-                     'intercept': intercept})
+                     #'intercept': intercept
+                     })
 
     pd.DataFrame(rows).to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity_ancova.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
 
@@ -431,8 +433,8 @@ def make_scaling_dataframe(sns=None, glm=3, atlas_name='ROI', ref_session=3, pre
         G_tar = np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', f'{prefix}.within_session.{session}.glm{glm}.{H}.{roi}.npy'))
 
         for chord, b in blocks.items():
-            rows.append(G_matrix.G_scaling(G_ref[b, b], G_tar[b, b])
-                        .assign(chord=chord, session=session, Hem=H, roi=roi, sn=sn))
+            G_scaled = G_matrix.G_scaling(G_ref[b, b], G_tar[b, b])
+            rows.append(G_scaled.assign(chord=chord, session=session, Hem=H, roi=roi, sn=sn))
 
     df = pd.concat(rows, ignore_index=True)
     df.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'scaling.between_session.glm{glm}.{atlas_name}.tsv'), sep='\t', index=False)
@@ -506,25 +508,28 @@ def make_likelihood_dataframe(sns=gl.participants, glm=3, atlas_name='ROI'):
     LL.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'likelihood.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
 
 
+# Step name -> function, grouped by what the step produces: the Gs, then the PCM fits
+# over them, then the tsvs collected from either.
 FUNC = {
-    'G_rois'                     : calc_G_rois,
-    'G_force'                    : calc_G_force,
-    'correlation'                : correlation_between_sessions,
-    'fit_component_model_rois'   : fit_component_model_rois,
-    'dataframe_distance_force'   : make_force_distance_dataframe,
-    'dataframe_distance_rois'    : make_rois_distance_dataframe,
-    'dataframe_distance_ancova'  : make_ancova_dataframe,
-    'dataframe_noise_ceiling'    : make_noise_ceiling_dataframe,
-    'dataframe_scaling'          : make_scaling_dataframe,
-    'dataframe_component_weight' : make_component_weight_dataframe,
-    'dataframe_likelihood'       : make_likelihood_dataframe,
+    'G_rois'                        : calc_G_rois,
+    'G_force'                       : calc_G_force,
+    'fit_correlation'               : correlation_between_sessions,
+    'fit_component'                 : fit_component_model_rois,
+    'dataframe_distance_rois'       : make_rois_distance_dataframe,
+    'dataframe_distance_force'      : make_force_distance_dataframe,
+    'dataframe_ancova'              : make_ancova_dataframe,
+    'dataframe_noise_ceiling'       : make_noise_ceiling_dataframe,
+    'dataframe_scaling'             : make_scaling_dataframe,
+    'dataframe_component_weight'    : make_component_weight_dataframe,
+    'dataframe_component_likelihood': make_likelihood_dataframe,
 }
 
 
 def main(what, **kwargs):
     """Run one step.
 
-    `kwargs` are forwarded to the step (`glm=`, `metrics=`, `repetitions=`, ...).
+    `kwargs` are forwarded to the step (`glm=`, `metrics=`, `repetitions=`, ...), but only
+    the ones it accepts.
     """
 
     if what is not None:
@@ -534,8 +539,8 @@ def main(what, **kwargs):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Calculate the second moment matrices of the neural and force patterns.')
-    parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: dataframe_neural)')
-    parser.add_argument('--glm', type=int, default=None, help='GLM the betas come from, G_rois and dataframe_neural only (default: the step default, 3)')
+    parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: G_rois for subj116)')
+    parser.add_argument('--glm', type=int, default=None, help='GLM the betas come from (default: the step default, 3)')
     parser.add_argument('--sns', nargs='+', type=int, default=gl.participants, help='participant ids to include in the analysis')
     args = parser.parse_args()
 

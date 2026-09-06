@@ -115,8 +115,8 @@ def G_scaling(G_ref, G_tar):
     """
     K = G_ref.shape[0]
     
-    act_ref = np.sqrt(np.diag(G_ref)).mean()
-    act_tar = np.sqrt(np.diag(G_tar)).mean()
+    act_ref = np.nanmean(np.sqrt(np.diag(G_ref)))
+    act_tar = np.nanmean(np.sqrt(np.diag(G_tar)))
 
     scale = act_tar / act_ref
 
@@ -125,8 +125,8 @@ def G_scaling(G_ref, G_tar):
 
     mask = np.tri(K, k=-1, dtype=bool)
  
-    diss_ref = D_ref[mask].mean()
-    diss_obs = D_tar[mask].mean()
+    diss_ref = np.nanmean(D_ref[mask])
+    diss_obs = np.nanmean(D_tar[mask])
     diss_pred = scale * diss_ref
  
     return pd.DataFrame({

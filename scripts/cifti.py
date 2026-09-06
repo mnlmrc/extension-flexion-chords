@@ -1,4 +1,5 @@
 import argparse
+import inspect
 
 import EFC_learningfMRI.betas as betas
 import EFC_learningfMRI.globals as gl
@@ -24,16 +25,21 @@ def residual(sns=gl.participants, glm=3):
 
 # Step name -> function. Each step is independent, built straight from the glm betas.
 FUNC = {
-    'beta'    : beta,
-    'contrast': contrast,
-    'residual': residual,
+    'cifti_beta'    : beta,
+    'cifti_contrast': contrast,
+    'cifti_residual': residual,
 }
 
 
-def main(what=None, **kwargs):
-    """Run one step. `kwargs` (`sns`, `glm`) are forwarded to the step."""
+def main(what, **kwargs):
+    """Run one step.
+
+    `kwargs` are forwarded to the step (`sns=`, `glm=`), but only the ones it accepts.
+    """
     if what is not None:
-        FUNC[what](**kwargs)
+        func     = FUNC[what]                                       # select function
+        accepted = inspect.signature(func).parameters               # find what parameters are acceptable
+        func(**{k: v for k, v in kwargs.items() if k in accepted})  # run the function
 
 
 if __name__ == '__main__':
@@ -47,6 +53,6 @@ if __name__ == '__main__':
     main(args.what, **kwargs)
 
     if args.what is None:
-        main('beta',     **kwargs)
-        main('contrast', **kwargs)
-        main('residual', **kwargs)
+        main('cifti_beta',     **kwargs)
+        main('cifti_contrast', **kwargs)
+        main('cifti_residual', **kwargs)

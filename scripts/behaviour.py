@@ -1,4 +1,5 @@
 import argparse
+import inspect
 import os
 
 import EFC_learningfMRI.globals as gl
@@ -102,39 +103,46 @@ def force_by_session_avg():
     sess_rep_force.to_csv(os.path.join(gl.baseDir, gl.behavDir, FSESS_REP), sep='\t', index=False)
 
 
-# Step name -> function, in the order the full run does them.
+# Step name -> function, in the order the full run does them. Every step here writes a
+# tsv, so the key is the output file's stem: <domain>_<unit>[_<shape>].
 FUNC = {
-    'single_session'  : behaviour_single_session,
-    'trial'           : behaviour_by_trial,
-    'session'         : performance_by_session,
-    'force.trial.wide': force_by_trial_wide,
-    'force.run.wide'  : force_by_run_wide,
-    'force.trial.long': force_by_trial_long,
-    'force.session'   : force_by_session_avg,
+    'parse_sessions'   : behaviour_single_session,
+    'behaviour_trial'  : behaviour_by_trial,
+    'behaviour_session': performance_by_session,
+    'force_trial_wide' : force_by_trial_wide,
+    'force_run_wide'   : force_by_run_wide,
+    'force_trial_long' : force_by_trial_long,
+    'force_session'    : force_by_session_avg,
 }
 
 
-def main(what=None, **kwargs):
-    """Run one step. Extra kwargs (`sn`, `sessions`) only apply to the single-trial step."""
+def main(what, **kwargs):
+    """Run one step.
+
+    `kwargs` are forwarded to the step (`sns=`, `sessions=`, ...), but only the ones it
+    actually takes -- most steps read the tsv the previous one wrote and take nothing.
+    """
     if what is not None:
-        FUNC[what](**kwargs)
+        func     = FUNC[what]                                       # select function
+        accepted = inspect.signature(func).parameters               # find what parameters are acceptable
+        func(**{k: v for k, v in kwargs.items() if k in accepted})  # run the function
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='Parse the raw behavioural files and build the trial, session and force tables.')
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: all)')
-    parser.add_argument('--sns', nargs='+', type=int, default=gl.participants, help='participant number, single.trial only (default: all participants)')
-    parser.add_argument('--sessions', nargs='+', type=int, default=None, help='session numbers, single.trial only (default: all sessions)')
+    parser.add_argument('--sns', nargs='+', type=int, default=gl.participants, help='participant numbers, parse_sessions only (default: all participants)')
+    parser.add_argument('--sessions', nargs='+', type=int, default=None, help='session numbers, parse_sessions only (default: all sessions)')
     args = parser.parse_args()
 
     kwargs = {k: v for k, v in vars(args).items() if k != 'what' and v is not None}
     main(args.what, **kwargs)
 
     if args.what is None:
-        # main('single_session')
-        main('trial')
-        main('session')
-        main('force.trial.wide')
-        main('force.run.wide')
-        main('force.trial.long')
-        main('force.session')
+        # main('parse_sessions', **kwargs)
+        main('behaviour_trial',   **kwargs)
+        main('behaviour_session', **kwargs)
+        main('force_trial_wide',  **kwargs)
+        main('force_run_wide',    **kwargs)
+        main('force_trial_long',  **kwargs)
+        main('force_session',     **kwargs)

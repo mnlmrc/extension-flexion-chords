@@ -21,26 +21,29 @@ def average_contrasts(sns=gl.participants, glm=3, stat='con'):
     surface.average_smoothed_contrasts(sns=sns, glm=glm, stat=stat)
 
 
-def average_contrasts_difference(sns=None, glm=3, stat='con'):
+def average_contrasts_difference(glm=3, stat='con'):
     """Group trained - untrained difference from the map written by `average_contrasts`.
 
-    `sns` is unused here.
+    No `sns`: it reads the group map, which is already pooled over participants. `main`
+    filters the extra kwarg out.
     """
     surface.average_smoothed_contrasts_difference(glm=glm, stat=stat)
 
 
+# Step name -> function, in the order the full run does them.
 FUNC = {
-    'avg_activation_rois'     : roi_activation,
-    'smooth_contrast_in_subjs'   : smooth_contrasts,
-    'smoothened_avg_contrast'    : average_contrasts,
-    'smoothened_avg_diff_tr_untr': average_contrasts_difference,
+    'activation_rois'    : roi_activation,
+    'smooth_contrasts'   : smooth_contrasts,
+    'contrast_group'     : average_contrasts,
+    'contrast_group_diff': average_contrasts_difference,
 }
 
 
 def main(what, **kwargs):
     """Run one step.
 
-    `kwargs` are forwarded to the step (`glm=`, `metrics=`, `repetitions=`, ...).
+    `kwargs` are forwarded to the step (`sns=`, `glm=`, `stat=`), but only the ones it
+    accepts.
     """
 
     if what is not None:
@@ -54,7 +57,15 @@ if __name__ == '__main__':
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: all)')
     parser.add_argument('--glm', type=int, default=None, help='GLM the betas/contrasts come from (default: the step default, 3)')
     parser.add_argument('--sns', nargs='+', type=int, default=gl.participants, help='participant IDs to include')
+    parser.add_argument('--atlas_name', default=None, help='atlas, activation_rois only (default: the step default, ROI)')
+    parser.add_argument('--stat', default=None, help='contrast statistic, the contrast_* steps only (default: the step default, con)')
     args = parser.parse_args()
 
     kwargs = {k: v for k, v in vars(args).items() if k != 'what' and v is not None}
     main(args.what, **kwargs)
+
+    if args.what is None:
+        main('activation_rois',     **kwargs)
+        main('contrast_smooth',     **kwargs)
+        main('contrast_group',      **kwargs)
+        main('contrast_group_diff', **kwargs)

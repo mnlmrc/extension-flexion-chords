@@ -1,4 +1,5 @@
 import argparse
+import inspect
 import os
 
 import EFC_learningfMRI.globals as gl
@@ -52,15 +53,21 @@ def make_hemispheres(sns=gl.participants, glm=3):
 
 # Step name -> function. Both steps are independent, built from the surfaces and glm mask.
 FUNC = {
-    'make_rois'       : make_rois,
-    'make_hemispheres': make_hemispheres,
+    'rois_cortical'   : make_rois,
+    'rois_hemispheres': make_hemispheres,
 }
 
 
-def main(what=None, **kwargs):
-    """Run one step. `kwargs` (`sns`, `glm`, `atlas_name`) are forwarded to the step."""
+def main(what, **kwargs):
+    """Run one step.
+
+    `kwargs` are forwarded to the step (`sns=`, `glm=`, `atlas_name=`), but only the ones
+    it accepts -- `rois_hemispheres` takes no atlas.
+    """
     if what is not None:
-        FUNC[what](**kwargs)
+        func     = FUNC[what]                                       # select function
+        accepted = inspect.signature(func).parameters               # find what parameters are acceptable
+        func(**{k: v for k, v in kwargs.items() if k in accepted})  # run the function
 
 
 if __name__ == '__main__':
@@ -68,12 +75,12 @@ if __name__ == '__main__':
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: all)')
     parser.add_argument('--glm', type=int, default=None, help='GLM whose mask.nii bounds the ROIs (default: the step default, 3)')
     parser.add_argument('--sns', nargs='+', type=int, default=[116], help='participant numbers (default: all participants)')
-    parser.add_argument('--atlas_name', default=None, help='atlas, make_rois only (default: the step default, ROI)')
+    parser.add_argument('--atlas_name', default=None, help='atlas, rois_cortical only (default: the step default, ROI)')
     args = parser.parse_args()
 
     kwargs = {k: v for k, v in vars(args).items() if k != 'what' and v is not None}
     main(args.what, **kwargs)
 
     if args.what is None:
-        main('make_rois')
-        main('make_hemispheres')
+        main('rois_cortical',    **kwargs)
+        main('rois_hemispheres', **kwargs)

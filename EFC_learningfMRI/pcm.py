@@ -97,9 +97,9 @@ def make_models(sn):
 
     order = np.array(get_trained_and_untrained(sn)).astype(int)
 
-    # G_force_raw = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.raw.npy')), sn, order)
-    # G_force_abs = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.abs.npy')), sn, order)
-    # G_force_der = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.der.npy')), sn, order)
+    G_force_raw = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.raw.npy')), sn, order)
+    G_force_abs = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.abs.npy')), sn, order)
+    G_force_der = G_sorted(np.load(os.path.join(gl.baseDir, gl.pcmDir, f'subj{sn}', 'G_obs_raw.within_session.3.force.der.npy')), sn, order)
 
     G_finger, G_pattern, G_flexion = subj_spec_models(order=order)
 
@@ -108,16 +108,16 @@ def make_models(sn):
     M.append(pcm.FixedModel(    'type',        G_tr_untr)) 
     M.append(pcm.FixedModel(    'trained',     G_tr)) 
     M.append(pcm.FixedModel(    'untrained',   G_untr))
-    #M.append(pcm.FixedModel(    'finger',      G_finger))
+    M.append(pcm.FixedModel(    'finger',      G_finger))
     M.append(pcm.FixedModel(    'pattern',     G_pattern))
     M.append(pcm.FixedModel(    'flexion',     G_flexion))
-    #M.append(pcm.FixedModel(    'force_raw',   G_force_raw))
-    #M.append(pcm.FixedModel(    'force_abs',   G_force_abs))
-    #M.append(pcm.FixedModel(    'force_der',   G_force_der))
+    # M.append(pcm.FixedModel(    'force_raw',   G_force_raw))
+    # M.append(pcm.FixedModel(    'force_abs',   G_force_abs))
+    # M.append(pcm.FixedModel(    'force_der',   G_force_der))
     M.append(pcm.ComponentModel('component', np.array([G_tr_untr   / np.trace(G_tr_untr),
                                                        G_tr        / np.trace(G_tr),
                                                        G_untr      / np.trace(G_untr),
-                                                       #G_finger    / np.trace(G_finger),
+                                                       G_finger    / np.trace(G_finger),
                                                        G_pattern   / np.trace(G_pattern),
                                                        G_flexion   / np.trace(G_flexion),
                                                     #    G_force_raw / np.trace(G_force_raw),
@@ -129,7 +129,7 @@ def make_models(sn):
     comp_names = ['type', 
                   'trained',
                   'untrained',
-                #   'finger', 
+                  'finger', 
                   'pattern',
                   'flexion',
                 #   'force_raw',

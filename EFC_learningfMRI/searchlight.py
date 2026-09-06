@@ -28,7 +28,8 @@ def make_searchlight(sn):
 # returns them. The pooling below finds the two chord-group columns by their
 # '-trained'/'-untrained' suffix, so a new metric only has to keep that suffix.
 METRIC_LABELS = {
-    'crossnobis': ('encoding', 'encoding-trained', 'encoding-untrained'),
+    'crossnobis': ('crossnobis', 'crossnobis-trained', 'crossnobis-untrained'),
+    'cosine'     : ('cosine',    'cosine-trained',    'cosine-untrained'),
     'theta'     : ('theta',    'theta-trained',    'theta-untrained'),
 }
 METRICS = tuple(METRIC_LABELS)
@@ -54,13 +55,16 @@ def calc_avg_distance(data, cond_vec, part_vec, session, metric='crossnobis'):
     if metric == 'crossnobis':
         D = pcm.G_to_dist(G_obs)
     elif metric == 'cosine':
-        D = pcm.G_to_cosine(G_obs)
+        D = 1 - pcm.G_to_cosine(G_obs)
     elif metric == 'theta':
-        D = np.arccos(pcm.G_to_cosine(G_obs))     # G_to_cosine already clips to [-1, 1]
+        D = pcm.G_to_cosine(G_obs)  
 
     tot, trained, untrained = util.split_trained_untrained(D)
 
-    return tot, trained.mean(), untrained.mean()
+    if metric == 'theta':
+        return np.arccos(tot), np.arccos(trained.mean()), np.arccos(untrained.mean())
+    else:
+        return tot, trained.mean(), untrained.mean()
 
 
 def _whiten_mnn(B, R, eps=1e-8):

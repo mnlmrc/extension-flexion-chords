@@ -14,9 +14,9 @@ import EFC_learningfMRI.util as util
 _tAx = np.arange(-3, 17)
 
 
-def bold_in_roi(SPM, path_glm, path_rois, atlas, H, roi):
+def bold_in_roi(SPM, path_glm, path_rois, atlas_name, H, roi):
     """Save raw, predicted and adjusted BOLD timeseries for a single ROI/hemisphere."""
-    roi_img = nb.load(os.path.join(path_rois, f'{atlas}.{H}.{roi}.nii'))
+    roi_img = nb.load(os.path.join(path_rois, f'{atlas_name}.{H}.{roi}.nii'))
     coords  = nt.get_mask_coords(roi_img)
     y_raw   = nt.sample_images(SPM.rawdata_files, coords)
     y_scl   = y_raw * SPM.gSF[:, None] # rescale y_raw
@@ -27,11 +27,11 @@ def bold_in_roi(SPM, path_glm, path_rois, atlas, H, roi):
 
     
 
-def save_bold_rois(sns=gl.participants, glm=3, atlas='ROI', rois=None):
+def save_bold_rois(sns=gl.participants, glm=3, atlas_name='ROI', rois=None):
     """Save the per-ROI BOLD timeseries (hat / raw / adj) for each participant."""
 
     if rois is None:
-        rois = gl.rois[atlas]
+        rois = gl.rois[atlas_name]
 
     for sn in sns:
         path_glm  = os.path.join(gl.baseDir, f'glm{glm}', f'subj{sn}')
@@ -43,14 +43,14 @@ def save_bold_rois(sns=gl.participants, glm=3, atlas='ROI', rois=None):
         for H in gl.Hem:
             for roi in rois:
                 print(f'doing participant {sn}, {H}, {roi}')
-                y_scl, y_hat, y_adj = bold_in_roi(SPM, path_glm, path_rois, atlas, H, roi)
+                y_scl, y_hat, y_adj = bold_in_roi(SPM, path_glm, path_rois, atlas_name, H, roi)
 
                 np.save(os.path.join(path_glm, f'BOLD.hat.{H}.{roi}.npy'), y_hat)
                 np.save(os.path.join(path_glm, f'BOLD.raw.{H}.{roi}.npy'), y_scl)
                 np.save(os.path.join(path_glm, f'BOLD.adj.{H}.{roi}.npy'), y_adj)
 
 
-def segment_bold(sns=gl.participants, glm=3, atlas='ROI'):
+def segment_bold(sns=gl.participants, glm=3, atlas_name='ROI'):
     """Cut the adjusted BOLD around each trial onset into one tidy timecourse table.
 
     Reloads the `BOLD.adj.<H>.<roi>.npy` timeseries written by `save_bold`, cuts them
@@ -59,7 +59,7 @@ def segment_bold(sns=gl.participants, glm=3, atlas='ROI'):
     """
     df = pd.DataFrame()
     for H in gl.Hem:
-        for roi in gl.rois[atlas]:
+        for roi in gl.rois[atlas_name]:
             for sn in sns:
                 print(f'doing participant {sn}, {H}, {roi}, glm {glm}')
 
@@ -95,19 +95,23 @@ def segment_bold(sns=gl.participants, glm=3, atlas='ROI'):
     return df
 
 
-# Step name -> function. `segment` reloads the BOLD.adj files that `timeseries` writes.
+# Step name -> function. `dataframe_bold` reloads the BOLD.adj files `bold_rois` writes.
 FUNC = {
-    'timeseries': save_bold_rois,
-    'segment'   : segment_bold,
+    'bold_rois'     : save_bold_rois,
+    'dataframe_bold': segment_bold,
 }
 
 
-def main(what=None, **kwargs):
-    """Run one step. `kwargs` (`sns`, `glm`, `atlas`) are forwarded to the step."""
+def main(what, **kwargs):
+    """Run one step.
+
+    `kwargs` are forwarded to the step (`sns=`, `glm=`, `atlas_name=`, `rois=`), but only
+    the ones it accepts -- `dataframe_bold` takes no `rois`.
+    """
     if what is not None:
-        func = FUNC[what] # select function
-        accepted = inspect.signature(func).parameters # find what parameters are acceptable
-        func(**{k: v for k, v in kwargs.items() if k in accepted}) # run the function
+        func     = FUNC[what]                                       # select function
+        accepted = inspect.signature(func).parameters               # find what parameters are acceptable
+        func(**{k: v for k, v in kwargs.items() if k in accepted})  # run the function
 
 
 if __name__ == '__main__':
@@ -115,8 +119,8 @@ if __name__ == '__main__':
     parser.add_argument('--what', default=None, choices=list(FUNC), help='which step to run (default: all)')
     parser.add_argument('--glm', type=int, default=None, help='GLM the BOLD/onsets come from (default: the step default, 3)')
     parser.add_argument('--sns', nargs='+', type=int, default=None, help='participant numbers (default: all participants)')
-    parser.add_argument('--rois', nargs='+', type=str, default=None, help='which rois of atlas to use (default: all)')
-    parser.add_argument('--atlas', default=None, help='atlas whose ROIs to use (default: the step default, ROI)')
+    parser.add_argument('--rois', nargs='+', type=str, default=None, help='which rois of the atlas to use, bold_rois only (default: all)')
+    parser.add_argument('--atlas_name', default=None, help='atlas whose ROIs to use (default: the step default, ROI)')
     args = parser.parse_args()
 
     kwargs = {k: v for k, v in vars(args).items() if k != 'what' and v is not None}
@@ -124,5 +128,5 @@ if __name__ == '__main__':
 
     if args.what is None:
         pass
-        # main('timeseries', **kwargs)
-        # main('segment', **kwargs)
+        # main('bold_rois',      **kwargs)
+        # main('dataframe_bold', **kwargs)
