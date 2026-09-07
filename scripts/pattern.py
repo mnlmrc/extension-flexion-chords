@@ -133,16 +133,17 @@ def make_force_distance_dataframe(metrics=('raw', 'abs', 'der'), sns=gl.particip
 def _ancova_beta(df, metric):
     """Trained - untrained difference in ``metric``, adjusted for the group geometry.
 
-    Returns (beta, slope actually used).
+    Returns (slope_group, slope_chord, intercept).
     """
     y = df[metric].to_numpy()
     g = df[f'{metric}_group'].to_numpy()
-    c = df.chord.map({'trained'  : .5, 
-                      'untrained': -.5}).to_numpy()
-    X = np.c_[g, c,] # np.ones(len(df))]
+    c = df.chord.map({'trained'          : 1, 
+                      'untrained'        : -1}
+                      ).to_numpy()
+    X = np.c_[g, c, np.ones(len(df))]
     B = np.linalg.pinv(X) @ y
 
-    return B[0], B[1] #, B[2]
+    return B[0], B[1], B[2]
 
 
 def make_ancova_dataframe(glm=3, atlas_name='ROI', rois=None, sns=gl.participants, metrics=('crossnobis', 'cosine')):
@@ -155,9 +156,15 @@ def make_ancova_dataframe(glm=3, atlas_name='ROI', rois=None, sns=gl.participant
     happened to be given carries an intrinsic trained-untrained difference that has
     nothing to do with training. ``*_group`` (the across-participant mean of that pair
     in ``ref_session``, pooled over training status, so it is training-neutral) is that
-    intrinsic geometry, and this is the ANCOVA that takes it out: one adjusted
-    trained-untrained difference per participant x Hem x roi x session x metric, to be
-    tested against zero across participants..
+    intrinsic geometry, and this is the ANCOVA that takes it out.
+
+    One row per chord pair, as in the dissimilarity tsv it is built from: each metric
+    column holds that pair's dissimilarity with the group geometry regressed out, so
+    ``crossnobis``/``cosine`` here are the adjusted values, not the raw ones. The fit
+    itself is one per participant x Hem x roi x session x metric, and its
+    ``{metric}_slope_chord`` (the adjusted trained-untrained difference, to be tested
+    against zero across participants), ``{metric}_slope_group`` and
+    ``{metric}_intercept`` are repeated across that cell's rows.
 
     The reference is rebuilt from the tsv rather than taken from its ``*_group``
     columns, so ``crossval``/``ref_session`` can be changed without recomputing the Gs.
@@ -173,26 +180,31 @@ def make_ancova_dataframe(glm=3, atlas_name='ROI', rois=None, sns=gl.participant
     df = pd.read_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t')
     df = df[df.chord.isin(['trained', 'untrained'])]
 
-    rows = []
-    for sn, H, roi, session, metric in itertools.product(sns, gl.Hem, rois, gl.sessions, metrics):
+    cells = []
+    for sn, H, roi, session in itertools.product(sns, gl.Hem, rois, gl.sessions):
 
-        print(f'ancova, participant {sn}, {metric}, {H}, {roi}, session {session}...')
+        print(f'ancova, participant {sn}, {H}, {roi}, session {session}...')
 
         cell = df[(df.sn==sn) & (df.Hem == H) & (df.roi == roi) & (df.session == session)]
 
-        slope, adjusted = _ancova_beta(cell, metric)
+        adjusted = cell[['sn', 'Hem', 'roi', 'session', 'chord', 'pair']].copy()
+        for metric in metrics:
 
-        rows.append({'sn'       : sn,
-                     'Hem'      : H,
-                     'roi'      : roi,
-                     'session'  : session,
-                     'metric'   : metric,
-                     'adjusted' : adjusted,
-                     'slope'    : slope,
-                     #'intercept': intercept
-                     })
+            slope_group, slope_chord, intercept = _ancova_beta(cell, metric)
 
-    pd.DataFrame(rows).to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity_ancova.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
+            # the pair's own dissimilarity with the group geometry taken out, centred on
+            # the cell's mean covariate so the adjusted values stay on the scale of y
+            g = cell[f'{metric}_group']
+            adjusted[metric]                  = cell[metric] - slope_group * (g - g.mean())
+            adjusted[f'{metric}_slope_chord'] = slope_chord
+            adjusted[f'{metric}_slope_group'] = slope_group
+            adjusted[f'{metric}_intercept']   = intercept
+
+        cells.append(adjusted)
+
+    df_ancova = pd.concat(cells, ignore_index=True)
+
+    df_ancova.to_csv(os.path.join(gl.baseDir, gl.pcmDir, f'dissimilarity_ancova.within_session.{atlas_name}.glm{glm}.tsv'), sep='\t', index=False)
 
 
 def _make_fname(session, repetition):
